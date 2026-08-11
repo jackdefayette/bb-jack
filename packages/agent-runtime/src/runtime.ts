@@ -1409,6 +1409,7 @@ function createAgentRuntimeInternal(
               envVars: {},
               execOpts,
               instructions,
+              skillRoots: threadRuntimeConfigs.get(threadId)?.skillRoots,
             }),
           };
           const cmd = requireProviderRequestPlan({
@@ -1499,6 +1500,7 @@ function createAgentRuntimeInternal(
               envVars: {},
               execOpts,
               instructions,
+              skillRoots: threadRuntimeConfigs.get(threadId)?.skillRoots,
             }),
           };
           const cmd = requireProviderRequestPlan({

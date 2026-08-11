@@ -405,6 +405,27 @@ rl.on("line", (line) => {
         ),
       );
 
+      await runtime.runTurn({
+        clientRequestId: "creq_222222223s",
+        threadId: "t1",
+        input: [promptTextInput({ text: "use the selected skill" })],
+        options: fullRuntimeOptions,
+      });
+      const turnStartCommand = recordedCommands.find(
+        (command) => command.type === "turn/start",
+      );
+      expect(turnStartCommand?.type).toBe("turn/start");
+      if (!turnStartCommand || turnStartCommand.type !== "turn/start") {
+        throw new Error("Expected turn/start command");
+      }
+      expect(turnStartCommand.options.skillRoots).toEqual([
+        {
+          id: "bb-cli",
+          providerId: "codex",
+          skillDirectoryRootPath: skillRootPath,
+        },
+      ]);
+
       await runtime.shutdown();
     });
 
