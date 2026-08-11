@@ -677,21 +677,66 @@ function toCodexReasoningEffort(
   return codexEffort;
 }
 
-function toCodexUserInput(input: PromptInput[]): CodexUserInput[] {
-  return input.map((chunk): CodexUserInput => {
+function resolveCodexSkillPath(args: {
+  name: string;
+  skillRoots: readonly AgentRuntimeSkillRoot[];
+}): string | null {
+  for (const skillRoot of args.skillRoots) {
+    if (skillRoot.providerId !== "codex") {
+      continue;
+    }
+    const rootPath = path.resolve(skillRoot.skillDirectoryRootPath);
+    const skillPath = path.resolve(rootPath, args.name, "SKILL.md");
+    if (
+      !isPathInsideOrEqual(rootPath, skillPath) ||
+      !fs.existsSync(skillPath)
+    ) {
+      continue;
+    }
+    return skillPath;
+  }
+  return null;
+}
+
+function toCodexUserInput(
+  input: PromptInput[],
+  skillRoots: readonly AgentRuntimeSkillRoot[],
+): CodexUserInput[] {
+  return input.flatMap((chunk): CodexUserInput[] => {
     switch (chunk.type) {
-      case "text":
-        return { type: "text", text: chunk.text, text_elements: [] };
+      case "text": {
+        const selectedSkills = chunk.mentions.flatMap(
+          (mention): CodexUserInput[] => {
+            const resource = mention.resource;
+            if (resource.kind !== "command" || resource.source !== "skill") {
+              return [];
+            }
+            const skillPath = resolveCodexSkillPath({
+              name: resource.name,
+              skillRoots,
+            });
+            return skillPath === null
+              ? []
+              : [{ type: "skill", name: resource.name, path: skillPath }];
+          },
+        );
+        return [
+          { type: "text", text: chunk.text, text_elements: [] },
+          ...selectedSkills,
+        ];
+      }
       case "image":
-        return { type: "image", url: chunk.url };
+        return [{ type: "image", url: chunk.url }];
       case "localImage":
-        return { type: "localImage", path: chunk.path };
+        return [{ type: "localImage", path: chunk.path }];
       case "localFile":
-        return {
-          type: "text",
-          text: `[Attached file: ${chunk.path}]`,
-          text_elements: [],
-        };
+        return [
+          {
+            type: "text",
+            text: `[Attached file: ${chunk.path}]`,
+            text_elements: [],
+          },
+        ];
     }
   });
 }
@@ -2012,7 +2057,7 @@ export function createCodexProviderAdapter(
             method: "turn/start",
             params: {
               threadId: command.providerThreadId,
-              input: toCodexUserInput(input),
+              input: toCodexUserInput(input, command.options.skillRoots ?? []),
               approvalPolicy: permissionSettings.approvalPolicy,
               approvalsReviewer: permissionSettings.approvalsReviewer,
               sandboxPolicy: permissionSettings.sandboxPolicy,
@@ -2030,6 +2075,7 @@ export function createCodexProviderAdapter(
               expectedTurnId: command.expectedTurnId,
               input: toCodexUserInput(
                 flattenPromptInputGroups(command.input, command.inputGroups),
+                command.options.skillRoots ?? [],
               ),
             },
           };

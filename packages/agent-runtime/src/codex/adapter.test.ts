@@ -1974,6 +1974,69 @@ describe("codex provider adapter", () => {
     });
   });
 
+  it("buildCommand turn/start sends selected skills as structured Codex input", () => {
+    const skillRootPath = mkdtempSync(
+      path.join(tmpdir(), "bb-codex-skill-input-"),
+    );
+    const skillDirectoryPath = path.join(skillRootPath, "lean");
+    mkdirSync(skillDirectoryPath);
+    const skillPath = path.join(skillDirectoryPath, "SKILL.md");
+    writeFileSync(skillPath, "---\nname: lean\n---\n");
+
+    try {
+      const adapter = createCodexProviderAdapter();
+      const cmd = adapter.buildCommandPlan({
+        type: "turn/start",
+        clientRequestId: "creq_222222228s",
+        threadId: "t1",
+        providerThreadId: "codex-1",
+        input: [
+          {
+            type: "text",
+            text: "/lean Keep this focused.",
+            mentions: [
+              {
+                start: 0,
+                end: 5,
+                resource: {
+                  kind: "command",
+                  trigger: "/",
+                  name: "lean",
+                  source: "skill",
+                  origin: "user",
+                  label: "lean",
+                  argumentHint: null,
+                },
+              },
+            ],
+          },
+        ],
+        options: {
+          ...fullProviderExecutionContext,
+          skillRoots: [
+            {
+              id: "user-skills",
+              providerId: "codex",
+              skillDirectoryRootPath: skillRootPath,
+            },
+          ],
+        },
+      });
+
+      expect(cmd).toMatchObject({
+        method: "turn/start",
+        params: {
+          input: [
+            { type: "text", text: "/lean Keep this focused." },
+            { type: "skill", name: "lean", path: skillPath },
+          ],
+        },
+      });
+    } finally {
+      rmSync(skillRootPath, { recursive: true, force: true });
+    }
+  });
+
   it("buildCommand turn/start maps standalone builtin /compact to native compact start", () => {
     const adapter = createCodexProviderAdapter();
     const cmd = adapter.buildCommandPlan({
