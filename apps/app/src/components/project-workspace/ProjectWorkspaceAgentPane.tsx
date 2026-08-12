@@ -135,7 +135,16 @@ export function ProjectWorkspaceAgentPane({
       // The grid resolves saved IDs against the sidebar projection to discard
       // stale deleted threads. Refresh that projection before publishing a new
       // ID so the grid never clears a thread that was just created.
-      await refetchSidebarNavigationAfterWorkspaceAgentStart({ queryClient });
+      try {
+        await refetchSidebarNavigationAfterWorkspaceAgentStart({ queryClient });
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unable to refresh the new agent";
+        setStartError(`${message}. Retry to attach the existing task and keep this draft.`);
+        throw error;
+      }
       onAgentStarted(result);
     },
     [onAgentStarted, projectId, projectName, queryClient, role, workspaceTabId],

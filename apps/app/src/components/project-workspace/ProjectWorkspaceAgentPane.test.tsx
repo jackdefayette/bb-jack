@@ -117,7 +117,7 @@ describe("ProjectWorkspaceAgentPane", () => {
     expect(mocks.refetchQueries).toHaveBeenCalledWith({
       queryKey: ["sidebarNavigation"],
       type: "active",
-    });
+    }, { throwOnError: true });
   });
 
   it("refreshes the thread projection before attaching a new agent", async () => {
@@ -133,6 +133,28 @@ describe("ProjectWorkspaceAgentPane", () => {
 
     await waitFor(() => expect(onAgentStarted).toHaveBeenCalledTimes(1));
     expect(sequence).toEqual(["refreshed", "attached"]);
+  });
+
+  it("keeps the draft and retries idempotently after projection refresh fails", async () => {
+    const onAgentStarted = vi.fn();
+    const result = { taskId: "task_1", taskKey: "ONE-1", threadId: "thr_1", environmentId: "env_1" };
+    mocks.rpc.mockResolvedValue(result);
+    mocks.refetchQueries
+      .mockRejectedValueOnce(new Error("Sidebar refresh failed"))
+      .mockResolvedValueOnce(undefined);
+    render(pane({ onAgentStarted }));
+    const draft = screen.getByLabelText("draft-project-workspace:workspace_one:builder") as HTMLInputElement;
+    fireEvent.change(draft, { target: { value: "preserve me" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit project-workspace:workspace_one:builder" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Retry to attach the existing task"));
+    expect(onAgentStarted).not.toHaveBeenCalled();
+    expect(draft.value).toBe("preserve me");
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit project-workspace:workspace_one:builder" }));
+    await waitFor(() => expect(onAgentStarted).toHaveBeenCalledWith(result));
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+    expect(draft.value).toBe("preserve me");
   });
 
   it("rejects a mismatched project without calling Tasks", async () => {

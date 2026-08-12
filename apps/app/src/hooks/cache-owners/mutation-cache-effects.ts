@@ -109,7 +109,7 @@ export async function refetchSidebarNavigationAfterWorkspaceAgentStart({
   await queryClient.refetchQueries({
     queryKey: sidebarNavigationQueryKey(),
     type: "active",
-  });
+  }, { throwOnError: true });
 }
 
 export function invalidateThreadListQueries({
