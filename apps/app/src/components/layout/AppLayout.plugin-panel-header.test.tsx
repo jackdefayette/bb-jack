@@ -163,6 +163,18 @@ function renderPluginPanelRoute(): void {
   );
 }
 
+function renderProjectWorkspaceRoute(): void {
+  render(
+    <MemoryRouter
+      initialEntries={["/projects/proj_one/workspaces/workspace_one"]}
+    >
+      <AppLayout>
+        <div>Project workspace body</div>
+      </AppLayout>
+    </MemoryRouter>,
+  );
+}
+
 describe("AppLayout plugin panel header", () => {
   beforeEach(() => {
     viewportState.compact = false;
@@ -187,5 +199,16 @@ describe("AppLayout plugin panel header", () => {
     renderPluginPanelRoute();
 
     expect(screen.queryByTestId("app-page-header")).toBeNull();
+  });
+
+  it("lets the project tab rail own the top chrome without padded dead space", () => {
+    renderProjectWorkspaceRoute();
+
+    expect(screen.queryByTestId("app-page-header")).toBeNull();
+    const main = screen.getByText("Project workspace body").parentElement;
+    expect(main?.tagName).toBe("MAIN");
+    if (!main) throw new Error("Project workspace content main was not rendered");
+    expect(main.className).toContain("p-0");
+    expect(main.className).not.toContain("p-4");
   });
 });

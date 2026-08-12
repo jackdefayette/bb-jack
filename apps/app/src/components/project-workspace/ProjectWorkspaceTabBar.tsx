@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
@@ -7,6 +7,13 @@ import {
   getProjectWorkspaceRoutePath,
   getRootComposeRoutePath,
 } from "@/lib/route-paths";
+import {
+  CHROME_ROW_HEIGHT_CLASS,
+  getBbDesktopInfo,
+  MACOS_WINDOW_DRAG_CLASS,
+  MACOS_WINDOW_NO_DRAG_CLASS,
+  shouldUseMacosDesktopChrome,
+} from "@/lib/bb-desktop";
 import { useProjectWorkspaceTabs } from "./ProjectWorkspaceTabsProvider";
 
 export interface ProjectWorkspaceTabBarProps {
@@ -17,6 +24,8 @@ export function ProjectWorkspaceTabBar({
   activeTabId,
 }: ProjectWorkspaceTabBarProps) {
   const navigate = useNavigate();
+  const [desktopInfo] = useState(getBbDesktopInfo);
+  const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
   const { data } = useSidebarNavigation();
   const { tabs, selectTab, closeTab } = useProjectWorkspaceTabs();
   const activeTabRef = useRef<HTMLButtonElement | null>(null);
@@ -72,11 +81,17 @@ export function ProjectWorkspaceTabBar({
   };
 
   return (
-    <div className="relative z-20 shrink-0 border-b border-border bg-canvas px-2 pt-1.5">
+    <header
+      className={cn(
+        CHROME_ROW_HEIGHT_CLASS,
+        "relative z-20 shrink-0 border-b border-border bg-surface-scrim px-2",
+        usesDesktopChrome && MACOS_WINDOW_DRAG_CLASS,
+      )}
+    >
       <div
         role="tablist"
         aria-label="Project workspaces"
-        className="no-scrollbar flex min-w-0 items-end gap-1 overflow-x-auto"
+        className="no-scrollbar flex h-full min-w-0 items-end gap-1 overflow-x-auto pt-2"
       >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
@@ -93,10 +108,11 @@ export function ProjectWorkspaceTabBar({
             <div
               key={tab.id}
               className={cn(
-                "group relative flex h-8 max-w-56 shrink-0 items-center rounded-t-lg border border-b-0 transition-colors",
+                MACOS_WINDOW_NO_DRAG_CLASS,
+                "group relative flex h-9 max-w-56 shrink-0 items-center rounded-t-lg border border-b-0 transition-colors",
                 isActive
-                  ? "border-border bg-background text-foreground shadow-[0_-1px_0_color-mix(in_oklch,var(--ink)_5%,transparent)]"
-                  : "border-transparent bg-canvas text-muted-foreground hover:border-border/70 hover:bg-muted/45 hover:text-foreground",
+                  ? "border-border bg-canvas text-foreground shadow-[0_-1px_0_color-mix(in_oklch,var(--ink)_5%,transparent)]"
+                  : "border-transparent bg-transparent text-muted-foreground hover:border-border/70 hover:bg-muted/45 hover:text-foreground",
                 isStale && "border-dashed text-muted-foreground",
               )}
             >
@@ -148,13 +164,13 @@ export function ProjectWorkspaceTabBar({
               {isActive ? (
                 <span
                   aria-hidden="true"
-                  className="absolute -bottom-px left-0 right-0 h-px bg-background"
+                  className="absolute -bottom-px left-0 right-0 h-px bg-canvas"
                 />
               ) : null}
             </div>
           );
         })}
       </div>
-    </div>
+    </header>
   );
 }

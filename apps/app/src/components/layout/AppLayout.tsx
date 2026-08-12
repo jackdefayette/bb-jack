@@ -72,6 +72,7 @@ import {
   isProjectlessProjectId,
   isToolsRoutePath,
   PLUGIN_PANEL_ROUTE_PATH,
+  PROJECT_WORKSPACE_ROUTE_PATH,
   SETTINGS_ROUTE_PATH,
 } from "@/lib/route-paths";
 import { useQuickCreateProjectController } from "@/hooks/useQuickCreateProject";
@@ -510,6 +511,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     PLUGIN_PANEL_ROUTE_PATH,
     location.pathname,
   );
+  const isProjectWorkspaceView =
+    matchPath(PROJECT_WORKSPACE_ROUTE_PATH, location.pathname) !== null;
   const pluginPanel = pluginPanelMatch
     ? navPanels.find(
         (candidate) =>
@@ -573,6 +576,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const showHeader =
     !isThreadView &&
     !isRootView &&
+    !isProjectWorkspaceView &&
     !(splitWorkspaceActive && pluginPanelMatch !== null);
   const [desktopInfo] = useState(getBbDesktopInfo);
   const desktopWindowState = useDesktopWindowState();
@@ -866,7 +870,12 @@ export function AppLayout({ children }: AppLayoutProps) {
                       meta={meta}
                     />
                   ) : null}
-                  <main className="flex min-h-0 flex-1 flex-col p-4 md:p-5">
+                  <main
+                    className={cn(
+                      "flex min-h-0 flex-1 flex-col",
+                      isProjectWorkspaceView ? "p-0" : "p-4 md:p-5",
+                    )}
+                  >
                     {children}
                   </main>
                 </div>
