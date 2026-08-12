@@ -78,6 +78,11 @@ describe("tasks route grammar", () => {
       { kind: "all" },
       { kind: "active" },
       { kind: "manage" },
+      {
+        kind: "bb-project",
+        bbProjectId: "proj_demo",
+        createToken: "7",
+      },
       { kind: "task", taskKey: "TSK-4" },
       { kind: "project", projectId: PROJECT_ID, view: "list" },
       { kind: "project", projectId: PROJECT_ID, view: "board" },
@@ -171,6 +176,89 @@ describe("task pager", () => {
 });
 
 describe("tasks app shell", () => {
+  it("fails closed when no tracker project is linked to the bb project", async () => {
+    const slot = renderSlot(
+      app.navPanels[0]!,
+      { subPath: "bb-project/proj_demo" },
+      { rpc: seededRpc() },
+    );
+    await slot.findByText(/No Tasks project is linked/);
+  });
+
+  it("fails closed when multiple tracker projects share the bb project link", async () => {
+    const linked = { ...project, linkedBbProjectId: "proj_demo" };
+    const slot = renderSlot(
+      app.navPanels[0]!,
+      { subPath: "bb-project/proj_demo" },
+      {
+        rpc: seededRpc({
+          listProjects: () => ({
+            projects: [
+              linked,
+              {
+                ...linked,
+                id: "01HZZZZZZZZZZZZZZZZZZZZZP2",
+                prefix: "ALT",
+              },
+            ],
+          }),
+        }),
+      },
+    );
+    await slot.findByText(/Multiple Tasks projects are linked/);
+  });
+
+  it("opens project-scoped task creation inside the compact linked view", async () => {
+    const createCalls: Array<Record<string, unknown>> = [];
+    const slot = renderSlot(
+      app.navPanels[0]!,
+      { subPath: "bb-project/proj_demo?create=1" },
+      {
+        rpc: seededRpc({
+          listProjects: () => ({
+            projects: [{ ...project, linkedBbProjectId: "proj_demo" }],
+          }),
+          listLabels: () => ({ labels: [] }),
+          createTask: (input: Record<string, unknown>) => {
+            createCalls.push(input);
+            return {
+              ok: true,
+              task: {
+                id: "01HZZZZZZZZZZZZZZZZZZZZZT1",
+                projectId: PROJECT_ID,
+                number: 5,
+                key: "TSK-5",
+                title: String(input.title),
+                description: "",
+                status: "todo",
+                priority: "none",
+                dueDate: null,
+                parentTaskId: null,
+                position: 1,
+                createdAt: "2026-07-15T00:00:00.000Z",
+                updatedAt: "2026-07-15T00:00:00.000Z",
+                labelIds: [],
+              },
+            };
+          },
+        }),
+      },
+    );
+    await slot.findByRole("dialog");
+    expect(slot.getByText("New task")).toBeTruthy();
+    fireEvent.change(slot.getByLabelText("Task title"), {
+      target: { value: "Shared project history" },
+    });
+    fireEvent.click(slot.getByRole("button", { name: "Create task" }));
+    await waitFor(() => expect(createCalls).toHaveLength(1));
+    expect(createCalls[0]).toMatchObject({
+      projectId: PROJECT_ID,
+      title: "Shared project history",
+    });
+    await slot.findByRole("button", { name: "Back to tasks" });
+    expect(slot.navigateCalls).toEqual([]);
+  });
+
   it("keeps the first-use sidebar expanded without writing a preference", async () => {
     const slot = renderSlot(
       app.navPanels[0]!,
@@ -659,9 +747,13 @@ describe("tasks app shell", () => {
   });
 
   it("shows the empty state and opens the New project dialog", async () => {
-    const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, {
-      rpc: emptyRpc,
-    });
+    const slot = renderSlot(
+      app.navPanels[0]!,
+      { subPath: "" },
+      {
+        rpc: emptyRpc,
+      },
+    );
     await slot.findByText("No projects yet");
     fireEvent.click(slot.getByRole("button", { name: /New project/ }));
     await slot.findByText("Projects group tasks under a shared key prefix.");
@@ -697,18 +789,26 @@ describe("tasks app shell", () => {
   });
 
   it("routes 'manage' to the manage panel via the sidebar footer", async () => {
-    const slot = renderSlot(app.navPanels[0]!, { subPath: "manage" }, {
-      rpc: seededRpc({ listLabels: () => ({ labels: [] }) }),
-    });
+    const slot = renderSlot(
+      app.navPanels[0]!,
+      { subPath: "manage" },
+      {
+        rpc: seededRpc({ listLabels: () => ({ labels: [] }) }),
+      },
+    );
     await slot.findByText("Labels, agent presets, and folders.");
     // The sidebar footer row is highlighted and present on every route.
     expect(slot.getByRole("button", { name: "Manage" })).toBeDefined();
   });
 
   it("opens quick-create on bare 'c' but not from editable targets or dialogs", async () => {
-    const slot = renderSlot(app.navPanels[0]!, { subPath: "all" }, {
-      rpc: seededRpc(),
-    });
+    const slot = renderSlot(
+      app.navPanels[0]!,
+      { subPath: "all" },
+      {
+        rpc: seededRpc(),
+      },
+    );
     await slot.findByText("Tasks Plugin");
     fireEvent.keyDown(window, { key: "c" });
     // The New task dialog mounts (project select defaults to the only project).
@@ -734,22 +834,26 @@ describe("tasks app shell", () => {
       builtin: false,
       createdAt: "2026-07-15T00:00:00.000Z",
     };
-    const slot = renderSlot(app.navPanels[0]!, { subPath: "all" }, {
-      rpc: seededRpc({
-        listPresets: () => ({
-          presets: [
-            basePreset,
-            {
-              ...basePreset,
-              id: "01HZZZZZZZZZZZZZZZZZZZZZE2",
-              name: "Worktree env",
-              environmentKind: "new-worktree",
-              baseBranch: "main",
-            },
-          ],
+    const slot = renderSlot(
+      app.navPanels[0]!,
+      { subPath: "all" },
+      {
+        rpc: seededRpc({
+          listPresets: () => ({
+            presets: [
+              basePreset,
+              {
+                ...basePreset,
+                id: "01HZZZZZZZZZZZZZZZZZZZZZE2",
+                name: "Worktree env",
+                environmentKind: "new-worktree",
+                baseBranch: "main",
+              },
+            ],
+          }),
         }),
-      }),
-    });
+      },
+    );
     await slot.findByText("Worktree env");
     expect(slot.getByText("Default env")).toBeDefined();
     expect(slot.getAllByLabelText("Spawns a new worktree")).toHaveLength(1);
@@ -757,14 +861,18 @@ describe("tasks app shell", () => {
 
   it("refetches sidebar data when invalidation channels fire", async () => {
     let projectCalls = 0;
-    const slot = renderSlot(app.navPanels[0]!, { subPath: "all" }, {
-      rpc: seededRpc({
-        listProjects: () => {
-          projectCalls += 1;
-          return { projects: [project] };
-        },
-      }),
-    });
+    const slot = renderSlot(
+      app.navPanels[0]!,
+      { subPath: "all" },
+      {
+        rpc: seededRpc({
+          listProjects: () => {
+            projectCalls += 1;
+            return { projects: [project] };
+          },
+        }),
+      },
+    );
     await slot.findByText("Tasks Plugin");
     const before = projectCalls;
     await slot.emitRealtime("projects:changed", { projectId: null });
