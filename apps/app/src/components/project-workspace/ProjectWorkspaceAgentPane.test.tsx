@@ -19,8 +19,8 @@ vi.mock("./ProjectWorkspaceEnvironmentRibbon", () => ({
   ProjectWorkspaceEnvironmentRibbon: () => <div data-testid="environment-ribbon" />,
 }));
 vi.mock("./ProjectWorkspacePaneFrame", () => ({
-  ProjectWorkspacePaneFrame: ({ actionLabel, children, title }: { actionLabel?: string; children: ReactNode; title: string }) => (
-    <section data-action-label={actionLabel}><h2>{title}</h2>{children}</section>
+  ProjectWorkspacePaneFrame: ({ actionLabel, children, headerAccessory, title }: { actionLabel?: string; children: ReactNode; headerAccessory?: ReactNode; title: string }) => (
+    <section data-action-label={actionLabel}><header><h2>{title}</h2>{headerAccessory}</header><main>{children}</main></section>
   ),
 }));
 vi.mock("@/components/plugin/PluginNewThreadComposer", () => ({
@@ -90,6 +90,17 @@ describe("ProjectWorkspaceAgentPane", () => {
     expect(screen.queryByText(/Start a builder task/u)).toBeNull();
     expect(screen.getByRole("heading", { name: "Build" }).closest("section")?.getAttribute("data-action-label")).toBe("Focus build chat");
     expect(screen.getByRole("heading", { name: "Review" }).closest("section")?.getAttribute("data-action-label")).toBe("Focus review chat");
+  });
+
+  it("moves active-chat environment details into the compact pane header", () => {
+    render(pane({ environmentId: "env_1", taskKey: "ONE-1", threadId: "thr_1" }));
+
+    const environmentControl = screen.getByTestId("environment-ribbon");
+    const chatBody = document.querySelector('[data-workspace-chat-body="builder"]');
+    expect(environmentControl.closest("header")).toBeTruthy();
+    expect(chatBody).toBeTruthy();
+    expect(chatBody?.contains(environmentControl)).toBe(false);
+    expect(screen.getByTestId("thread-detail")).toBeTruthy();
   });
 
   it("accepts a valid project-default result without an environment", async () => {

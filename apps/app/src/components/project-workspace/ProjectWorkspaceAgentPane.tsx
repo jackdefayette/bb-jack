@@ -154,6 +154,18 @@ export function ProjectWorkspaceAgentPane({
     <ProjectWorkspacePaneFrame
       title={label}
       icon="AiContentGenerator01"
+      className="text-workspace-foreground"
+      headerAccessory={
+        threadId ? (
+          <ProjectWorkspaceEnvironmentRibbon
+            projectName={projectName}
+            environmentId={environmentId}
+            role={role}
+            taskKey={taskKey}
+            threadId={threadId}
+          />
+        ) : null
+      }
       actionLabel={
         isExpanded
           ? "Restore four quadrants"
@@ -165,14 +177,7 @@ export function ProjectWorkspaceAgentPane({
     >
       {threadId ? (
         <PaneContext.Provider value={paneContext}>
-          <div className="flex min-h-0 flex-1 flex-col">
-            <ProjectWorkspaceEnvironmentRibbon
-              projectName={projectName}
-              environmentId={environmentId}
-              role={role}
-              taskKey={taskKey}
-              threadId={threadId}
-            />
+          <div className="flex min-h-0 flex-1 flex-col" data-workspace-chat-body={role}>
             <ThreadDetailView
               surface="pane"
               projectId={projectId}

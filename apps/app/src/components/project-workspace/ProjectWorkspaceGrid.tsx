@@ -189,7 +189,7 @@ export function ProjectWorkspaceGrid({
 
   return (
     <main
-      className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-px overflow-hidden bg-border/70"
+      className="bb-project-workspace-surface grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-px overflow-hidden bg-workspace-border text-workspace-foreground"
       aria-label={`${tab.projectName} project workspace`}
       data-focus-mode={tab.focusMode}
     >

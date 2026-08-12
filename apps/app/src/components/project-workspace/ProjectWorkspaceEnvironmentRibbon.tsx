@@ -1,4 +1,9 @@
-import { useEnvironment, useEnvironmentWorkStatus } from "@/hooks/queries/environment-queries";
+import { Icon } from "@bb/shared-ui/icon";
+import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
+import {
+  useEnvironment,
+  useEnvironmentWorkStatus,
+} from "@/hooks/queries/environment-queries";
 
 interface ProjectWorkspaceEnvironmentRibbonProps {
   environmentId: string | null;
@@ -12,7 +17,32 @@ function valueOrUnavailable(value: string | null | undefined): string {
   return value && value.length > 0 ? value : "Unavailable";
 }
 
-/** Compact, deliberately literal checkout metadata for one agent environment. */
+function closeTabStatus(
+  environmentId: string | null,
+  isWorktree: boolean | undefined,
+): string {
+  if (environmentId === null) {
+    return "Safe — no environment attached; no cleanup performed";
+  }
+  if (isWorktree === true) {
+    return "Safe — worktree retained; no cleanup performed";
+  }
+  if (isWorktree === false) {
+    return "Safe — checkout/environment remains; no cleanup performed";
+  }
+  return "Safe — environment remains; no cleanup performed";
+}
+
+function MetadataRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[6.25rem_minmax(0,1fr)] gap-3 py-1.5 text-xs">
+      <dt className="text-workspace-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words text-workspace-foreground">{value}</dd>
+    </div>
+  );
+}
+
+/** Header-sized environment control; detailed checkout facts stay one click away. */
 export function ProjectWorkspaceEnvironmentRibbon({
   environmentId,
   projectName,
@@ -26,7 +56,25 @@ export function ProjectWorkspaceEnvironmentRibbon({
   const status = useEnvironmentWorkStatus(environmentId, undefined, {
     enabled: environmentId !== null,
   });
-  const workspace = status.data?.outcome === "available" ? status.data.workspace : null;
+  const workspace =
+    status.data?.outcome === "available" ? status.data.workspace : null;
+  const record = environment.data;
+  const agentLabel = role === "builder" ? "Build" : "Review";
+  const environmentLabel =
+    environmentId === null
+      ? "No environment"
+      : (record?.name ??
+        workspace?.branch.currentBranch ??
+        record?.branchName ??
+        "Environment");
+  const branch = valueOrUnavailable(
+    workspace?.branch.currentBranch ?? record?.branchName,
+  );
+  const baseBranch = valueOrUnavailable(
+    workspace?.mergeBase?.mergeBaseBranch ??
+      record?.mergeBaseBranch ??
+      record?.baseBranch,
+  );
   const dirty = workspace
     ? workspace.workingTree.hasUncommittedChanges
       ? "Dirty"
@@ -35,21 +83,80 @@ export function ProjectWorkspaceEnvironmentRibbon({
   const aheadBehind = workspace?.mergeBase
     ? `${workspace.mergeBase.aheadCount} ahead / ${workspace.mergeBase.behindCount} behind`
     : "Unavailable";
-  const record = environment.data;
+  const gitState =
+    record === undefined
+      ? "Unavailable"
+      : record.isGitRepo
+        ? "Git repository"
+        : "Not a Git repository";
 
   return (
-    <div className="flex shrink-0 flex-wrap gap-x-3 gap-y-0.5 border-b border-border/60 bg-sidebar/60 px-2.5 py-1 text-2xs text-muted-foreground">
-      <span title="Project">{projectName}</span>
-      <span title="Owning workspace agent">Agent: {role === "builder" ? "Build" : "Review"}</span>
-      <span title="Task key">Task {valueOrUnavailable(taskKey)}</span>
-      <span title="Thread">Thread {threadId}</span>
-      <span title="Environment name">Environment: {valueOrUnavailable(record?.name)}</span>
-      <span title="Repository or worktree path">Path: {valueOrUnavailable(record?.path)}</span>
-      <span title="Branch">{valueOrUnavailable(workspace?.branch.currentBranch ?? record?.branchName)}</span>
-      <span title="Base branch">{valueOrUnavailable(workspace?.mergeBase?.mergeBaseBranch ?? record?.mergeBaseBranch ?? record?.baseBranch)}</span>
-      <span title="Working tree">{dirty}</span>
-      <span title="Ahead / behind">{aheadBehind}</span>
-      <span title="Safe close behavior">Safe to close tab: yes; worktree retained</span>
-    </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${agentLabel} workspace details`}
+          onDoubleClick={(event) => event.stopPropagation()}
+          className="inline-flex h-6 max-w-48 items-center gap-1.5 rounded-md border border-workspace-border bg-workspace-raised px-2 text-2xs text-workspace-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Icon name="GitBranch" className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">{environmentLabel}</span>
+          <span
+            className={
+              dirty === "Dirty"
+                ? "size-1.5 shrink-0 rounded-full bg-warning"
+                : "size-1.5 shrink-0 rounded-full bg-workspace-muted-foreground"
+            }
+            aria-hidden
+          />
+          <Icon
+            name="ChevronDown"
+            className="size-3 shrink-0 text-workspace-muted-foreground"
+            aria-hidden
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        side="bottom"
+        sideOffset={6}
+        aria-label={`${agentLabel} workspace details`}
+        mobileTitle={`${agentLabel} workspace details`}
+        className="w-[min(28rem,calc(100vw-2rem))] border-workspace-border bg-workspace-raised p-3 text-workspace-foreground"
+      >
+        <div className="mb-2 flex items-center gap-2 border-b border-workspace-border pb-2">
+          <Icon
+            name="GitBranch"
+            className="size-4 text-workspace-muted-foreground"
+            aria-hidden
+          />
+          <div className="min-w-0">
+            <p className="truncate text-xs font-medium">{environmentLabel}</p>
+            <p className="truncate text-2xs text-workspace-muted-foreground">
+              {environmentId === null ? "Not attached" : environmentId}
+            </p>
+          </div>
+        </div>
+        <dl className="divide-y divide-workspace-border">
+          <MetadataRow label="Repository" value={projectName} />
+          <MetadataRow label="Git state" value={gitState} />
+          <MetadataRow
+            label="Exact path"
+            value={valueOrUnavailable(record?.path)}
+          />
+          <MetadataRow label="Branch" value={branch} />
+          <MetadataRow label="Base branch" value={baseBranch} />
+          <MetadataRow label="Agent" value={agentLabel} />
+          <MetadataRow label="Task" value={valueOrUnavailable(taskKey)} />
+          <MetadataRow label="Thread" value={threadId} />
+          <MetadataRow label="Working tree" value={dirty} />
+          <MetadataRow label="Ahead / behind" value={aheadBehind} />
+          <MetadataRow
+            label="Close tab"
+            value={closeTabStatus(environmentId, record?.isWorktree)}
+          />
+        </dl>
+      </PopoverContent>
+    </Popover>
   );
 }
