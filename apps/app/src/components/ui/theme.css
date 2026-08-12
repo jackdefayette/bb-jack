@@ -69,6 +69,11 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-workspace-canvas: var(--workspace-canvas);
+  --color-workspace-foreground: var(--workspace-foreground);
+  --color-workspace-muted-foreground: var(--workspace-muted-foreground);
+  --color-workspace-raised: var(--workspace-raised);
+  --color-workspace-border: var(--workspace-border);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
@@ -125,6 +130,33 @@
     --text-base: 1rem;
     --text-base--line-height: 1.5rem;
   }
+}
+
+/* The four-quadrant project desk is intentionally denser and darker than the
+ * surrounding shell. Remap semantic surfaces locally; the workspace tokens
+ * themselves remain palette-derived above, so Nord/Dracula/custom anchors keep
+ * their hue instead of receiving a stranded neutral overlay. */
+.bb-project-workspace-surface {
+  --background: var(--workspace-canvas);
+  --foreground: var(--workspace-foreground);
+  --card: var(--workspace-canvas);
+  --card-foreground: var(--workspace-foreground);
+  --sidebar: var(--workspace-raised);
+  --sidebar-foreground: var(--workspace-foreground);
+  --muted-foreground: var(--workspace-muted-foreground);
+  --border: var(--workspace-border);
+  --border-hairline: var(--workspace-border);
+  --border-seam: var(--workspace-border);
+  --input: var(--workspace-border);
+  --accent: var(--workspace-raised);
+  --accent-foreground: var(--workspace-foreground);
+  background-color: var(--workspace-canvas);
+  color: var(--workspace-foreground);
+}
+
+.bb-project-workspace-surface [data-project-workspace-pane],
+.bb-project-workspace-surface .bg-canvas {
+  background-color: var(--workspace-canvas);
 }
 
 @layer components {
@@ -485,6 +517,25 @@
     var(--canvas) 60%
   );
   --sidebar-ring: var(--primary);
+  /* Project workspaces use a focused graphite desk while preserving palette
+   * hue: every face and label is derived from the active canvas/ink anchors. */
+  --workspace-canvas: color-mix(in oklch, var(--ink) 94%, var(--canvas));
+  --workspace-foreground: color-mix(in oklch, var(--canvas) 90%, var(--ink));
+  --workspace-muted-foreground: color-mix(
+    in oklch,
+    var(--canvas) 68%,
+    var(--ink)
+  );
+  --workspace-raised: color-mix(
+    in oklch,
+    var(--workspace-foreground) 6%,
+    var(--workspace-canvas)
+  );
+  --workspace-border: color-mix(
+    in oklch,
+    var(--workspace-foreground) 18%,
+    var(--workspace-canvas)
+  );
   --font-sans: "Inter Variable", Inter, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Fira Code", monospace;
@@ -716,6 +767,23 @@
     var(--canvas) 67%
   );
   --sidebar-ring: var(--primary);
+  --workspace-canvas: color-mix(in oklch, var(--canvas) 96%, var(--ink));
+  --workspace-foreground: color-mix(in oklch, var(--ink) 94%, var(--canvas));
+  --workspace-muted-foreground: color-mix(
+    in oklch,
+    var(--ink) 74%,
+    var(--canvas)
+  );
+  --workspace-raised: color-mix(
+    in oklch,
+    var(--workspace-foreground) 6%,
+    var(--workspace-canvas)
+  );
+  --workspace-border: color-mix(
+    in oklch,
+    var(--workspace-foreground) 18%,
+    var(--workspace-canvas)
+  );
   --font-sans: "Inter Variable", Inter, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Fira Code", monospace;

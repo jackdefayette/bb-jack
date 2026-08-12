@@ -211,8 +211,12 @@ describe("theme.css neutral ramp", () => {
   }
 
   it("defines the same ramp tokens in light and dark", () => {
-    const light = [...rampSteps(modeBlock("light")).keys()].sort();
-    const dark = [...rampSteps(modeBlock("dark")).keys()].sort();
+    const coreRampTokens = (mode: "light" | "dark") =>
+      [...rampSteps(modeBlock(mode)).keys()]
+        .filter((token) => !token.startsWith("workspace-"))
+        .sort();
+    const light = coreRampTokens("light");
+    const dark = coreRampTokens("dark");
     expect(light).toEqual(dark);
   });
 
@@ -285,6 +289,44 @@ describe("theme.css semantic update surfaces", () => {
       );
     });
   }
+});
+
+describe("theme.css project workspace surfaces", () => {
+  for (const mode of MODES) {
+    it(`derives every ${mode} workspace surface from the active palette anchors`, () => {
+      const block = modeBlock(mode);
+      for (const token of [
+        "workspace-canvas",
+        "workspace-foreground",
+        "workspace-muted-foreground",
+        "workspace-raised",
+        "workspace-border",
+      ]) {
+        expect(variableValue(block, token)).toMatch(
+          /^color-mix\(\s*in oklch,/,
+        );
+      }
+      expect(variableValue(block, "workspace-canvas")).toContain(
+        "var(--canvas)",
+      );
+      expect(variableValue(block, "workspace-canvas")).toContain("var(--ink)");
+      expect(variableValue(block, "workspace-foreground")).toContain(
+        "var(--canvas)",
+      );
+      expect(variableValue(block, "workspace-foreground")).toContain(
+        "var(--ink)",
+      );
+    });
+  }
+
+  it("scopes the darker semantic remap to the four-quadrant project desk", () => {
+    const rule = css.match(
+      /\.bb-project-workspace-surface\s*\{([^}]*)\}/s,
+    )?.[1];
+    expect(rule).toContain("--background: var(--workspace-canvas)");
+    expect(rule).toContain("--foreground: var(--workspace-foreground)");
+    expect(rule).toContain("--border: var(--workspace-border)");
+  });
 });
 
 describe("theme.css desktop portal hit testing", () => {

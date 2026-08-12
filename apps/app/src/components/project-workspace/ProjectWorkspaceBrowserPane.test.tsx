@@ -92,6 +92,9 @@ describe("ProjectWorkspaceBrowserPane", () => {
     );
 
     expect(screen.getByTestId("browser")).toBeTruthy();
+    expect(
+      document.querySelector("[data-project-workspace-inspector]")?.className,
+    ).toContain("bg-workspace-canvas");
     expect(screen.getByTestId("file")).toBeTruthy();
     expect(screen.getByTestId("diff")).toBeTruthy();
     expect(mocks.paths).toHaveBeenLastCalledWith(

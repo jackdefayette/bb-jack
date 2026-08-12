@@ -193,8 +193,11 @@ function InspectorTabs({
     });
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-1 border-b border-border/60 bg-sidebar/50 px-2 py-1">
+    <div
+      className="flex min-h-0 flex-1 flex-col bg-workspace-canvas text-workspace-foreground"
+      data-project-workspace-inspector
+    >
+      <div className="flex shrink-0 items-center gap-1 border-b border-workspace-border bg-workspace-raised px-2 py-1">
         {(["browser", "files", "diff"] as const).map((view) => (
           <button
             key={view}

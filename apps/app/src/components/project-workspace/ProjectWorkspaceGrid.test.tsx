@@ -152,6 +152,8 @@ describe("ProjectWorkspaceGrid", () => {
     expect(workspace.className).toContain(
       "grid-rows-[minmax(0,1fr)_minmax(0,1fr)]",
     );
+    expect(workspace.className).toContain("bb-project-workspace-surface");
+    expect(workspace.className).toContain("bg-workspace-border");
     expect(
       Array.from(workspace.children).map((child) =>
         child.getAttribute("data-workspace-quadrant"),
