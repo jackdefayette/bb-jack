@@ -1051,10 +1051,11 @@ describe("host-daemon local schemas", () => {
 });
 
 describe("host-daemon command schemas", () => {
-  // Version 95 lets ACP sessions send context-window usage outside a turn.
-  // An older daemon omits these events, so it must update before connecting.
-  it("uses protocol version 95 for ACP context-window usage", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(95);
+  // Version 96 rejects Git roots above the configured workspace for
+  // repository discovery and branch commands. An older daemon can still
+  // return ancestor-repository data, so it must update before connecting.
+  it("uses protocol version 96 for exact workspace Git boundaries", () => {
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(96);
   });
 
   it("binds Plan cancellation to a required turn id and typed result", () => {
