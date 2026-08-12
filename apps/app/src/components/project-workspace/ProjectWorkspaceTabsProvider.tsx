@@ -52,6 +52,7 @@ interface ProjectWorkspaceTabsContextValue {
   tabs: readonly ProjectWorkspaceTab[];
   activeTabId: string | null;
   createTab: (input: CreateProjectWorkspaceTabInput) => ProjectWorkspaceTab;
+  openTab: (input: CreateProjectWorkspaceTabInput) => ProjectWorkspaceTab;
   selectTab: (tabId: string) => void;
   closeTab: (tabId: string) => void;
   updateTab: (tabId: string, update: ProjectWorkspaceTabUpdate) => void;
@@ -61,6 +62,15 @@ export const PROJECT_WORKSPACE_TABS_STORAGE_KEY =
   "bb.project-workspace-tabs.v1";
 export const ACTIVE_PROJECT_WORKSPACE_TAB_STORAGE_KEY =
   "bb.active-project-workspace-tab.v1";
+export const RECENTLY_CLOSED_PROJECT_WORKSPACE_TABS_STORAGE_KEY =
+  "bb.recently-closed-project-workspace-tabs.v1";
+
+interface RecentlyClosedProjectWorkspaceTabs {
+  version: 1;
+  tabs: ProjectWorkspaceTab[];
+}
+
+const RECENTLY_CLOSED_TAB_LIMIT = 20;
 
 const ProjectWorkspaceTabsContext =
   createContext<ProjectWorkspaceTabsContextValue | null>(null);
@@ -129,8 +139,7 @@ function parseProjectWorkspaceTab(value: unknown): ProjectWorkspaceTab | null {
     inspectorEnvironmentId: isNullableString(candidate.inspectorEnvironmentId)
       ? candidate.inspectorEnvironmentId
       : null,
-    inspectorEnvironmentPinned:
-      candidate.inspectorEnvironmentPinned === true,
+    inspectorEnvironmentPinned: candidate.inspectorEnvironmentPinned === true,
     inspectorFilePath: isNullableString(candidate.inspectorFilePath)
       ? candidate.inspectorFilePath
       : null,
@@ -163,6 +172,32 @@ export function parseProjectWorkspaceTabs(
   }
 }
 
+export function parseRecentlyClosedProjectWorkspaceTabs(
+  serialized: string | null,
+): RecentlyClosedProjectWorkspaceTabs {
+  if (serialized === null) return { version: 1, tabs: [] };
+  try {
+    const parsed: unknown = JSON.parse(serialized);
+    if (typeof parsed !== "object" || parsed === null) {
+      return { version: 1, tabs: [] };
+    }
+    const candidate = parsed as Record<string, unknown>;
+    if (candidate.version !== 1 || !Array.isArray(candidate.tabs)) {
+      return { version: 1, tabs: [] };
+    }
+    const seenIds = new Set<string>();
+    const tabs = candidate.tabs.flatMap((value) => {
+      const tab = parseProjectWorkspaceTab(value);
+      if (tab === null || seenIds.has(tab.id)) return [];
+      seenIds.add(tab.id);
+      return [tab];
+    });
+    return { version: 1, tabs };
+  } catch {
+    return { version: 1, tabs: [] };
+  }
+}
+
 function readTabs(): ProjectWorkspaceTab[] {
   if (typeof window === "undefined") return [];
   return parseProjectWorkspaceTabs(
@@ -184,6 +219,26 @@ function writeTabs(tabs: readonly ProjectWorkspaceTab[]): void {
   );
 }
 
+function readRecentlyClosedTabs(): ProjectWorkspaceTab[] {
+  if (typeof window === "undefined") return [];
+  return parseRecentlyClosedProjectWorkspaceTabs(
+    window.localStorage.getItem(
+      RECENTLY_CLOSED_PROJECT_WORKSPACE_TABS_STORAGE_KEY,
+    ),
+  ).tabs;
+}
+
+function writeRecentlyClosedTabs(tabs: readonly ProjectWorkspaceTab[]): void {
+  const value: RecentlyClosedProjectWorkspaceTabs = {
+    version: 1,
+    tabs: tabs.slice(-RECENTLY_CLOSED_TAB_LIMIT),
+  };
+  window.localStorage.setItem(
+    RECENTLY_CLOSED_PROJECT_WORKSPACE_TABS_STORAGE_KEY,
+    JSON.stringify(value),
+  );
+}
+
 function writeActiveTabId(tabId: string | null): void {
   if (tabId === null) {
     window.sessionStorage.removeItem(ACTIVE_PROJECT_WORKSPACE_TAB_STORAGE_KEY);
@@ -202,12 +257,26 @@ function createWorkspaceTabId(): string {
     : `workspace_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
+function findMostRecentlyClosedProjectTab(
+  tabs: readonly ProjectWorkspaceTab[],
+  projectId: string,
+): ProjectWorkspaceTab | undefined {
+  for (let index = tabs.length - 1; index >= 0; index -= 1) {
+    const tab = tabs[index];
+    if (tab?.projectId === projectId) return tab;
+  }
+  return undefined;
+}
+
 export function ProjectWorkspaceTabsProvider({
   children,
 }: {
   children: ReactNode;
 }) {
   const [tabs, setTabs] = useState<ProjectWorkspaceTab[]>(readTabs);
+  const [recentlyClosedTabs, setRecentlyClosedTabs] = useState<
+    ProjectWorkspaceTab[]
+  >(readRecentlyClosedTabs);
   const [storedActiveTabId, setStoredActiveTabId] = useState<string | null>(
     readActiveTabId,
   );
@@ -254,10 +323,53 @@ export function ProjectWorkspaceTabsProvider({
     [selectTab],
   );
 
+  const openTab = useCallback(
+    (input: CreateProjectWorkspaceTabInput): ProjectWorkspaceTab => {
+      const existingTab = tabs.find((tab) => tab.projectId === input.projectId);
+      if (existingTab) {
+        selectTab(existingTab.id);
+        return existingTab;
+      }
+      const retainedTab = findMostRecentlyClosedProjectTab(
+        recentlyClosedTabs,
+        input.projectId,
+      );
+      if (retainedTab === undefined) return createTab(input);
+      const restoredTab: ProjectWorkspaceTab = {
+        ...retainedTab,
+        projectName: input.projectName,
+      };
+
+      setTabs((current) => {
+        const next = [...current, restoredTab];
+        writeTabs(next);
+        return next;
+      });
+      setRecentlyClosedTabs((current) => {
+        const next = current.filter((tab) => tab.id !== retainedTab.id);
+        writeRecentlyClosedTabs(next);
+        return next;
+      });
+      selectTab(restoredTab.id);
+      return restoredTab;
+    },
+    [createTab, recentlyClosedTabs, selectTab, tabs],
+  );
+
   const closeTab = useCallback((tabId: string) => {
     setTabs((currentTabs) => {
       const closedIndex = currentTabs.findIndex((tab) => tab.id === tabId);
       if (closedIndex === -1) return currentTabs;
+      const closedTab = currentTabs[closedIndex];
+      if (closedTab === undefined) return currentTabs;
+      setRecentlyClosedTabs((current) => {
+        const next = [
+          ...current.filter((tab) => tab.id !== closedTab.id),
+          closedTab,
+        ].slice(-RECENTLY_CLOSED_TAB_LIMIT);
+        writeRecentlyClosedTabs(next);
+        return next;
+      });
       const nextTabs = currentTabs.filter((tab) => tab.id !== tabId);
       writeTabs(nextTabs);
       setStoredActiveTabId((currentActiveTabId) => {
@@ -290,8 +402,15 @@ export function ProjectWorkspaceTabsProvider({
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== PROJECT_WORKSPACE_TABS_STORAGE_KEY) return;
-      setTabs(parseProjectWorkspaceTabs(event.newValue));
+      if (event.key === PROJECT_WORKSPACE_TABS_STORAGE_KEY) {
+        setTabs(parseProjectWorkspaceTabs(event.newValue));
+        return;
+      }
+      if (event.key === RECENTLY_CLOSED_PROJECT_WORKSPACE_TABS_STORAGE_KEY) {
+        setRecentlyClosedTabs(
+          parseRecentlyClosedProjectWorkspaceTabs(event.newValue).tabs,
+        );
+      }
     };
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
@@ -302,8 +421,16 @@ export function ProjectWorkspaceTabsProvider({
   }, [activeTabId]);
 
   const value = useMemo<ProjectWorkspaceTabsContextValue>(
-    () => ({ tabs, activeTabId, createTab, selectTab, closeTab, updateTab }),
-    [activeTabId, closeTab, createTab, selectTab, tabs, updateTab],
+    () => ({
+      tabs,
+      activeTabId,
+      createTab,
+      openTab,
+      selectTab,
+      closeTab,
+      updateTab,
+    }),
+    [activeTabId, closeTab, createTab, openTab, selectTab, tabs, updateTab],
   );
 
   return (

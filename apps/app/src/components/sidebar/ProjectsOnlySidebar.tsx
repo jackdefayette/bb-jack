@@ -36,7 +36,8 @@ export function ProjectsOnlySidebar({
   const navigate = useNavigate();
   const navigation = useSidebarNavigation();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { tabs, activeTabId, createTab, selectTab } = useProjectWorkspaceTabs();
+  const { tabs, activeTabId, createTab, openTab, selectTab } =
+    useProjectWorkspaceTabs();
   const projectNamesById = useMemo(() => {
     const names = new Map<string, string>();
     if (navigation.data) {
@@ -101,9 +102,10 @@ export function ProjectsOnlySidebar({
         navigateToTab(existingTab.id, existingTab.projectId);
         return;
       }
-      createProjectTab(projectId, projectName);
+      const tab = openTab({ projectId, projectName });
+      navigateToTab(tab.id, tab.projectId);
     },
-    [activeTabId, createProjectTab, navigateToTab, tabs],
+    [activeTabId, navigateToTab, openTab, tabs],
   );
 
   const newProjectAction = onNewProject ? (
