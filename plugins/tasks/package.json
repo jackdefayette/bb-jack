@@ -48,6 +48,7 @@
   "devDependencies": {
     "@bb/plugin-build": "workspace:*",
     "@bb/plugin-sdk": "workspace:*",
+    "@bb/server-contract": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

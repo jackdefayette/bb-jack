@@ -30,6 +30,7 @@ export type * from "./areas/plugins.js";
 export type * from "./areas/projects.js";
 export type * from "./areas/providers.js";
 export type * from "./areas/status.js";
+export type * from "./areas/tasks.js";
 export type * from "./areas/system.js";
 export type * from "./areas/terminals.js";
 export type * from "./areas/theme.js";

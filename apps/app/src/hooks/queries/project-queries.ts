@@ -50,6 +50,8 @@ interface UseProjectPathSuggestionsArgs {
   limit?: number;
   includeFiles: boolean;
   includeDirectories: boolean;
+  /** File browsers opt in to an empty query; typeaheads remain query-gated. */
+  allowEmptyQuery?: boolean;
 }
 
 interface UseProjectCommandsArgs {
@@ -173,7 +175,9 @@ export function useProjectPathSuggestions(args: UseProjectPathSuggestionsArgs) {
     includeDirectories,
   } = args;
   const trimmedQuery = query?.trim() ?? "";
-  const enabled = Boolean(projectId) && trimmedQuery.length > 0;
+  const enabled =
+    Boolean(projectId) &&
+    (trimmedQuery.length > 0 || args.allowEmptyQuery === true);
   useProjectDetailRealtimeSubscription(projectId, { enabled });
 
   return useQuery<WorkspacePathListResponse>({
@@ -189,7 +193,7 @@ export function useProjectPathSuggestions(args: UseProjectPathSuggestionsArgs) {
     queryFn: ({ signal }) =>
       sdk.projects.paths({
         projectId: projectId ?? "",
-        query: trimmedQuery,
+        ...(trimmedQuery.length > 0 ? { query: trimmedQuery } : {}),
         limit: String(limit),
         includeFiles: includeFiles ? "true" : "false",
         includeDirectories: includeDirectories ? "true" : "false",

@@ -65,23 +65,24 @@ resolve on the invoking machine: inside an agent thread that is the thread's
 machine, otherwise the server's machine; pass `--machine <id-or-name>` to
 target another enrolled machine.
 
-| Command                                        | Purpose                                                                                                                             |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `bb tasks status`                              | Show the installed Tasks plugin name and version.                                                                                   |
-| `bb tasks project create\|list\|show\|update`  | Manage tracker projects, folders, colors, prefixes, and bb-project links.                                                           |
-| `bb tasks folder create\|list\|update`         | Organize tracker projects into nested folders.                                                                                      |
-| `bb tasks create`                              | Create a task with description, priority, labels, due date, optional parent, and file attachments (repeatable `--attach <path>`).   |
-| `bb tasks list`                                | Page/filter tasks by project, status, priority, label, active agents, or search text; supports `--sort`, `--limit`, and `--cursor`. |
-| `bb tasks show <key-or-id>`                    | Show the complete task record, including comments, attachments, subtasks, and attached threads.                                     |
-| `bb tasks update <key-or-id>`                  | Update status, priority, title, description, due date, or labels.                                                                   |
-| `bb tasks comment <key-or-id>`                 | Add a Markdown comment from inline text or a file; optionally notify the latest responding task agent.                              |
-| `bb tasks attachment add\|get\|list\|remove`   | Add, fetch, list, or remove attachments. Referenced attachments require `remove --remove-references`.                               |
-| `bb tasks preset list\|create\|update\|delete` | Manage reusable agent execution presets.                                                                                            |
-| `bb tasks delegate <key>`                      | Start and attach a new agent thread using a preset.                                                                                 |
-| `bb tasks attach <key-or-id>`                  | Attach the current bb thread to a task when it was not delegated from Tasks.                                                        |
-| `bb tasks threads <key>`                       | List the bb threads attached to a task.                                                                                             |
-| `bb tasks label create\|list\|delete`          | Manage project-scoped labels.                                                                                                       |
-| `bb tasks seed-demo --yes`                     | Create sample folders, projects, labels, tasks, and comments for evaluation.                                                        |
+| Command                                        | Purpose                                                                                                                                  |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `bb tasks status`                              | Show the installed Tasks plugin name and version.                                                                                        |
+| `bb tasks project create\|list\|show\|update`  | Manage tracker projects, folders, colors, prefixes, and bb-project links.                                                                |
+| `bb tasks folder create\|list\|update`         | Organize tracker projects into nested folders.                                                                                           |
+| `bb tasks create`                              | Create a task with description, priority, labels, due date, optional parent, and file attachments (repeatable `--attach <path>`).        |
+| `bb tasks list`                                | Page/filter tasks by project, status, priority, label, active agents, or search text; supports `--sort`, `--limit`, and `--cursor`.      |
+| `bb tasks show <key-or-id>`                    | Show the complete task record, including comments, attachments, subtasks, and attached threads.                                          |
+| `bb tasks update <key-or-id>`                  | Update status, priority, title, description, due date, or labels.                                                                        |
+| `bb tasks comment <key-or-id>`                 | Add a Markdown comment from inline text or a file; optionally notify the latest responding task agent.                                   |
+| `bb tasks attachment add\|get\|list\|remove`   | Add, fetch, list, or remove attachments. Referenced attachments require `remove --remove-references`.                                    |
+| `bb tasks preset list\|create\|update\|delete` | Manage reusable agent execution presets.                                                                                                 |
+| `bb tasks delegate <key>`                      | Start and attach a new agent thread using a preset.                                                                                      |
+| `bb tasks start-agent`                         | Create/attach an idempotent Builder or Reviewer workspace agent with an explicit project-default, fresh worktree, or reused environment. |
+| `bb tasks attach <key-or-id>`                  | Attach the current bb thread to a task when it was not delegated from Tasks.                                                             |
+| `bb tasks threads <key>`                       | List the bb threads attached to a task.                                                                                                  |
+| `bb tasks label create\|list\|delete`          | Manage project-scoped labels.                                                                                                            |
+| `bb tasks seed-demo --yes`                     | Create sample folders, projects, labels, tasks, and comments for evaluation.                                                             |
 
 Statuses are `backlog`, `todo`, `in_progress`, `in_review`, `done`, and
 `canceled`. Priorities are `urgent`, `high`, `medium`, `low`, and `none`.
@@ -111,6 +112,72 @@ attach artifacts, and move completed work to `in_review`.
 
 If work begins outside the Delegate action, the agent can associate its current
 thread with `bb tasks attach KEY`.
+
+## Workspace-agent CLI and SDK parity
+
+Use `start-agent` when a project workspace needs an authoritative Builder or
+Reviewer binding. `--workspace-key` is the stable tab/role idempotency key.
+The command returns the exact task, thread, and environment identities with
+`--json`; a completed retry with the same key and bb project returns that same
+binding. Closing a workspace tab does not remove its worktree.
+
+```sh
+# Server-owned project default
+bb tasks start-agent --workspace-key tab-1:builder --role builder \
+  --project-name Product --prompt "Implement the workspace action" \
+  --provider codex --model gpt-5.6-sol --reasoning high --permission full
+
+# New isolated worktree
+bb tasks start-agent --workspace-key tab-1:reviewer --role reviewer \
+  --project-name Product --prompt "Review the workspace action" \
+  --provider codex --model gpt-5.6-sol --reasoning high --permission full \
+  --environment worktree --machine "Mac Studio" --base-branch main --json
+
+# Existing environment
+bb tasks start-agent --workspace-key tab-2:builder --role builder \
+  --project-name Product --prompt "Continue the existing work" \
+  --provider codex --model gpt-5.6-sol --reasoning high --permission full \
+  --environment reuse --environment-id env_123 --json
+```
+
+`--bb-project` is inferred from the invoking thread when available; otherwise
+it is required. `--machine` is required for a new worktree, and
+`--environment-id` is required for reuse.
+
+Programmatic callers use the typed public SDK route. It validates the same
+input and output contract as the Tasks plugin RPC:
+
+```ts
+import { createNodeBbSdk } from "@bb/sdk/node";
+
+const sdk = createNodeBbSdk();
+const binding = await sdk.tasks.startAgent({
+  workspaceKey: "tab-1:builder",
+  bbProjectId: "proj_product",
+  projectName: "Product",
+  role: "builder",
+  request: {
+    projectId: "proj_product",
+    providerId: "codex",
+    model: "gpt-5.6-sol",
+    reasoningLevel: "high",
+    permissionMode: "full",
+    executionInputSources: {},
+    environment: { type: "project-default" },
+    input: [
+      {
+        type: "text",
+        text: "Implement the workspace action",
+        mentions: [],
+      },
+    ],
+  },
+});
+```
+
+`sdk.tasks.startAgent` requires the Tasks plugin to be installed and enabled.
+It returns the same authoritative task, thread, and nullable environment
+identity as `bb tasks start-agent --json`.
 
 ## Task mentions
 

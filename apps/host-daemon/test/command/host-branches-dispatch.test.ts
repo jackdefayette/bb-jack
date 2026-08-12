@@ -265,6 +265,32 @@ describe("host.list_branches dispatch", () => {
     });
   });
 
+  it("does not adopt ancestor refs for a configured non-repository directory", async () => {
+    const repoPath = await initBranchRepo();
+    const configuredProjectPath = path.join(repoPath, "configured-project");
+    await fs.mkdir(configuredProjectPath);
+    const harness = createHarness();
+
+    const result = await dispatchOnlineRpcCommand(
+      { type: "host.list_branches", path: configuredProjectPath, limit: 50 },
+      harness.dispatchOptions(),
+    );
+
+    expect(result).toEqual({
+      branches: [],
+      branchesTruncated: false,
+      checkout: { kind: "unknown", reason: "Path is not a git repository" },
+      defaultBranch: null,
+      defaultBranchRelation: null,
+      hasUncommittedChanges: false,
+      operation: { kind: "none" },
+      originDefaultBranch: null,
+      remoteBranches: [],
+      remoteBranchesTruncated: false,
+      selectedBranch: null,
+    });
+  });
+
   it("returns an empty list for missing paths", async () => {
     const parentPath = await makeTempDir("bb-host-branches-missing-parent-");
     const harness = createHarness();

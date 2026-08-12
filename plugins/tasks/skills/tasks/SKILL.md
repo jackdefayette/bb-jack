@@ -12,6 +12,15 @@ Delegation presets are user-defined; Tasks ships with none. Before dispatching
 work, use `bb tasks preset list` and create a preset if the required one does
 not already exist. Dispatch requires an existing preset.
 
+For an authoritative project-workspace Builder or Reviewer start, use
+`bb tasks start-agent` with a stable `--workspace-key`, role, explicit
+execution selection, and exactly one environment choice: project default,
+`--environment worktree --machine ...` (optional `--base-branch`), or
+`--environment reuse --environment-id ...`. Use `--json` and retain its
+`taskId`, `taskKey`, `threadId`, and `environmentId` for exact UI binding.
+Retries with the same workspace key and BB project return the completed binding.
+Do not infer that closing a tab removes the worktree.
+
 ## Work a task
 
 1. Find and read the task before acting:

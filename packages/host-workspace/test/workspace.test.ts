@@ -1151,6 +1151,17 @@ describe("Workspace", () => {
     expect(files).toEqual(["nested/notes.txt"]);
   });
 
+  it("does not list files from an ancestor repository", async () => {
+    const repoPath = await initRepo();
+    const folder = path.join(repoPath, "configured-project");
+    await fs.mkdir(folder);
+    await fs.writeFile(path.join(folder, "project.txt"), "project\n", "utf8");
+
+    const workspace = new Workspace(folder);
+
+    expect(await workspace.listFiles()).toEqual(["project.txt"]);
+  });
+
   it("returns null when HEAD is unavailable in an empty repository", async () => {
     const repoPath = await makeTempDir("bb-workspace-empty-repo-");
     await runGit(["init", "-b", "main"], { cwd: repoPath });

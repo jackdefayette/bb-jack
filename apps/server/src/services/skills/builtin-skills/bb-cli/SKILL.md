@@ -458,6 +458,10 @@ add <key-or-comment-id> --file <path>` (task key = task-level; comment ID
   = that comment). Avoid progress spam.
 - Delegated threads are attached automatically. For work started independently,
   run `bb tasks attach <key-or-id>` from the working thread.
+- For a project-workspace Builder or Reviewer, use `bb tasks start-agent` with
+  a stable `--workspace-key`, explicit role and execution options, and one
+  environment choice: `project-default`, a new `worktree`, or `reuse`. Its
+  JSON result is the authoritative task/thread/environment binding.
 - When implementation is ready for review, run `bb tasks update <key-or-id>
 --status in_review`; if blocked, leave the status accurate and explain the
   blocker in a comment.

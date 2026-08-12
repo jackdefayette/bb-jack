@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  detectGitRepo,
   getCheckoutRef,
   getWorkspaceGitOperation,
   parseBranchStatus,
@@ -39,6 +40,18 @@ async function initEmptyRepo() {
   const repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "bb-empty-git-"));
   tempDirs.push(repoPath);
   await runGit(["init", "-b", "main"], { cwd: repoPath });
+  return repoPath;
+}
+
+async function initRepoWithCommit(): Promise<string> {
+  const repoPath = await initEmptyRepo();
+  await runGit(["config", "user.name", "BB Tests"], { cwd: repoPath });
+  await runGit(["config", "user.email", "bb@example.com"], {
+    cwd: repoPath,
+  });
+  await fs.writeFile(path.join(repoPath, "README.md"), "hello\n", "utf8");
+  await runGit(["add", "README.md"], { cwd: repoPath });
+  await runGit(["commit", "-m", "Initial commit"], { cwd: repoPath });
   return repoPath;
 }
 
@@ -113,6 +126,63 @@ describe("runShellPipeline", () => {
     );
 
     expect(result.stdout).toBe("missing|missing|external-secret");
+  });
+});
+
+describe("detectGitRepo", () => {
+  it("requires the configured path to be the canonical Git root", async () => {
+    const repoPath = await initRepoWithCommit();
+    const descendantPath = path.join(repoPath, "configured-project");
+    await fs.mkdir(descendantPath);
+
+    await expect(detectGitRepo(repoPath)).resolves.toBe(true);
+    await expect(detectGitRepo(descendantPath)).resolves.toBe(false);
+  });
+
+  it("accepts a nested repository root rather than its ancestor repository", async () => {
+    const outerRepo = await initRepoWithCommit();
+    const nestedRepo = path.join(outerRepo, "nested-project");
+    await fs.mkdir(nestedRepo);
+    await runGit(["init", "-b", "main"], { cwd: nestedRepo });
+
+    await expect(detectGitRepo(nestedRepo)).resolves.toBe(true);
+  });
+
+  it("accepts linked worktree roots", async () => {
+    const repoPath = await initRepoWithCommit();
+    const worktreeParent = await fs.mkdtemp(
+      path.join(os.tmpdir(), "bb-git-detect-worktree-"),
+    );
+    tempDirs.push(worktreeParent);
+    const worktreePath = path.join(worktreeParent, "feature");
+    await runGit(["worktree", "add", "-b", "feature", worktreePath], {
+      cwd: repoPath,
+    });
+
+    await expect(detectGitRepo(worktreePath)).resolves.toBe(true);
+  });
+
+  it("uses canonical equality for a symlink to a repository root", async () => {
+    const repoPath = await initRepoWithCommit();
+    const linkParent = await fs.mkdtemp(
+      path.join(os.tmpdir(), "bb-git-detect-link-"),
+    );
+    tempDirs.push(linkParent);
+    const linkPath = path.join(linkParent, "repo-link");
+    await fs.symlink(repoPath, linkPath, "dir");
+
+    await expect(detectGitRepo(linkPath)).resolves.toBe(true);
+  });
+
+  it("returns false for a missing path", async () => {
+    const parentPath = await fs.mkdtemp(
+      path.join(os.tmpdir(), "bb-git-detect-missing-"),
+    );
+    tempDirs.push(parentPath);
+
+    await expect(detectGitRepo(path.join(parentPath, "missing"))).resolves.toBe(
+      false,
+    );
   });
 });
 

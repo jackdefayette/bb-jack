@@ -12,6 +12,7 @@ import { createPluginsArea, type PluginsArea } from "./areas/plugins.js";
 import { createBbRealtimeClient } from "./realtime-client.js";
 import type { BbRealtime } from "./realtime-types.js";
 import { createStatusArea, type StatusArea } from "./areas/status.js";
+import { createTasksArea, type TasksArea } from "./areas/tasks.js";
 import { createSkillsArea, type SkillsArea } from "./areas/skills.js";
 import { createThemeArea, type ThemeArea } from "./areas/theme.js";
 import { createSystemArea, type SystemArea } from "./areas/system.js";
@@ -39,6 +40,7 @@ export interface BbSdk extends BbRealtime {
   providers: ProvidersArea;
   skills: SkillsArea;
   status: StatusArea;
+  tasks: TasksArea;
   system: SystemArea;
   terminals: TerminalsArea;
   theme: ThemeArea;
@@ -52,6 +54,7 @@ export function createBbSdk(args: CreateBbSdkArgs): BbSdk {
   const realtime = createBbRealtimeClient({
     transport: args.transport,
   });
+  const plugins = createPluginsArea(sdkContext);
   return {
     environments: createEnvironmentsArea(sdkContext),
     files: createFilesArea(sdkContext),
@@ -61,10 +64,11 @@ export function createBbSdk(args: CreateBbSdkArgs): BbSdk {
       return realtime.subscribe(args);
     },
     projects: createProjectsArea(sdkContext),
-    plugins: createPluginsArea(sdkContext),
+    plugins,
     providers: createProvidersArea(sdkContext),
     skills: createSkillsArea(sdkContext),
     status: createStatusArea(sdkContext),
+    tasks: createTasksArea(plugins),
     system: createSystemArea(sdkContext),
     terminals: createTerminalsArea(sdkContext),
     theme: createThemeArea(sdkContext),

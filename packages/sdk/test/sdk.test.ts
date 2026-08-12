@@ -1202,6 +1202,56 @@ describe("@bb/sdk", () => {
     });
   });
 
+  it("starts a workspace agent through the typed Tasks SDK area", async () => {
+    const result = {
+      taskId: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      taskKey: "PROD-1",
+      threadId: "thr_builder",
+      environmentId: "env_builder",
+    };
+    const queue = createFetchQueue([{ body: { ok: true, result } }]);
+    const sdk = createBbSdk({
+      transport: createHttpTransport({
+        baseUrl: "http://bb.test/",
+        fetch: queue.fetch,
+        runtime: "node",
+      }),
+    });
+
+    const input = {
+      workspaceKey: "tab-1:builder",
+      bbProjectId: "proj_product",
+      projectName: "Product",
+      role: "builder" as const,
+      request: {
+        projectId: "proj_product",
+        providerId: "codex",
+        model: "gpt-5.6-sol",
+        reasoningLevel: "high" as const,
+        permissionMode: "full" as const,
+        executionInputSources: {},
+        environment: {
+          type: "host" as const,
+          hostId: "host_local",
+          workspace: {
+            type: "managed-worktree" as const,
+            baseBranch: { kind: "named" as const, name: "main" },
+          },
+        },
+        input: [
+          { type: "text" as const, text: "Implement the change", mentions: [] },
+        ],
+      },
+    };
+
+    await expect(sdk.tasks.startAgent(input)).resolves.toEqual(result);
+    expect(queue.requests[0]).toEqual({
+      bodyText: JSON.stringify(input),
+      method: "POST",
+      url: "http://bb.test/api/v1/plugins/tasks/rpc/workspaceAgentStart",
+    });
+  });
+
   it("routes every typed plugin administration method through the transport", async () => {
     const plugin = {
       id: "notes",

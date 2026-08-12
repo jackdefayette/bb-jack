@@ -5,22 +5,21 @@ import { ProjectSourceControlPane } from "./ProjectSourceControlPane";
 
 const mocks = vi.hoisted(() => ({
   sidebar: {} as Record<string, unknown>,
-  branches: {} as Record<string, unknown>,
   status: {} as Record<string, unknown>,
   pullRequest: {} as Record<string, unknown>,
+  environmentIds: [] as string[],
+  statusIds: [] as string[],
 }));
 
 vi.mock("@/hooks/queries/sidebar-navigation-query", () => ({
   useSidebarNavigation: () => mocks.sidebar,
 }));
-vi.mock("@/hooks/queries/project-queries", () => ({
-  useProjectSourceBranches: () => mocks.branches,
-}));
 vi.mock("@/hooks/queries/thread-queries", () => ({
   useThreads: () => ({ data: [], isLoading: false, isError: false }),
 }));
 vi.mock("@/hooks/queries/environment-queries", () => ({
-  useEnvironmentWorkStatus: () => mocks.status,
+  useEnvironment: (id: string) => { mocks.environmentIds.push(id); return { data: { branchName: "codex/feature" } }; },
+  useEnvironmentWorkStatus: (id: string) => { mocks.statusIds.push(id); return mocks.status; },
   useEnvironmentPullRequest: () => mocks.pullRequest,
   getEnvironmentPullRequestFromResponse: (response: {
     outcome: string;
@@ -41,6 +40,8 @@ const thread = {
 };
 
 beforeEach(() => {
+  mocks.environmentIds = [];
+  mocks.statusIds = [];
   mocks.sidebar = {
     isLoading: false,
     isError: false,
@@ -62,11 +63,6 @@ beforeEach(() => {
       ],
       personalProject: { id: "proj_personal", sources: [], threads: [] },
     },
-  };
-  mocks.branches = {
-    isLoading: false,
-    isError: false,
-    data: { branches: ["main", "codex/feature"] },
   };
   mocks.status = {
     isLoading: false,
@@ -101,9 +97,8 @@ beforeEach(() => {
 });
 
 describe("ProjectSourceControlPane", () => {
-  it("shows truthful changes, branches, pull requests, and history", () => {
-    render(<ProjectSourceControlPane projectId="proj_demo" />);
-    expect(screen.getByText("Branches")).toBeTruthy();
+  it("shows truthful exact-environment changes, branch, pull requests, and history", () => {
+    render(<ProjectSourceControlPane projectId="proj_demo" environments={[{ id: "env_1", label: "Builder worktree" }]} />);
     expect(screen.getAllByText("codex/feature").length).toBeGreaterThan(0);
     expect(screen.getByText("Changes")).toBeTruthy();
     expect(screen.getByText("src/feature.ts")).toBeTruthy();
@@ -113,11 +108,23 @@ describe("ProjectSourceControlPane", () => {
     expect(screen.getByText("Build feature")).toBeTruthy();
   });
 
-  it("reports an offline branch source without inventing branch state", () => {
-    mocks.branches = { isLoading: false, isError: true, data: undefined };
-    render(<ProjectSourceControlPane projectId="proj_demo" />);
-    expect(
-      screen.getByText("Branches are unavailable while the host is offline."),
-    ).toBeTruthy();
+  it("reports an unavailable exact environment without inventing state", () => {
+    mocks.status = { isLoading: false, isError: true, data: undefined };
+    render(<ProjectSourceControlPane projectId="proj_demo" environments={[{ id: "env_1", label: "Builder worktree" }]} />);
+    expect(screen.getByText("Status unavailable")).toBeTruthy();
+  });
+
+  it("queries only the two exact workspace environments", () => {
+    render(
+      <ProjectSourceControlPane
+        projectId="proj_demo"
+        environments={[
+          { id: "env_builder", label: "Builder worktree" },
+          { id: "env_reviewer", label: "Reviewer worktree" },
+        ]}
+      />,
+    );
+    expect(mocks.environmentIds).toEqual(["env_builder", "env_reviewer"]);
+    expect(mocks.statusIds).toEqual(["env_builder", "env_reviewer"]);
   });
 });

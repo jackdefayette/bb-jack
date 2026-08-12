@@ -14,7 +14,9 @@ vi.mock("@/lib/plugin-slots", () => ({
 }));
 
 vi.mock("@/components/plugin/PluginSlotMount", () => ({
-  PluginSlotMount: ({ children }: { children: ReactNode }) => children,
+  PluginSlotMount: ({ children, instanceId }: { children: ReactNode; instanceId: string }) => (
+    <div data-testid={`slot-${instanceId}`}>{children}</div>
+  ),
 }));
 
 vi.mock("./ProjectSourceControlPane", () => ({
@@ -45,6 +47,8 @@ describe("ProjectWorkspaceToolsPane", () => {
     const { rerender } = render(
       <ProjectWorkspaceToolsPane
         projectId="proj_demo"
+        workspaceTabId="workspace_demo"
+        environments={[]}
         toolsView="tasks"
         onToolsViewChange={onToolsViewChange}
       />,
@@ -62,6 +66,8 @@ describe("ProjectWorkspaceToolsPane", () => {
     rerender(
       <ProjectWorkspaceToolsPane
         projectId="proj_demo"
+        workspaceTabId="workspace_demo"
+        environments={[]}
         toolsView="source-control"
         onToolsViewChange={onToolsViewChange}
       />,
@@ -74,10 +80,21 @@ describe("ProjectWorkspaceToolsPane", () => {
     render(
       <ProjectWorkspaceToolsPane
         projectId="proj_demo"
+        workspaceTabId="workspace_demo"
+        environments={[]}
         toolsView="tasks"
         onToolsViewChange={() => undefined}
       />,
     );
     expect(screen.getByText("Tasks is not available")).toBeTruthy();
+  });
+
+  it("isolates Tasks plugin mounts by workspace tab even for one project", () => {
+    render(<>
+      <ProjectWorkspaceToolsPane projectId="proj_demo" workspaceTabId="workspace_a" environments={[]} toolsView="tasks" onToolsViewChange={() => undefined} />
+      <ProjectWorkspaceToolsPane projectId="proj_demo" workspaceTabId="workspace_b" environments={[]} toolsView="tasks" onToolsViewChange={() => undefined} />
+    </>);
+    expect(screen.getByTestId("slot-project-workspace-workspace_a")).toBeTruthy();
+    expect(screen.getByTestId("slot-project-workspace-workspace_b")).toBeTruthy();
   });
 });

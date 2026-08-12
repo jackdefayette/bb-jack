@@ -123,6 +123,16 @@ export interface TaskThread {
   updatedAt: string;
 }
 
+export interface WorkspaceAgentStart {
+  bbProjectId: string;
+  workspaceKey: string;
+  taskId: string;
+  threadId: string | null;
+  environmentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Preset {
   id: string;
   name: string;
@@ -277,6 +287,19 @@ export interface UpdateTaskThreadInput {
   presetName?: string;
   title?: string;
   liveStatus?: TaskThreadLiveStatus;
+}
+
+export interface CreateWorkspaceAgentStartInput {
+  bbProjectId: string;
+  workspaceKey: string;
+  taskId: string;
+}
+
+export interface CompleteWorkspaceAgentStartInput {
+  bbProjectId: string;
+  workspaceKey: string;
+  threadId: string;
+  environmentId: string | null;
 }
 
 export interface CreatePresetInput {

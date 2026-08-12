@@ -75,6 +75,11 @@ import {
  * performs the creation through `bb.sdk.threads.spawn`, which is what keeps
  * `origin: "plugin"` + `originPluginId` attribution correct.
  */
+interface PluginNewThreadComposerInternalProps extends NewThreadComposerProps {
+  /** Host-owned project-workspace affordance; deliberately not public plugin API. */
+  workspaceEnvironmentChoices?: boolean;
+}
+
 export function PluginNewThreadComposer({
   defaultProjectId,
   defaultProviderId,
@@ -90,7 +95,8 @@ export function PluginNewThreadComposer({
   className,
   draftKey,
   onSubmit,
-}: NewThreadComposerProps) {
+  workspaceEnvironmentChoices = false,
+}: PluginNewThreadComposerInternalProps) {
   // Null outside a plugin slot mount (host-internal usages, tests).
   const pluginId = useContext(PluginContext);
   const navigate = useNavigate();
@@ -234,6 +240,10 @@ export function PluginNewThreadComposer({
   // `default*` seed props take precedence over the project's remembered
   // defaults; the seed signature in resetKey makes a seed change reset even
   // user-touched selections (switching saved records must reload them).
+  const workspaceEnvironmentSeed =
+    workspaceEnvironmentChoices && primaryHostId !== null && !isProjectless
+      ? encodeHostValue(primaryHostId, "worktree")
+      : undefined;
   const creationOptions = useThreadCreationOptions({
     scope: "component-local",
     preferenceProjectId: projectId,
@@ -246,7 +256,8 @@ export function PluginNewThreadComposer({
       defaultReasoningLevel ?? projectDefaults?.reasoningLevel,
     initialPermissionMode:
       defaultPermissionMode ?? projectDefaults?.permissionMode,
-    initialEnvironmentSelectionValue: environmentSeed?.selectionValue,
+    initialEnvironmentSelectionValue:
+      environmentSeed?.selectionValue ?? workspaceEnvironmentSeed,
   });
   const {
     activeModel,
@@ -759,6 +770,37 @@ export function PluginNewThreadComposer({
         className,
       )}
     >
+      {workspaceEnvironmentChoices && primaryHostId !== null && !isProjectless ? (
+        <label className="mb-2 flex items-center gap-2 rounded-md border border-border/70 bg-sidebar/60 px-2.5 py-2 text-xs">
+          <span className="shrink-0 font-medium">Workspace</span>
+          <select
+            aria-label="Agent workspace"
+            className="min-w-0 flex-1 rounded bg-canvas px-2 py-1 text-xs outline-none ring-ring focus-visible:ring-2"
+            value={effectiveEnvironmentValue}
+            onChange={(event) => setEnvironmentSelectionValue(event.target.value)}
+          >
+            <option
+              value={encodeHostValue(primaryHostId, "worktree")}
+              disabled={projectSourceWorktreeUnavailable}
+            >
+              {projectSourceWorktreeUnavailable
+                ? "New isolated worktree (Not a Git repository)"
+                : "New isolated worktree (Recommended)"}
+            </option>
+            <option value={encodeHostValue(primaryHostId, "local")}>
+              Project checkout (shared)
+            </option>
+            {reuseThreadOptions.map((option) => (
+              <option
+                key={option.environmentId}
+                value={encodeReuseValue(option.environmentId)}
+              >
+                Reuse {option.name ?? option.branchName ?? option.environmentId}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <NewThreadPromptBox
         promptBoxRef={promptBoxRef}
         value={promptDraft.text}

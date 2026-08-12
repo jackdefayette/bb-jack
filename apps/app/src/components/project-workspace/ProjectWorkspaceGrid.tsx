@@ -12,6 +12,7 @@ import type {
 import { ProjectWorkspaceAgentPane } from "./ProjectWorkspaceAgentPane";
 import { ProjectWorkspaceBrowserPane } from "./ProjectWorkspaceBrowserPane";
 import { ProjectWorkspaceToolsPane } from "./ProjectWorkspaceToolsPane";
+import type { ProjectWorkspaceAgentRole } from "./ProjectWorkspaceAgentPane";
 
 interface ProjectWorkspaceGridProps {
   isActive: boolean;
@@ -26,21 +27,40 @@ interface ResolvedAgentThreads {
 
 const EMPTY_PROJECT_THREADS: readonly ThreadListEntry[] = [];
 
+export function buildWorkspaceEnvironments(
+  builderEnvironmentId: string | null,
+  reviewerEnvironmentId: string | null,
+): readonly { id: string; label: string }[] {
+  if (
+    builderEnvironmentId !== null &&
+    builderEnvironmentId === reviewerEnvironmentId
+  ) {
+    return [
+      { id: builderEnvironmentId, label: "Builder & Reviewer environment" },
+    ];
+  }
+  return [
+    ...(builderEnvironmentId
+      ? [{ id: builderEnvironmentId, label: "Builder environment" }]
+      : []),
+    ...(reviewerEnvironmentId
+      ? [{ id: reviewerEnvironmentId, label: "Reviewer environment" }]
+      : []),
+  ];
+}
+
 function resolveAgentThreads(
   threads: readonly ThreadListEntry[],
   tab: ProjectWorkspaceTab,
 ): ResolvedAgentThreads {
   const byId = new Map(threads.map((thread) => [thread.id, thread]));
-  const primary =
-    (tab.primaryThreadId ? byId.get(tab.primaryThreadId) : undefined) ??
-    threads[0] ??
-    null;
+  const primary = tab.primaryThreadId
+    ? (byId.get(tab.primaryThreadId) ?? null)
+    : null;
   const review =
-    (tab.reviewThreadId && tab.reviewThreadId !== primary?.id
-      ? byId.get(tab.reviewThreadId)
-      : undefined) ??
-    threads.find((thread) => thread.id !== primary?.id) ??
-    null;
+    tab.reviewThreadId && tab.reviewThreadId !== primary?.id
+      ? (byId.get(tab.reviewThreadId) ?? null)
+      : null;
   return { primary, review };
 }
 
@@ -67,8 +87,8 @@ export function ProjectWorkspaceGrid({
     () => resolveAgentThreads(threads, tab),
     [tab, threads],
   );
-  const [activeAgent, setActiveAgent] = useState<"primary" | "review">(
-    "primary",
+  const [activeAgent, setActiveAgent] = useState<ProjectWorkspaceAgentRole>(
+    "builder",
   );
 
   useEffect(() => {
@@ -120,14 +140,29 @@ export function ProjectWorkspaceGrid({
 
   const primaryHidden = tab.focusMode === "browser";
   const browserHidden = tab.focusMode === "primary";
-  const environmentId =
-    resolved.primary?.environmentId ?? resolved.review?.environmentId ?? null;
+  const activeEnvironmentId =
+    activeAgent === "builder"
+      ? (resolved.primary?.environmentId ?? null)
+      : (resolved.review?.environmentId ?? null);
+  useEffect(() => {
+    if (tab.inspectorEnvironmentPinned || tab.inspectorEnvironmentId === activeEnvironmentId)
+      return;
+    updateTab(tab.id, { inspectorEnvironmentId: activeEnvironmentId });
+  }, [activeEnvironmentId, tab.id, tab.inspectorEnvironmentId, tab.inspectorEnvironmentPinned, updateTab]);
   const backgroundAgentState = resolved.primary?.hasPendingInteraction
     ? "attention"
     : resolved.primary?.status === "active" ||
         resolved.primary?.status === "starting"
       ? "running"
       : null;
+  const workspaceEnvironments = useMemo(
+    () =>
+      buildWorkspaceEnvironments(
+        resolved.primary?.environmentId ?? null,
+        resolved.review?.environmentId ?? null,
+      ),
+    [resolved.primary?.environmentId, resolved.review?.environmentId],
+  );
 
   if (sidebarNavigation.isLoading) {
     return (
@@ -167,13 +202,27 @@ export function ProjectWorkspaceGrid({
         {...hiddenPaneProps(primaryHidden)}
       >
         <ProjectWorkspaceAgentPane
-          label="Primary Agent"
+          label="Builder"
           projectId={tab.projectId}
+          projectName={tab.projectName}
+          role="builder"
+          taskKey={tab.primaryTaskKey}
+          environmentId={resolved.primary?.environmentId ?? null}
           threadId={resolved.primary?.id ?? null}
-          isFocused={isActive && activeAgent === "primary" && !primaryHidden}
+          workspaceTabId={tab.id}
+          onAgentStarted={(result) =>
+            updateTab(tab.id, {
+              primaryThreadId: result.threadId,
+              primaryTaskKey: result.taskKey,
+              inspectorEnvironmentId: tab.inspectorEnvironmentPinned
+                ? tab.inspectorEnvironmentId
+                : result.environmentId,
+            })
+          }
+          isFocused={isActive && activeAgent === "builder" && !primaryHidden}
           isExpanded={tab.focusMode === "primary"}
           isTopRow
-          onActivate={() => setActiveAgent("primary")}
+          onActivate={() => setActiveAgent("builder")}
           onNavigate={handlePrimaryNavigate}
           onToggleFocus={togglePrimaryFocus}
         />
@@ -184,12 +233,26 @@ export function ProjectWorkspaceGrid({
         className="col-start-2 row-start-1 h-full min-h-0 min-w-0"
       >
         <ProjectWorkspaceAgentPane
-          label="Review Agent"
+          label="Reviewer"
           projectId={tab.projectId}
+          projectName={tab.projectName}
+          role="reviewer"
+          taskKey={tab.reviewTaskKey}
+          environmentId={resolved.review?.environmentId ?? null}
           threadId={resolved.review?.id ?? null}
-          isFocused={isActive && activeAgent === "review"}
+          workspaceTabId={tab.id}
+          onAgentStarted={(result) =>
+            updateTab(tab.id, {
+              reviewThreadId: result.threadId,
+              reviewTaskKey: result.taskKey,
+              inspectorEnvironmentId: tab.inspectorEnvironmentPinned
+                ? tab.inspectorEnvironmentId
+                : result.environmentId,
+            })
+          }
+          isFocused={isActive && activeAgent === "reviewer"}
           isTopRow
-          onActivate={() => setActiveAgent("review")}
+          onActivate={() => setActiveAgent("reviewer")}
           onNavigate={handleReviewNavigate}
         />
       </div>
@@ -205,7 +268,9 @@ export function ProjectWorkspaceGrid({
         <ProjectWorkspaceBrowserPane
           backgroundAgentState={backgroundAgentState}
           tab={tab}
-          environmentId={environmentId}
+          environmentId={tab.inspectorEnvironmentId}
+          environmentOptions={workspaceEnvironments}
+          projectId={tab.projectId}
           isFocused={tab.focusMode === "browser"}
           canShowNativeBrowserView={
             isActive && !browserHidden && document.visibilityState !== "hidden"
@@ -221,6 +286,8 @@ export function ProjectWorkspaceGrid({
       >
         <ProjectWorkspaceToolsPane
           projectId={tab.projectId}
+          workspaceTabId={tab.id}
+          environments={workspaceEnvironments}
           toolsView={tab.toolsView}
           onToolsViewChange={handleToolsViewChange}
         />

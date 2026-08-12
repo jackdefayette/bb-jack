@@ -31,6 +31,381 @@ function createTestPreset(
 }
 
 describe("task delegation", () => {
+  function workspaceRequest(
+    environment:
+      | { type: "project-default" }
+      | {
+          type: "reuse";
+          environmentId: string;
+        }
+      | {
+          type: "host";
+          hostId: string;
+          workspace: {
+            type: "managed-worktree";
+            baseBranch: { kind: "default" } | { kind: "named"; name: string };
+          };
+        } = { type: "project-default" },
+  ) {
+    return {
+      projectId: "proj_workspace",
+      providerId: "claude-code",
+      model: "claude-sonnet-5",
+      reasoningLevel: "high" as const,
+      permissionMode: "full" as const,
+      executionInputSources: {
+        providerId: "explicit",
+        model: "explicit",
+        reasoningLevel: "explicit",
+        permissionMode: "explicit",
+      },
+      environment,
+      input: [
+        {
+          type: "text" as const,
+          text: "Build the workspace start",
+          mentions: [],
+        },
+      ],
+    };
+  }
+
+  it("starts and durably reuses a workspace builder assignment", async () => {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          spawn: async () => ({
+            id: "thr_workspace",
+            environmentId: "env_workspace",
+          }),
+          get: async () =>
+            makeThreadResponse({
+              id: "thr_workspace",
+              status: "starting",
+              environmentId: "env_workspace",
+            }),
+        },
+      },
+    });
+    const store = createStore(bb);
+    registerDelegation(bb, store);
+    const input = {
+      workspaceKey: "tab-1:builder",
+      bbProjectId: "proj_workspace",
+      projectName: "Workspace Project",
+      role: "builder" as const,
+      request: workspaceRequest({
+        type: "host",
+        hostId: "host_1",
+        workspace: {
+          type: "managed-worktree",
+          baseBranch: { kind: "named", name: "main" },
+        },
+      }),
+    };
+
+    const first = await harness.callRpc("workspaceAgentStart", input);
+    const second = await harness.callRpc("workspaceAgentStart", input);
+
+    expect(first).toEqual({
+      taskId: expect.any(String),
+      taskKey: "WORKSPACEP-1",
+      threadId: "thr_workspace",
+      environmentId: "env_workspace",
+    });
+    expect(second).toEqual(first);
+    expect(harness.sdk.callsTo("threads.spawn")).toEqual([
+      [
+        expect.objectContaining({
+          projectId: "proj_workspace",
+          environment: input.request.environment,
+          input: expect.arrayContaining([
+            expect.objectContaining({
+              visibility: "agent-only",
+              text: expect.stringContaining("bb tasks comment WORKSPACEP-1"),
+            }),
+          ]),
+        }),
+      ],
+    ]);
+    const task = store.tasks.getTask(first.taskId);
+    expect(task).toMatchObject({
+      status: "in_progress",
+      description: "Build the workspace start",
+    });
+    expect(store.tasks.listTaskThreads(first.taskId)).toEqual([
+      expect.objectContaining({
+        threadId: "thr_workspace",
+        presetName: "Builder",
+      }),
+    ]);
+    await harness.dispose();
+  });
+
+  it("forwards project-default, managed-worktree, and reuse selections exactly", async () => {
+    let call = 0;
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          spawn: async () => {
+            call += 1;
+            return {
+              id: `thr_workspace_${call}`,
+              environmentId: `env_${call}`,
+            };
+          },
+        },
+      },
+    });
+    const store = createStore(bb);
+    registerDelegation(bb, store);
+    const environments = [
+      { type: "project-default" as const },
+      {
+        type: "host" as const,
+        hostId: "host_worktree",
+        workspace: {
+          type: "managed-worktree" as const,
+          baseBranch: { kind: "named" as const, name: "release/next" },
+        },
+      },
+      { type: "reuse" as const, environmentId: "env_reused" },
+    ];
+
+    for (const [index, environment] of environments.entries()) {
+      await harness.callRpc("workspaceAgentStart", {
+        workspaceKey: `workspace-choice-${index}`,
+        bbProjectId: "proj_workspace",
+        projectName: "Workspace Project",
+        role: index === 1 ? "reviewer" : "builder",
+        request: workspaceRequest(environment),
+      });
+    }
+
+    expect(
+      harness.sdk
+        .callsTo("threads.spawn")
+        .map(([request]) => request.environment),
+    ).toEqual(environments);
+    const tasks = store.tasks.listTasks({
+      projectId: store.tasks.listProjects()[0]?.id,
+    });
+    expect(tasks.map((task) => task.status)).toEqual([
+      "in_progress",
+      "in_progress",
+      "in_progress",
+    ]);
+    expect(store.tasks.listTaskThreads(tasks[1]?.id ?? "")[0]).toMatchObject({
+      presetName: "Reviewer",
+      threadId: "thr_workspace_2",
+    });
+    expect(store.tasks.listComments(tasks[0]?.id ?? "")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          body: expect.stringContaining("Status changed to In Progress"),
+        }),
+        expect.objectContaining({ body: "Builder workspace agent attached" }),
+      ]),
+    );
+    await harness.dispose();
+  });
+
+  it("creates a linked project with a deterministic collision-safe prefix", async () => {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          spawn: async () => ({
+            id: "thr_collision",
+            environmentId: "env_collision",
+          }),
+        },
+      },
+    });
+    const store = createStore(bb);
+    store.tasks.createProject({
+      name: "Existing",
+      prefix: "WORKSPACEP",
+      color: "blue",
+    });
+    registerDelegation(bb, store);
+
+    await harness.callRpc("workspaceAgentStart", {
+      workspaceKey: "collision:builder",
+      bbProjectId: "proj_workspace",
+      projectName: "Workspace Project",
+      role: "builder",
+      request: workspaceRequest(),
+    });
+
+    expect(
+      store.tasks
+        .listProjects()
+        .find((project) => project.linkedBbProjectId === "proj_workspace"),
+    ).toMatchObject({
+      name: "Workspace Project",
+      prefix: "WORKSPACE2",
+    });
+    await harness.dispose();
+  });
+
+  it("rejects a workspace key reused by another project", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "tasks" });
+    const store = createStore(bb);
+    const taskProject = store.tasks.createProject({
+      name: "One",
+      prefix: "ONE",
+      color: "blue",
+      linkedBbProjectId: "proj_one",
+    });
+    const task = store.tasks.createTask({
+      projectId: taskProject.id,
+      title: "Existing",
+    });
+    store.tasks.createWorkspaceAgentStart({
+      bbProjectId: "proj_one",
+      workspaceKey: "tab-1:builder",
+      taskId: task.id,
+    });
+    registerDelegation(bb, store);
+
+    await expect(
+      harness.callRpc("workspaceAgentStart", {
+        workspaceKey: "tab-1:builder",
+        bbProjectId: "proj_two",
+        projectName: "Two",
+        role: "reviewer",
+        request: { ...workspaceRequest(), projectId: "proj_two" },
+      }),
+    ).rejects.toThrow("different BB project");
+    await harness.dispose();
+  });
+
+  it("does not spawn a second agent while a same-project reservation is pending", async () => {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          spawn: async () => ({
+            id: "thr_unexpected",
+            environmentId: "env_unexpected",
+          }),
+        },
+      },
+    });
+    const store = createStore(bb);
+    const project = store.tasks.createProject({
+      name: "Workspace Project",
+      prefix: "WORKSPACEP",
+      color: "blue",
+      linkedBbProjectId: "proj_workspace",
+    });
+    const task = store.tasks.createTask({
+      projectId: project.id,
+      title: "Reserved workspace task",
+      status: "in_progress",
+    });
+    store.tasks.createWorkspaceAgentStart({
+      bbProjectId: "proj_workspace",
+      workspaceKey: "pending:builder",
+      taskId: task.id,
+    });
+    registerDelegation(bb, store);
+
+    await expect(
+      harness.callRpc("workspaceAgentStart", {
+        workspaceKey: "pending:builder",
+        bbProjectId: "proj_workspace",
+        projectName: "Workspace Project",
+        role: "builder",
+        request: workspaceRequest(),
+      }),
+    ).rejects.toThrow("already starting");
+    expect(harness.sdk.callsTo("threads.spawn")).toEqual([]);
+    expect(store.tasks.getTask(task.id)).toMatchObject({
+      status: "in_progress",
+    });
+    expect(
+      store.tasks.getWorkspaceAgentStart("proj_workspace", "pending:builder"),
+    ).toMatchObject({ taskId: task.id, threadId: null });
+    await harness.dispose();
+  });
+
+  it("removes the reservation and task when workspace agent spawn fails", async () => {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          spawn: async () => {
+            throw new Error("spawn failed");
+          },
+        },
+      },
+    });
+    const store = createStore(bb);
+    registerDelegation(bb, store);
+
+    await expect(
+      harness.callRpc("workspaceAgentStart", {
+        workspaceKey: "tab-2:reviewer",
+        bbProjectId: "proj_workspace",
+        projectName: "Workspace Project",
+        role: "reviewer",
+        request: workspaceRequest({
+          type: "reuse",
+          environmentId: "env_existing",
+        }),
+      }),
+    ).rejects.toThrow("spawn failed");
+    expect(store.tasks.listTasks()).toEqual([]);
+    expect(
+      store.tasks.getWorkspaceAgentStart("proj_workspace", "tab-2:reviewer"),
+    ).toBeUndefined();
+    expect(store.tasks.listProjects()).toEqual([]);
+    await harness.dispose();
+  });
+
+  it("retains an existing linked project when workspace agent spawn fails", async () => {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          spawn: async () => {
+            throw new Error("spawn failed");
+          },
+        },
+      },
+    });
+    const store = createStore(bb);
+    const project = store.tasks.createProject({
+      name: "Workspace Project",
+      prefix: "WORK",
+      color: "blue",
+      linkedBbProjectId: "proj_workspace",
+    });
+    registerDelegation(bb, store);
+
+    await expect(
+      harness.callRpc("workspaceAgentStart", {
+        workspaceKey: "tab-2:builder",
+        bbProjectId: "proj_workspace",
+        projectName: "Workspace Project",
+        role: "builder",
+        request: workspaceRequest(),
+      }),
+    ).rejects.toThrow("spawn failed");
+    expect(store.tasks.listTasks()).toEqual([]);
+    expect(store.tasks.listProjects()).toEqual([
+      expect.objectContaining({
+        id: project.id,
+        linkedBbProjectId: "proj_workspace",
+      }),
+    ]);
+    await harness.dispose();
+  });
+
   it("spawns from a preset, attaches the thread, advances status, comments, and invalidates", async () => {
     const { bb, harness } = createFakePluginHost({
       pluginId: "tasks",

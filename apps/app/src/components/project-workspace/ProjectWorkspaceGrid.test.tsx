@@ -13,7 +13,7 @@ import type {
   ProjectWorkspaceTab,
   ProjectWorkspaceTabUpdate,
 } from "./ProjectWorkspaceTabsProvider";
-import { ProjectWorkspaceGrid } from "./ProjectWorkspaceGrid";
+import { buildWorkspaceEnvironments, ProjectWorkspaceGrid } from "./ProjectWorkspaceGrid";
 
 const browserDeck = vi.hoisted(() => vi.fn());
 
@@ -23,11 +23,22 @@ vi.mock("@/views/thread-detail/ThreadDetailView", () => ({
   ),
 }));
 
+vi.mock("@/components/plugin/PluginNewThreadComposer", () => ({
+  PluginNewThreadComposer: ({ draftKey }: { draftKey: string }) => (
+    <div data-testid={`ready-${draftKey}`} />
+  ),
+}));
+
 vi.mock("@/components/secondary-panel/BrowserTabDeck", () => ({
   BrowserTabDeck: (props: { canShowNativeBrowserView: boolean }) => {
     browserDeck(props);
     return <div data-testid="browser-deck" />;
   },
+}));
+
+vi.mock("@/components/secondary-panel/ThreadSecondaryPanelTabContent", () => ({
+  ProjectFilePreviewTabContent: () => <div data-testid="file-preview" />,
+  GitDiffTabContent: () => <div data-testid="diff-preview" />,
 }));
 
 vi.mock("./ProjectWorkspaceToolsPane", () => ({
@@ -52,6 +63,15 @@ vi.mock("@/hooks/queries/sidebar-navigation-query", () => ({
   }),
 }));
 
+vi.mock("@/hooks/queries/environment-queries", () => ({
+  useEnvironment: () => ({ data: { isGitRepo: true, baseBranch: "main" } }),
+  useEnvironmentWorkStatus: () => ({ data: undefined }),
+}));
+
+vi.mock("@/hooks/queries/project-queries", () => ({
+  useProjectPathSuggestions: () => ({ data: { paths: [] }, isLoading: false }),
+}));
+
 const BASE_TAB: ProjectWorkspaceTab = {
   id: "workspace-1",
   projectId: "project-1",
@@ -60,6 +80,12 @@ const BASE_TAB: ProjectWorkspaceTab = {
   reviewThreadId: "thread-b",
   focusMode: "grid",
   toolsView: "tasks",
+  inspectorView: "browser",
+  inspectorEnvironmentId: "environment-1",
+  inspectorEnvironmentPinned: false,
+  inspectorFilePath: null,
+  primaryTaskKey: null,
+  reviewTaskKey: null,
   browserTab: {
     id: "browser:environment-1:test",
     kind: "browser",
@@ -90,7 +116,12 @@ afterEach(() => {
 });
 
 describe("ProjectWorkspaceGrid", () => {
-  it("renders the fixed four quadrants and repairs stale agent ids", async () => {
+  it("deduplicates one environment shared by both workspace agents", () => {
+    expect(buildWorkspaceEnvironments("env_shared", "env_shared")).toEqual([
+      { id: "env_shared", label: "Builder & Reviewer environment" },
+    ]);
+  });
+  it("renders four quadrants and never falls back stale roles to unrelated threads", async () => {
     render(
       <Harness
         initialTab={{
@@ -101,9 +132,9 @@ describe("ProjectWorkspaceGrid", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Primary Agent" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Review Agent" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Browser" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Builder" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Reviewer" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Inspector" })).toBeTruthy();
     expect(screen.getByTestId("tools-pane")).toBeTruthy();
     const workspace = screen.getByRole("main", {
       name: "Example project project workspace",
@@ -120,19 +151,21 @@ describe("ProjectWorkspaceGrid", () => {
       ),
     ).toEqual(["primary", "review", "browser", "tools"]);
     await waitFor(() => {
-      expect(screen.getByTestId("thread-thread-a")).toBeTruthy();
-      expect(screen.getByTestId("thread-thread-b")).toBeTruthy();
+      expect(screen.getByTestId("ready-project-workspace:workspace-1:builder")).toBeTruthy();
+      expect(screen.getByTestId("ready-project-workspace:workspace-1:reviewer")).toBeTruthy();
     });
+    expect(screen.queryByTestId("thread-thread-a")).toBeNull();
+    expect(screen.queryByTestId("thread-thread-b")).toBeNull();
   });
 
   it("focuses and restores the left column without remounting right panes", () => {
     render(<Harness />);
     const reviewPane = screen
-      .getByRole("heading", { name: "Review Agent" })
+      .getByRole("heading", { name: "Reviewer" })
       .closest("[data-project-workspace-pane]");
     const toolsPane = screen.getByTestId("tools-pane");
 
-    fireEvent.doubleClick(screen.getByRole("heading", { name: "Browser" }));
+    fireEvent.doubleClick(screen.getByRole("heading", { name: "Inspector" }));
 
     expect(
       screen.getByRole("main", { name: "Example project project workspace" })
@@ -140,7 +173,7 @@ describe("ProjectWorkspaceGrid", () => {
     ).toBe("browser");
     expect(
       screen
-        .getByRole("heading", { name: "Review Agent" })
+        .getByRole("heading", { name: "Reviewer" })
         .closest("[data-project-workspace-pane]"),
     ).toBe(reviewPane);
     expect(screen.getByTestId("tools-pane")).toBe(toolsPane);
@@ -159,7 +192,7 @@ describe("ProjectWorkspaceGrid", () => {
     expect(browserDeck.mock.lastCall?.[0].canShowNativeBrowserView).toBe(true);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Focus primary agent" }),
+      screen.getByRole("button", { name: "Focus builder" }),
     );
     expect(browserDeck.mock.lastCall?.[0].canShowNativeBrowserView).toBe(false);
     expect(screen.getByTestId("browser-deck")).toBeTruthy();

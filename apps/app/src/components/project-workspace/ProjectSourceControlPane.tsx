@@ -1,40 +1,24 @@
-import { useMemo, type ReactNode } from "react";
-import type { ThreadListEntry } from "@bb/domain";
 import { Icon } from "@bb/shared-ui/icon";
 import {
   getEnvironmentPullRequestFromResponse,
+  useEnvironment,
   useEnvironmentPullRequest,
   useEnvironmentWorkStatus,
 } from "@/hooks/queries/environment-queries";
-import { useProjectSourceBranches } from "@/hooks/queries/project-queries";
-import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
-import { useThreads } from "@/hooks/queries/thread-queries";
 
-const RECENT_ENVIRONMENT_LIMIT = 4;
-
-function EmptyMessage({ children }: { children: ReactNode }) {
-  return <p className="px-3 py-2 text-xs text-muted-foreground">{children}</p>;
-}
-
-function EnvironmentSourceSummary({ thread }: { thread: ThreadListEntry }) {
-  const status = useEnvironmentWorkStatus(thread.environmentId, undefined, {
-    enabled: thread.environmentId !== null,
+function EnvironmentSourceSummary({ environmentId, label }: { environmentId: string; label: string }) {
+  const environment = useEnvironment(environmentId);
+  const status = useEnvironmentWorkStatus(environmentId, undefined, {
+    enabled: true,
   });
-  const pullRequestResponse = useEnvironmentPullRequest(thread.environmentId, {
-    enabled: thread.environmentId !== null,
+  const pullRequestResponse = useEnvironmentPullRequest(environmentId, {
+    enabled: true,
   });
   const workspace =
     status.data?.outcome === "available" ? status.data.workspace : null;
   const pullRequest = getEnvironmentPullRequestFromResponse(
     pullRequestResponse.data,
   );
-  const label =
-    thread.environmentName ??
-    thread.environmentBranchName ??
-    thread.title ??
-    thread.titleFallback ??
-    "Project workspace";
-
   return (
     <article className="rounded-md border border-border/70 bg-canvas">
       <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2">
@@ -44,7 +28,7 @@ function EnvironmentSourceSummary({ thread }: { thread: ThreadListEntry }) {
         </span>
         <span className="truncate text-xs text-muted-foreground">
           {workspace?.branch.currentBranch ??
-            thread.environmentBranchName ??
+            environment.data?.branchName ??
             "branch unavailable"}
         </span>
       </div>
@@ -59,7 +43,7 @@ function EnvironmentSourceSummary({ thread }: { thread: ThreadListEntry }) {
           ) : status.isError || status.data?.outcome === "unavailable" ? (
             <p className="text-xs text-destructive">Status unavailable</p>
           ) : status.data?.outcome === "not_applicable" ? (
-            <p className="text-xs text-muted-foreground">Not a Git workspace</p>
+            <p className="text-xs text-muted-foreground">Not a Git repository</p>
           ) : workspace?.workingTree.files.length ? (
             <ul className="space-y-1">
               {workspace.workingTree.files.slice(0, 4).map((file) => (
@@ -135,96 +119,29 @@ function EnvironmentSourceSummary({ thread }: { thread: ThreadListEntry }) {
   );
 }
 
-export function ProjectSourceControlPane({ projectId }: { projectId: string }) {
-  const sidebar = useSidebarNavigation();
-  const archivedThreads = useThreads({
-    archived: true,
-    projectId,
-  });
-  const project =
-    sidebar.data?.projects.find((candidate) => candidate.id === projectId) ??
-    (sidebar.data?.personalProject.id === projectId
-      ? sidebar.data.personalProject
-      : null);
-  const recentEnvironmentThreads = useMemo(() => {
-    if (!project) return [];
-    const seen = new Set<string>();
-    return [...project.threads, ...(archivedThreads.data ?? [])]
-      .sort((left, right) => right.updatedAt - left.updatedAt)
-      .filter((thread) => {
-        if (thread.environmentId === null || seen.has(thread.environmentId))
-          return false;
-        seen.add(thread.environmentId);
-        return true;
-      })
-      .slice(0, RECENT_ENVIRONMENT_LIMIT);
-  }, [archivedThreads.data, project]);
-  const hostId =
-    recentEnvironmentThreads.find((thread) => thread.environmentHostId)
-      ?.environmentHostId ??
-    project?.sources.find((source) => source.isDefault)?.hostId ??
-    project?.sources[0]?.hostId ??
-    null;
-  const branches = useProjectSourceBranches(projectId, hostId, {
-    enabled: project !== null && hostId !== null,
-  });
-
-  if (sidebar.isLoading) {
-    return <EmptyMessage>Loading source control…</EmptyMessage>;
-  }
-  if (sidebar.isError || !project) {
-    return <EmptyMessage>Project source control is unavailable.</EmptyMessage>;
-  }
-
+export function ProjectSourceControlPane({
+  environments,
+}: {
+  projectId: string;
+  environments: readonly { id: string; label: string }[];
+}) {
   return (
     <div className="min-h-0 flex-1 overflow-auto p-2">
-      <section className="mb-2 rounded-md border border-border/70 bg-canvas">
-        <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2">
-          <Icon name="GitBranch" className="size-3.5 text-muted-foreground" />
-          <h3 className="text-xs font-medium">Branches</h3>
-        </div>
-        {hostId === null ? (
-          <EmptyMessage>No project source is connected.</EmptyMessage>
-        ) : branches.isLoading ? (
-          <EmptyMessage>Loading branches…</EmptyMessage>
-        ) : branches.isError ? (
-          <EmptyMessage>
-            Branches are unavailable while the host is offline.
-          </EmptyMessage>
-        ) : (
-          <div className="flex flex-wrap gap-1.5 p-2">
-            {(branches.data?.branches ?? []).slice(0, 12).map((branch) => (
-              <span
-                key={branch}
-                className="max-w-full truncate rounded-md bg-secondary px-2 py-1 text-xs"
-                title={branch}
-              >
-                {branch}
-              </span>
-            ))}
-            {(branches.data?.branches.length ?? 0) === 0 ? (
-              <span className="text-xs text-muted-foreground">
-                No local branches reported
-              </span>
-            ) : null}
-          </div>
-        )}
-      </section>
-
-      {recentEnvironmentThreads.length === 0 ? (
+      {environments.length === 0 ? (
         <div className="rounded-md border border-dashed border-border p-4 text-center">
-          <p className="text-xs font-medium">No task workspaces yet</p>
+          <p className="text-xs font-medium">No assigned agent workspaces</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Changes, pull requests, and commit history appear after a project
-            task creates an environment.
+            Changes, pull requests, and history appear only for Builder and
+            Reviewer environments in this workspace tab.
           </p>
         </div>
       ) : (
         <div className="space-y-2">
-          {recentEnvironmentThreads.map((thread) => (
+          {environments.map((environment) => (
             <EnvironmentSourceSummary
-              key={thread.environmentId}
-              thread={thread}
+              key={environment.id}
+              environmentId={environment.id}
+              label={environment.label}
             />
           ))}
         </div>
