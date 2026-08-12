@@ -36,10 +36,14 @@ export function ProjectWorkspacePaneFrame({
       data-project-workspace-pane={title}
     >
       <header
-        className="flex h-9 shrink-0 items-center gap-2 border-b border-border/70 bg-sidebar px-3"
+        className="flex h-8 shrink-0 items-center gap-2 border-b border-border/70 bg-sidebar px-2.5"
         onDoubleClick={onHeaderDoubleClick}
       >
-        <Icon name={icon} className="size-3.5 text-muted-foreground" aria-hidden />
+        <Icon
+          name={icon}
+          className="size-3.5 text-muted-foreground"
+          aria-hidden
+        />
         <h2 className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
           {title}
         </h2>
@@ -47,7 +51,7 @@ export function ProjectWorkspacePaneFrame({
         {onToggleFocus ? (
           <button
             type="button"
-            className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={actionLabel}
             onClick={(event) => {
               event.stopPropagation();
@@ -55,7 +59,9 @@ export function ProjectWorkspacePaneFrame({
             }}
           >
             <Icon
-              name={actionLabel?.startsWith("Restore") ? "Minimize2" : "Maximize2"}
+              name={
+                actionLabel?.startsWith("Restore") ? "Minimize2" : "Maximize2"
+              }
               className="size-3.5"
               aria-hidden
             />

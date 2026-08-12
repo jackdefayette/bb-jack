@@ -141,7 +141,9 @@ export function ProjectWorkspaceGrid({
     return (
       <div className="grid min-h-0 flex-1 place-items-center px-8 text-center">
         <div>
-          <p className="text-sm font-medium text-foreground">Project unavailable</p>
+          <p className="text-sm font-medium text-foreground">
+            Project unavailable
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">
             This workspace tab will stay open in case the project reconnects.
           </p>
@@ -152,13 +154,14 @@ export function ProjectWorkspaceGrid({
 
   return (
     <main
-      className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 overflow-hidden bg-border/70 gap-px"
+      className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-px overflow-hidden bg-border/70"
       aria-label={`${tab.projectName} project workspace`}
       data-focus-mode={tab.focusMode}
     >
       <div
+        data-workspace-quadrant="primary"
         className={cn(
-          "col-start-1 row-start-1 min-h-0 min-w-0",
+          "col-start-1 row-start-1 h-full min-h-0 min-w-0",
           tab.focusMode === "primary" && "row-span-2",
         )}
         {...hiddenPaneProps(primaryHidden)}
@@ -176,7 +179,10 @@ export function ProjectWorkspaceGrid({
         />
       </div>
 
-      <div className="col-start-2 row-start-1 min-h-0 min-w-0">
+      <div
+        data-workspace-quadrant="review"
+        className="col-start-2 row-start-1 h-full min-h-0 min-w-0"
+      >
         <ProjectWorkspaceAgentPane
           label="Review Agent"
           projectId={tab.projectId}
@@ -189,8 +195,9 @@ export function ProjectWorkspaceGrid({
       </div>
 
       <div
+        data-workspace-quadrant="browser"
         className={cn(
-          "col-start-1 row-start-2 min-h-0 min-w-0",
+          "col-start-1 row-start-2 h-full min-h-0 min-w-0",
           tab.focusMode === "browser" && "row-start-1 row-span-2",
         )}
         {...hiddenPaneProps(browserHidden)}
@@ -208,7 +215,10 @@ export function ProjectWorkspaceGrid({
         />
       </div>
 
-      <div className="col-start-2 row-start-2 min-h-0 min-w-0">
+      <div
+        data-workspace-quadrant="tools"
+        className="col-start-2 row-start-2 h-full min-h-0 min-w-0"
+      >
         <ProjectWorkspaceToolsPane
           projectId={tab.projectId}
           toolsView={tab.toolsView}

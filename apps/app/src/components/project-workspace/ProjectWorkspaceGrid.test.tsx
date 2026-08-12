@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { useCallback, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -63,7 +69,11 @@ const BASE_TAB: ProjectWorkspaceTab = {
   },
 };
 
-function Harness({ initialTab = BASE_TAB }: { initialTab?: ProjectWorkspaceTab }) {
+function Harness({
+  initialTab = BASE_TAB,
+}: {
+  initialTab?: ProjectWorkspaceTab;
+}) {
   const [tab, setTab] = useState(initialTab);
   const updateTab = useCallback(
     (_tabId: string, patch: ProjectWorkspaceTabUpdate) => {
@@ -95,6 +105,20 @@ describe("ProjectWorkspaceGrid", () => {
     expect(screen.getByRole("heading", { name: "Review Agent" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Browser" })).toBeTruthy();
     expect(screen.getByTestId("tools-pane")).toBeTruthy();
+    const workspace = screen.getByRole("main", {
+      name: "Example project project workspace",
+    });
+    expect(workspace.className).toContain(
+      "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
+    );
+    expect(workspace.className).toContain(
+      "grid-rows-[minmax(0,1fr)_minmax(0,1fr)]",
+    );
+    expect(
+      Array.from(workspace.children).map((child) =>
+        child.getAttribute("data-workspace-quadrant"),
+      ),
+    ).toEqual(["primary", "review", "browser", "tools"]);
     await waitFor(() => {
       expect(screen.getByTestId("thread-thread-a")).toBeTruthy();
       expect(screen.getByTestId("thread-thread-b")).toBeTruthy();
@@ -121,7 +145,9 @@ describe("ProjectWorkspaceGrid", () => {
     ).toBe(reviewPane);
     expect(screen.getByTestId("tools-pane")).toBe(toolsPane);
 
-    fireEvent.click(screen.getByRole("button", { name: "Restore four quadrants" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Restore four quadrants" }),
+    );
     expect(
       screen.getByRole("main", { name: "Example project project workspace" })
         .dataset.focusMode,
@@ -132,11 +158,15 @@ describe("ProjectWorkspaceGrid", () => {
     render(<Harness />);
     expect(browserDeck.mock.lastCall?.[0].canShowNativeBrowserView).toBe(true);
 
-    fireEvent.click(screen.getByRole("button", { name: "Focus primary agent" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Focus primary agent" }),
+    );
     expect(browserDeck.mock.lastCall?.[0].canShowNativeBrowserView).toBe(false);
     expect(screen.getByTestId("browser-deck")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Restore four quadrants" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Restore four quadrants" }),
+    );
     expect(browserDeck.mock.lastCall?.[0].canShowNativeBrowserView).toBe(true);
   });
 });
