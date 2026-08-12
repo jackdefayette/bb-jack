@@ -245,12 +245,26 @@ status|install` to inspect or install provider CLIs on a selected machine.
   resolution and fallback as project create. Use `--clone` instead of `--path`
   to clone the project's remote there; `--remote-url` and `--target-path` are
   optional clone overrides.
-- `bb project paths|files|content|commands` accept `--machine <id-or-name>`
+- `bb project status|diff|diff-file|diff-patch|paths|files|content|commands`
+  accept `--machine <id-or-name>`
   (`--host` alias) or `--environment <id>`, but not both. An environment uses
   its owning machine and workspace; an explicit machine uses that machine's
   project source; omitting both intentionally uses the primary machine source.
   `bb project content --json` returns UTF-8 text or base64 binary content with
   an explicit `contentEncoding`.
+- `bb project status <project-id>` inspects only that selected project source
+  or environment workspace. It never adopts an ancestor Git repository; a
+  configured non-repository directory reports `not_applicable`. Pass
+  `--merge-base-branch <branch>` for ahead/behind status.
+- `bb project diff <project-id>` reviews the exact same selected checkout. Use
+  `--uncommitted` or `--merge-base-branch <branch>`; `--json` returns the typed
+  file table plus bounded initial patches for agent-native review.
+- Use `bb project diff-file <project-id> <path> --target <target> --side
+  <old|new>` to read complete file sides and `bb project diff-patch <project-id>
+  <paths...> --target <target>` to fetch patches omitted from a large diff's
+  initial response. Branch targets additionally require the resolved
+  `--merge-base-ref` for diff-file or `--merge-base-branch` for diff-patch;
+  commit targets require `--sha`.
 - Use `bb project attachment upload <project-id> --client-file <path>` when the
   bytes live on the CLI machine, including when the CLI and bb server are on
   different hosts. It reads locally and sends multipart bytes through the

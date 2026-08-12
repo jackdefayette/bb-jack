@@ -19,6 +19,8 @@ import {
 } from "./ProjectWorkspaceGrid";
 
 const browserDeck = vi.hoisted(() => vi.fn());
+const projectPaths = vi.hoisted(() => vi.fn());
+const projectStatus = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ refetchQueries: vi.fn() }),
@@ -76,7 +78,24 @@ vi.mock("@/hooks/queries/environment-queries", () => ({
 }));
 
 vi.mock("@/hooks/queries/project-queries", () => ({
-  useProjectPathSuggestions: () => ({ data: { paths: [] }, isLoading: false }),
+  useProjectPathSuggestions: (args: unknown) => {
+    projectPaths(args);
+    return { data: { paths: [] }, isLoading: false };
+  },
+  useProjectWorkStatus: (args: unknown) => {
+    projectStatus(args);
+    return {
+      data: {
+        outcome: "available",
+        resolvedSource: { hostId: "host-1", path: "/safe/project" },
+        workspace: {
+          branch: { currentBranch: "feature", defaultBranch: "main" },
+        },
+      },
+      isLoading: false,
+      isError: false,
+    };
+  },
 }));
 
 const BASE_TAB: ProjectWorkspaceTab = {
@@ -120,6 +139,8 @@ function Harness({
 afterEach(() => {
   cleanup();
   browserDeck.mockClear();
+  projectPaths.mockClear();
+  projectStatus.mockClear();
 });
 
 describe("ProjectWorkspaceGrid", () => {
@@ -212,5 +233,31 @@ describe("ProjectWorkspaceGrid", () => {
       screen.getByRole("button", { name: "Restore four quadrants" }),
     );
     expect(browserDeck.mock.lastCall?.[0].canShowNativeBrowserView).toBe(true);
+  });
+
+  it("keeps an explicit project checkout pinned while the active agent changes", async () => {
+    render(<Harness />);
+    const selector = screen.getByRole("combobox", {
+      name: "Inspector environment",
+    });
+
+    fireEvent.change(selector, { target: { value: "__project_checkout__" } });
+    await waitFor(() =>
+      expect(selector).toHaveProperty("value", "__project_checkout__"),
+    );
+    expect(projectPaths).toHaveBeenLastCalledWith(
+      expect.objectContaining({ environmentId: null, hostId: null }),
+    );
+    expect(projectStatus).toHaveBeenLastCalledWith(
+      expect.objectContaining({ environmentId: null, hostId: null }),
+    );
+
+    fireEvent.pointerDown(screen.getByRole("heading", { name: "Review" }));
+    await waitFor(() =>
+      expect(selector).toHaveProperty("value", "__project_checkout__"),
+    );
+    expect(projectPaths).toHaveBeenLastCalledWith(
+      expect.objectContaining({ environmentId: null, hostId: null }),
+    );
   });
 });

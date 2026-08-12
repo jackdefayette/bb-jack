@@ -39,6 +39,7 @@ export interface RequestDiffPatchPathsArgs {
 }
 
 export interface UseEnvironmentDiffPatchesArgs {
+  projectId?: string;
   target?: WorkspaceDiffTarget;
 }
 
@@ -148,7 +149,7 @@ function patchPageError(
  */
 export function useEnvironmentDiffPatches(
   environmentId: string,
-  { target }: UseEnvironmentDiffPatchesArgs,
+  { projectId, target }: UseEnvironmentDiffPatchesArgs,
 ): UseEnvironmentDiffPatchesResult {
   const queryClient = useQueryClient();
 
@@ -222,12 +223,19 @@ export function useEnvironmentDiffPatches(
       const controller = new AbortController();
       abortControllersRef.current.add(controller);
       try {
-        const response = await sdk.environments.diffPatch({
-          environmentId,
-          target,
-          paths,
-          signal: controller.signal,
-        });
+        const response = projectId
+          ? await sdk.projects.diffPatch({
+              projectId,
+              target,
+              paths,
+              signal: controller.signal,
+            })
+          : await sdk.environments.diffPatch({
+              environmentId,
+              target,
+              paths,
+              signal: controller.signal,
+            });
         if (controller.signal.aborted) {
           return;
         }
@@ -303,7 +311,7 @@ export function useEnvironmentDiffPatches(
         abortControllersRef.current.delete(controller);
       }
     },
-    [environmentId, target, identity, queryClient],
+    [environmentId, target, identity, projectId, queryClient],
   );
 
   const dispatchPending = useCallback(() => {

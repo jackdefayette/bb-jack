@@ -1,4 +1,4 @@
-import { createProjectSource } from "@bb/db";
+import { createProjectSource, updateProjectSource } from "@bb/db";
 import type { HostProviderCommand } from "@bb/host-daemon-contract";
 import { describe, expect, it } from "vitest";
 import { registerHostRpcResponder } from "../helpers/host-rpc.js";
@@ -25,6 +25,296 @@ const primaryCommand: HostProviderCommand = {
 };
 
 describe("public project workspace routing", () => {
+  it("classifies the configured project path without adopting an ancestor repository", async () => {
+    await withTestHarness(async (harness) => {
+      const { host, session } = seedHostSession(harness.deps, {
+        id: "host-project-status-boundary",
+      });
+      seedPrimaryHost(harness.deps, host.id);
+      const { project, source } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+        path: "/Users/jack/Documents/dataConductor",
+      });
+      const rpc = registerHostRpcResponder(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        handle: (request) => {
+          if (
+            request.command.type !== "workspace.status" &&
+            request.command.type !== "workspace.diffFiles"
+          ) {
+            throw new Error(`Unexpected status RPC ${request.command.type}`);
+          }
+          return {
+            ok: true,
+            result: {
+              outcome: "unavailable",
+              failure: {
+                code: "not_git_repo",
+                workspacePath: request.command.workspaceContext.workspacePath,
+                message: "Not a Git repository",
+              },
+            },
+          };
+        },
+      });
+
+      const response = await harness.app.request(
+        `/api/v1/projects/${project.id}/status`,
+      );
+      expect(response.status).toBe(200);
+      await expect(readJson(response)).resolves.toEqual({
+        outcome: "not_applicable",
+        reason: "non_git_environment",
+        message: "The configured project checkout is not a Git repository",
+        resolvedSource: {
+          hostId: host.id,
+          path: "/Users/jack/Documents/dataConductor",
+        },
+      });
+      const firstCommand = rpc.requests[0]?.command;
+      if (firstCommand?.type !== "workspace.status") {
+        throw new Error("Expected initial project workspace status command");
+      }
+      const firstRuntimeId = firstCommand.environmentId;
+      expect(firstRuntimeId).toMatch(
+        new RegExp(`^project-source:${project.id}:${host.id}:[0-9a-f]{16}$`, "u"),
+      );
+      expect(rpc.requests[0]?.command).toMatchObject({
+        type: "workspace.status",
+        workspaceContext: {
+          workspacePath: "/Users/jack/Documents/dataConductor",
+          workspaceProvisionType: "unmanaged",
+        },
+      });
+
+      const diffResponse = await harness.app.request(
+        `/api/v1/projects/${project.id}/diff/files?target=uncommitted`,
+      );
+      expect(diffResponse.status).toBe(200);
+      await expect(readJson(diffResponse)).resolves.toEqual({
+        outcome: "not_applicable",
+        reason: "non_git_environment",
+        message: "The configured project checkout is not a Git repository",
+      });
+      expect(rpc.requests[1]?.command).toMatchObject({
+        type: "workspace.diffFiles",
+        workspaceContext: {
+          workspacePath: "/Users/jack/Documents/dataConductor",
+        },
+      });
+
+      updateProjectSource(harness.db, harness.deps.hub, source.id, {
+        path: "/Users/jack/Documents/dataConductor-moved",
+      });
+      const movedResponse = await harness.app.request(
+        `/api/v1/projects/${project.id}/status`,
+      );
+      expect(movedResponse.status).toBe(200);
+      await expect(readJson(movedResponse)).resolves.toMatchObject({
+        resolvedSource: {
+          hostId: host.id,
+          path: "/Users/jack/Documents/dataConductor-moved",
+        },
+      });
+      expect(rpc.requests[2]?.command).toMatchObject({
+        type: "workspace.status",
+        workspaceContext: {
+          workspacePath: "/Users/jack/Documents/dataConductor-moved",
+        },
+      });
+      const movedCommand = rpc.requests[2]?.command;
+      if (movedCommand?.type !== "workspace.status") {
+        throw new Error("Expected moved project workspace status command");
+      }
+      expect(movedCommand.environmentId).not.toBe(firstRuntimeId);
+    });
+  });
+
+  it("rejects a status environment owned by another project", async () => {
+    await withTestHarness(async (harness) => {
+      const { host } = seedHostSession(harness.deps, {
+        id: "host-project-status-isolation",
+      });
+      seedPrimaryHost(harness.deps, host.id);
+      const { project } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+      });
+      const { project: otherProject } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+        path: "/other/project",
+      });
+      const environment = seedEnvironment(harness.deps, {
+        hostId: host.id,
+        projectId: otherProject.id,
+      });
+
+      const response = await harness.app.request(
+        `/api/v1/projects/${project.id}/status?environmentId=${environment.id}`,
+      );
+      expect(response.status).toBe(404);
+      await expect(readJson(response)).resolves.toMatchObject({
+        code: "environment_not_found",
+      });
+    });
+  });
+
+  it("runs a real project-default diff against the exact configured checkout", async () => {
+    await withTestHarness(async (harness) => {
+      const { host, session } = seedHostSession(harness.deps, {
+        id: "host-project-default-diff",
+      });
+      seedPrimaryHost(harness.deps, host.id);
+      const { project } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+        path: "/safe/project",
+      });
+      const rpc = registerHostRpcResponder(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        handle: (request) => {
+          if (request.command.type !== "workspace.diffFiles") {
+            throw new Error(`Unexpected project diff RPC ${request.command.type}`);
+          }
+          return {
+            ok: true,
+            result: {
+              outcome: "available",
+              files: [],
+              shortstat: "",
+              mergeBaseRef: null,
+            },
+          };
+        },
+      });
+
+      const response = await harness.app.request(
+        `/api/v1/projects/${project.id}/diff/files?target=uncommitted`,
+      );
+      expect(response.status).toBe(200);
+      await expect(readJson(response)).resolves.toMatchObject({
+        outcome: "available",
+        files: [],
+        initialPatches: [],
+      });
+      expect(rpc.requests[0]?.command).toMatchObject({
+        type: "workspace.diffFiles",
+        workspaceContext: {
+          workspacePath: "/safe/project",
+          workspaceProvisionType: "unmanaged",
+        },
+        target: { type: "uncommitted" },
+      });
+    });
+  });
+
+  it("routes project diff patches and file sides inside the exact source root", async () => {
+    await withTestHarness(async (harness) => {
+      const { host, session } = seedHostSession(harness.deps, {
+        id: "host-project-diff-details",
+      });
+      seedPrimaryHost(harness.deps, host.id);
+      const { project } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+        path: "/safe/project",
+      });
+      const rpc = registerHostRpcResponder(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        handle: (request) => {
+          if (request.command.type === "workspace.diffPatch") {
+            return {
+              ok: true,
+              result: {
+                outcome: "available",
+                patches: [
+                  {
+                    path: "src/demo.ts",
+                    patch: "@@ -1 +1 @@",
+                    truncated: false,
+                  },
+                ],
+              },
+            };
+          }
+          if (request.command.type === "workspace.status") {
+            return {
+              ok: true,
+              result: {
+                outcome: "available",
+                workspaceStatus: {
+                  workingTree: {
+                    insertions: 0,
+                    deletions: 0,
+                    files: [],
+                    hasUncommittedChanges: false,
+                    state: "clean",
+                  },
+                  branch: { currentBranch: "feature", defaultBranch: "main" },
+                  checkout: {
+                    kind: "branch",
+                    branchName: "feature",
+                    headSha: null,
+                  },
+                  mergeBase: null,
+                },
+              },
+            };
+          }
+          if (request.command.type === "host.read_file") {
+            return {
+              ok: true,
+              result: {
+                path: request.command.path,
+                content: "old content",
+                contentEncoding: "utf8",
+                mimeType: "text/plain",
+                sizeBytes: 11,
+                sha256: "1".repeat(64),
+              },
+            };
+          }
+          throw new Error(`Unexpected detailed diff RPC ${request.command.type}`);
+        },
+      });
+
+      const patchResponse = await harness.app.request(
+        `/api/v1/projects/${project.id}/diff/patch`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            target: { type: "all", mergeBaseBranch: "main" },
+            paths: ["src/demo.ts"],
+          }),
+        },
+      );
+      expect(patchResponse.status).toBe(200);
+      expect(rpc.requests[0]?.command).toMatchObject({
+        type: "workspace.diffPatch",
+        workspaceContext: { workspacePath: "/safe/project" },
+        target: { type: "all", mergeBaseBranch: "main" },
+        paths: ["src/demo.ts"],
+      });
+
+      const fileResponse = await harness.app.request(
+        `/api/v1/projects/${project.id}/diff/file?target=all&side=old&mergeBaseRef=abc1234&path=src%2Fdemo.ts`,
+      );
+      expect(fileResponse.status).toBe(200);
+      expect(rpc.requests[2]?.command).toMatchObject({
+        type: "host.read_file",
+        path: "/safe/project/src/demo.ts",
+        rootPath: "/safe/project",
+        ref: "abc1234",
+      });
+
+      const escapeResponse = await harness.app.request(
+        `/api/v1/projects/${project.id}/diff/file?target=uncommitted&side=new&path=..%2Fsecret.txt`,
+      );
+      expect(escapeResponse.status).toBe(400);
+    });
+  });
+
   it("isolates primary, explicit-host, and environment workspace discovery", async () => {
     await withTestHarness(async (harness) => {
       const { host: primaryHost, session: primarySession } = seedHostSession(
@@ -213,6 +503,8 @@ describe("public project workspace routing", () => {
       });
       const selector = `hostId=${host.id}&environmentId=${environment.id}`;
       const urls = [
+        `/api/v1/projects/${project.id}/status?${selector}`,
+        `/api/v1/projects/${project.id}/diff/files?${selector}&target=uncommitted`,
         `/api/v1/projects/${project.id}/files?${selector}`,
         `/api/v1/projects/${project.id}/paths?${selector}&includeFiles=true&includeDirectories=true`,
         `/api/v1/projects/${project.id}/commands?${selector}&provider=codex`,

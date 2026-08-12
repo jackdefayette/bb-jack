@@ -56,6 +56,54 @@ interface ProjectDiscoveryCommandOptions {
   query?: string;
 }
 
+interface ProjectStatusCommandOptions extends ProjectDiscoveryCommandOptions {
+  mergeBaseBranch?: string;
+}
+
+interface ProjectDiffCommandOptions extends ProjectDiscoveryCommandOptions {
+  mergeBaseBranch?: string;
+  uncommitted?: boolean;
+}
+
+interface ProjectDiffFileCommandOptions extends ProjectDiscoveryCommandOptions {
+  mergeBaseRef?: string;
+  sha?: string;
+  side: string;
+  target: string;
+}
+
+interface ProjectDiffPatchCommandOptions extends ProjectDiscoveryCommandOptions {
+  mergeBaseBranch?: string;
+  sha?: string;
+  target: string;
+}
+
+const PROJECT_DIFF_TARGETS = [
+  "uncommitted",
+  "branch_committed",
+  "all",
+  "commit",
+] as const;
+type ProjectDiffTargetName = (typeof PROJECT_DIFF_TARGETS)[number];
+
+function parseProjectDiffTarget(value: string): ProjectDiffTargetName {
+  switch (value) {
+    case "uncommitted":
+    case "branch_committed":
+    case "all":
+    case "commit":
+      return value;
+  }
+  throw new Error(
+    `--target must be one of: ${PROJECT_DIFF_TARGETS.join(", ")}.`,
+  );
+}
+
+function parseDiffSide(value: string): "old" | "new" {
+  if (value === "old" || value === "new") return value;
+  throw new Error("--side must be old or new.");
+}
+
 function addProjectWorkspaceRoutingOptions(command: Command): Command {
   return command
     .option("--machine <id-or-name>", "Project source machine")
@@ -364,6 +412,234 @@ export function registerProjectCommands(
         if (outputJson(opts, result)) return;
         console.log(JSON.stringify(result, null, 2));
       }),
+    );
+
+  addProjectWorkspaceRoutingOptions(project.command("status <id>"))
+    .description("Show the exact selected project workspace status")
+    .option("--merge-base-branch <branch>", "Include merge-base status")
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(async (id: string, opts: ProjectStatusCommandOptions) => {
+        const serverUrl = getUrl();
+        const result = await createCliBbSdk(serverUrl).projects.status({
+          projectId: id,
+          ...(await resolveMachineEnvironmentRouting(opts, serverUrl)),
+          ...(opts.mergeBaseBranch !== undefined
+            ? { mergeBaseBranch: opts.mergeBaseBranch }
+            : {}),
+        });
+        if (outputJson(opts, result)) return;
+        console.log(`Host: ${result.resolvedSource.hostId}`);
+        console.log(`Path: ${result.resolvedSource.path}`);
+        if (result.outcome === "not_applicable") {
+          console.log(`Status unavailable: ${result.message}`);
+          return;
+        }
+        if (result.outcome === "unavailable") {
+          console.log(`Status unavailable: ${result.failure.message}`);
+          return;
+        }
+        const status = result.workspace;
+        console.log(`State: ${status.workingTree.state}`);
+        console.log(`Branch: ${status.branch.currentBranch ?? "(detached)"}`);
+        console.log(`Default branch: ${status.branch.defaultBranch}`);
+        console.log(`Changed files: ${status.workingTree.files.length}`);
+        console.log(`Insertions: +${status.workingTree.insertions}`);
+        console.log(`Deletions: -${status.workingTree.deletions}`);
+        if (status.mergeBase) {
+          console.log(`Merge base: ${status.mergeBase.mergeBaseBranch}`);
+          console.log(`Ahead: ${status.mergeBase.aheadCount}`);
+          console.log(`Behind: ${status.mergeBase.behindCount}`);
+        }
+      }),
+    );
+
+  addProjectWorkspaceRoutingOptions(project.command("diff <id>"))
+    .description("Review files changed in the exact selected project workspace")
+    .option("--uncommitted", "Review only uncommitted changes")
+    .option(
+      "--merge-base-branch <branch>",
+      "Review committed and uncommitted changes from this base",
+    )
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(async (id: string, opts: ProjectDiffCommandOptions) => {
+        if (!opts.uncommitted && opts.mergeBaseBranch === undefined) {
+          throw new Error(
+            "Provide --uncommitted or --merge-base-branch <branch>.",
+          );
+        }
+        const serverUrl = getUrl();
+        const routing = await resolveMachineEnvironmentRouting(opts, serverUrl);
+        const result = await createCliBbSdk(serverUrl).projects.diffFiles(
+          opts.uncommitted
+            ? { projectId: id, ...routing, target: "uncommitted" }
+            : {
+                projectId: id,
+                ...routing,
+                target: "all",
+                mergeBaseBranch: opts.mergeBaseBranch ?? "",
+              },
+        );
+        if (outputJson(opts, result)) return;
+        if (result.outcome === "not_applicable") {
+          console.log(`Diff unavailable: ${result.message}`);
+          return;
+        }
+        if (result.outcome === "unavailable") {
+          console.log(`Diff unavailable: ${result.failure.message}`);
+          return;
+        }
+        console.log(result.shortstat || "No changes");
+        for (const file of result.files) {
+          console.log(`${file.changeKind}  ${file.path}`);
+        }
+      }),
+    );
+
+  addProjectWorkspaceRoutingOptions(
+    project.command("diff-file <id> <path>"),
+  )
+    .description("Read one side of a file from an exact project diff")
+    .requiredOption(
+      "--target <target>",
+      "uncommitted, branch_committed, all, or commit",
+    )
+    .requiredOption("--side <side>", "old or new")
+    .option("--merge-base-ref <sha>", "Resolved merge-base SHA")
+    .option("--sha <sha>", "Commit SHA for a commit target")
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(
+        async (
+          id: string,
+          path: string,
+          opts: ProjectDiffFileCommandOptions,
+        ) => {
+          const serverUrl = getUrl();
+          const routing = await resolveMachineEnvironmentRouting(
+            opts,
+            serverUrl,
+          );
+          const target = parseProjectDiffTarget(opts.target);
+          const side = parseDiffSide(opts.side);
+          const sdk = createCliBbSdk(serverUrl);
+          const result =
+            target === "uncommitted"
+              ? await sdk.projects.diffFile({
+                  projectId: id,
+                  ...routing,
+                  path,
+                  side,
+                  target,
+                })
+              : target === "commit"
+                ? opts.sha
+                  ? await sdk.projects.diffFile({
+                      projectId: id,
+                      ...routing,
+                      path,
+                      sha: opts.sha,
+                      side,
+                      target,
+                    })
+                  : (() => {
+                      throw new Error("--sha is required for a commit target.");
+                    })()
+                : opts.mergeBaseRef
+                  ? await sdk.projects.diffFile({
+                      projectId: id,
+                      ...routing,
+                      mergeBaseRef: opts.mergeBaseRef,
+                      path,
+                      side,
+                      target,
+                    })
+                  : (() => {
+                      throw new Error(
+                        "--merge-base-ref is required for branch_committed and all targets.",
+                      );
+                    })();
+          if (outputJson(opts, result)) return;
+          console.log(result.content);
+        },
+      ),
+    );
+
+  addProjectWorkspaceRoutingOptions(
+    project.command("diff-patch <id> <paths...>"),
+  )
+    .description("Fetch bounded patches for exact paths in a project diff")
+    .requiredOption(
+      "--target <target>",
+      "uncommitted, branch_committed, all, or commit",
+    )
+    .option("--merge-base-branch <branch>", "Base branch for branch targets")
+    .option("--sha <sha>", "Commit SHA for a commit target")
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(
+        async (
+          id: string,
+          paths: string[],
+          opts: ProjectDiffPatchCommandOptions,
+        ) => {
+          const serverUrl = getUrl();
+          const routing = await resolveMachineEnvironmentRouting(
+            opts,
+            serverUrl,
+          );
+          const target = parseProjectDiffTarget(opts.target);
+          const sdk = createCliBbSdk(serverUrl);
+          const result =
+            target === "uncommitted"
+              ? await sdk.projects.diffPatch({
+                  projectId: id,
+                  ...routing,
+                  paths,
+                  target: { type: target },
+                })
+              : target === "commit"
+                ? opts.sha
+                  ? await sdk.projects.diffPatch({
+                      projectId: id,
+                      ...routing,
+                      paths,
+                      target: { type: target, sha: opts.sha },
+                    })
+                  : (() => {
+                      throw new Error("--sha is required for a commit target.");
+                    })()
+                : opts.mergeBaseBranch
+                  ? await sdk.projects.diffPatch({
+                      projectId: id,
+                      ...routing,
+                      paths,
+                      target: {
+                        type: target,
+                        mergeBaseBranch: opts.mergeBaseBranch,
+                      },
+                    })
+                  : (() => {
+                      throw new Error(
+                        "--merge-base-branch is required for branch_committed and all targets.",
+                      );
+                    })();
+          if (outputJson(opts, result)) return;
+          if (result.outcome === "not_applicable") {
+            console.log(`Diff unavailable: ${result.message}`);
+            return;
+          }
+          if (result.outcome === "unavailable") {
+            console.log(`Diff unavailable: ${result.failure.message}`);
+            return;
+          }
+          for (const patch of result.patches) {
+            console.log(`--- ${patch.path}`);
+            console.log(patch.patch);
+          }
+        },
+      ),
     );
 
   project

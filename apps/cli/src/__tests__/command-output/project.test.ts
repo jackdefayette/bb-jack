@@ -293,6 +293,151 @@ describe("bb project command output", () => {
     });
   });
 
+  it("bb project status routes to an exact environment and reports a non-repository checkout", async () => {
+    const getStatus = vi.fn(async () => ({
+      outcome: "not_applicable" as const,
+      reason: "non_git_environment" as const,
+      message: "The configured project checkout is not a Git repository",
+      resolvedSource: { hostId: "host-1", path: "/project/path" },
+    }));
+    stubServerApi({ "v1.projects.:id.status.$get": getStatus });
+
+    await runCommand(
+      [
+        "project",
+        "status",
+        "proj-1",
+        "--environment",
+        "env-1",
+        "--merge-base-branch",
+        "main",
+      ],
+      register,
+    );
+
+    expect(getStatus).toHaveBeenCalledWith({
+      param: { id: "proj-1" },
+      query: { environmentId: "env-1", mergeBaseBranch: "main" },
+    });
+    expect(collectLogLines(vi.mocked(console.log))).toEqual([
+      "Host: host-1",
+      "Path: /project/path",
+      "Status unavailable: The configured project checkout is not a Git repository",
+    ]);
+  });
+
+  it("bb project diff reviews the exact selected checkout", async () => {
+    const getDiff = vi.fn(async () => ({
+      outcome: "available" as const,
+      files: [
+        {
+          path: "src/project.ts",
+          previousPath: null,
+          changeKind: "modified" as const,
+          additions: 2,
+          deletions: 1,
+          binary: false,
+          origin: "tracked" as const,
+          loadMode: "auto" as const,
+        },
+      ],
+      shortstat: "1 file changed, 2 insertions(+), 1 deletion(-)",
+      mergeBaseRef: null,
+      initialPatches: [],
+    }));
+    stubServerApi({ "v1.projects.:id.diff.files.$get": getDiff });
+
+    await runCommand(
+      ["project", "diff", "proj-1", "--uncommitted"],
+      register,
+    );
+
+    expect(getDiff).toHaveBeenCalledWith({
+      param: { id: "proj-1" },
+      query: { target: "uncommitted" },
+    });
+    expect(collectLogLines(vi.mocked(console.log))).toEqual([
+      "1 file changed, 2 insertions(+), 1 deletion(-)",
+      "modified  src/project.ts",
+    ]);
+  });
+
+  it("bb project diff-file reads an exact merge-base file side", async () => {
+    const getFile = vi.fn(async () => ({
+      path: "/project/src/demo.ts",
+      content: "old content",
+      contentEncoding: "utf8" as const,
+      mimeType: "text/plain",
+      sizeBytes: 11,
+    }));
+    stubServerApi({ "v1.projects.:id.diff.file.$get": getFile });
+
+    await runCommand(
+      [
+        "project",
+        "diff-file",
+        "proj-1",
+        "src/demo.ts",
+        "--target",
+        "all",
+        "--side",
+        "old",
+        "--merge-base-ref",
+        "abc1234",
+      ],
+      register,
+    );
+
+    expect(getFile).toHaveBeenCalledWith({
+      param: { id: "proj-1" },
+      query: {
+        target: "all",
+        side: "old",
+        path: "src/demo.ts",
+        mergeBaseRef: "abc1234",
+      },
+    });
+    expect(collectLogLines(vi.mocked(console.log))).toEqual(["old content"]);
+  });
+
+  it("bb project diff-patch fetches omitted paths for agent review", async () => {
+    const postPatch = vi.fn(async () => ({
+      outcome: "available" as const,
+      patches: [
+        {
+          path: "src/demo.ts",
+          patch: "@@ -1 +1 @@",
+          truncated: false,
+        },
+      ],
+    }));
+    stubServerApi({ "v1.projects.:id.diff.patch.$post": postPatch });
+
+    await runCommand(
+      [
+        "project",
+        "diff-patch",
+        "proj-1",
+        "src/demo.ts",
+        "--target",
+        "uncommitted",
+      ],
+      register,
+    );
+
+    expect(postPatch).toHaveBeenCalledWith({
+      param: { id: "proj-1" },
+      json: {
+        paths: ["src/demo.ts"],
+        target: { type: "uncommitted" },
+      },
+    });
+    expect(collectLogLines(vi.mocked(console.log))).toEqual([
+      "--- src/demo.ts",
+      "@@ -1 +1 @@",
+    ]);
+  });
+
   it("bb project content routes by environment and prints the portable DTO as JSON", async () => {
     const getContent = vi.fn(
       async () =>

@@ -16,6 +16,7 @@ export const HOST_DIRECTORY_QUERY_KEY = "hostDirectory";
 export const HOST_CLONE_DEFAULT_PATH_QUERY_KEY = "hostCloneDefaultPath";
 export const PROJECTS_QUERY_KEY = "projects";
 export const PROJECT_PATHS_QUERY_KEY = "projectPaths";
+export const PROJECT_WORK_STATUS_QUERY_KEY = "projectWorkStatus";
 export const PROJECT_FILE_PREVIEW_QUERY_KEY = "projectFilePreview";
 export const PROJECT_SOURCE_BRANCHES_QUERY_KEY = "projectSourceBranches";
 export const PROJECT_DEFAULT_EXECUTION_OPTIONS_QUERY_KEY =
@@ -108,6 +109,13 @@ export type HostCloneDefaultPathQueryKey = readonly [
   string | null,
 ];
 export type ProjectsQueryKey = readonly [typeof PROJECTS_QUERY_KEY];
+export type ProjectWorkStatusQueryKey = readonly [
+  typeof PROJECT_WORK_STATUS_QUERY_KEY,
+  string | undefined,
+  string | null,
+  string | null,
+  string | null,
+];
 export type AllProjectPathsQueryKeyPrefix = readonly [
   typeof PROJECT_PATHS_QUERY_KEY,
 ];
@@ -511,6 +519,21 @@ export function hostCloneDefaultPathQueryKey(
 
 export function projectsQueryKey(): ProjectsQueryKey {
   return [PROJECTS_QUERY_KEY];
+}
+
+export function projectWorkStatusQueryKey(
+  projectId: string | undefined,
+  environmentId: string | null,
+  hostId: string | null,
+  mergeBaseBranch: string | null,
+): ProjectWorkStatusQueryKey {
+  return [
+    PROJECT_WORK_STATUS_QUERY_KEY,
+    projectId,
+    environmentId,
+    hostId,
+    mergeBaseBranch,
+  ];
 }
 
 export function projectPathsQueryKey(

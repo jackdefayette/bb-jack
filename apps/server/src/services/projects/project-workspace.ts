@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { getProjectSourceByHost } from "@bb/db";
 import type { ProjectWorkspaceRoutingQuery } from "@bb/server-contract";
 import type { AppDeps } from "../../types.js";
@@ -10,10 +11,31 @@ import {
   requireEnvironment,
   requireReadyEnvironment,
 } from "../lib/entity-lookup.js";
+import {
+  requireWorkspaceCommandTarget,
+  workspaceContextFromPath,
+  type WorkspaceCommandTarget,
+} from "../environments/workspace-command-target.js";
 
 export interface ProjectWorkspaceTarget {
   hostId: string;
   path: string;
+}
+
+function projectSourceRuntimeId(args: {
+  hostId: string;
+  path: string;
+  projectId: string;
+}): string {
+  const digest = createHash("sha256")
+    .update(args.projectId)
+    .update("\0")
+    .update(args.hostId)
+    .update("\0")
+    .update(args.path)
+    .digest("hex")
+    .slice(0, 16);
+  return `project-source:${args.projectId}:${args.hostId}:${digest}`;
 }
 
 interface ResolveProjectWorkspaceArgs extends ProjectWorkspaceRoutingQuery {
@@ -87,6 +109,40 @@ export function resolveProjectWorkspaceTarget(
       ? "Project has no local-path source for host"
       : "Project has no local-path source for the primary host",
   );
+}
+
+/**
+ * Resolve status against the exact selected project workspace. A configured
+ * project checkout uses a synthetic identity because workspace.status needs an
+ * execution lane key, while its path remains the authoritative project source.
+ */
+export function resolveProjectWorkspaceStatusTarget(
+  deps: Pick<AppDeps, "config" | "db" | "hub">,
+  args: ResolveProjectWorkspaceArgs,
+): WorkspaceCommandTarget {
+  if (args.environmentId !== undefined) {
+    const environment = requireProjectEnvironment(deps, {
+      environmentId: args.environmentId,
+      projectId: args.projectId,
+      ready: true,
+    });
+    assertUsableHostId(deps, { hostId: environment.hostId });
+    return requireWorkspaceCommandTarget(environment);
+  }
+
+  const source = resolveProjectWorkspaceTarget(deps, args);
+  return {
+    environmentId: projectSourceRuntimeId({
+      projectId: args.projectId,
+      hostId: source.hostId,
+      path: source.path,
+    }),
+    hostId: source.hostId,
+    workspaceContext: workspaceContextFromPath({
+      path: source.path,
+      workspaceProvisionType: "unmanaged",
+    }),
+  };
 }
 
 export interface ProjectCommandWorkspace {

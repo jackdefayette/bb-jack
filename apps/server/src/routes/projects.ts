@@ -29,10 +29,15 @@ import {
   type ProjectResponse,
   type ProjectWithThreadsResponse,
   type PublicApiSchema,
+  type DiffPatchEntry,
 } from "@bb/server-contract";
 import type { Hono } from "hono";
 import type { AppDeps } from "../types.js";
-import { COMMAND_TIMEOUT_MS } from "../constants.js";
+import {
+  COMMAND_TIMEOUT_MS,
+  DIFF_FILE_PATCH_MAX_BYTES,
+  DIFF_FILES_MAX_COUNT,
+} from "../constants.js";
 import { ApiError } from "../errors.js";
 import {
   copyProjectAttachments,
@@ -87,12 +92,26 @@ import { assertUsableHostId } from "../services/hosts/primary-host.js";
 import { resolveAcpLaunchSpecForProviderId } from "../services/system/acp-launch-spec.js";
 import {
   resolveProjectCommandWorkspace,
+  resolveProjectWorkspaceStatusTarget,
   resolveProjectWorkspaceTarget,
 } from "../services/projects/project-workspace.js";
+import {
+  rawDiffFileStatToEntry,
+  selectInitialPatchPaths,
+} from "./diff-tiering.js";
+import {
+  resolveDiffFileRef,
+  toWorkspaceDiffTarget,
+} from "./workspace-diff-target.js";
 
 type ProjectResponseProjectFields = Omit<ProjectResponse, "sources">;
 type ProjectResponseRow = ProjectResponseProjectFields;
 const PROJECT_CLONE_TIMEOUT_MS = 20 * 60 * 1000;
+const PROJECT_NON_GIT_DIFF = {
+  outcome: "not_applicable" as const,
+  reason: "non_git_environment" as const,
+  message: "The configured project checkout is not a Git repository",
+};
 
 function toProjectResponseProjectFields(
   project: ProjectResponseRow,
@@ -351,6 +370,199 @@ export function registerProjectRoutes(app: Hono, deps: AppDeps): void {
   get(routes.sidebarBootstrap, (context) =>
     context.json(buildSidebarBootstrapResponse(deps)),
   );
+
+  get(routes.status, async (context, query) => {
+    const projectId = context.req.param("id");
+    requirePublicStandardProject(deps.db, projectId);
+    const target = resolveProjectWorkspaceStatusTarget(deps, {
+      projectId,
+      ...(query.environmentId !== undefined
+        ? { environmentId: query.environmentId }
+        : {}),
+      ...(query.hostId !== undefined ? { hostId: query.hostId } : {}),
+    });
+    const result = await callHostRetryableOnlineRpc(deps, {
+      hostId: target.hostId,
+      timeoutMs: COMMAND_TIMEOUT_MS,
+      command: {
+        type: "workspace.status",
+        environmentId: target.environmentId,
+        workspaceContext: target.workspaceContext,
+        ...(query.mergeBaseBranch
+          ? { mergeBaseBranch: query.mergeBaseBranch }
+          : {}),
+      },
+    });
+    const resolvedSource = {
+      hostId: target.hostId,
+      path: target.workspaceContext.workspacePath,
+    };
+    if (result.outcome === "unavailable") {
+      if (result.failure.code === "not_git_repo") {
+        return context.json({
+          outcome: "not_applicable",
+          reason: "non_git_environment",
+          message: "The configured project checkout is not a Git repository",
+          resolvedSource,
+        });
+      }
+      return context.json({
+        outcome: "unavailable",
+        failure: result.failure,
+        resolvedSource,
+      });
+    }
+    return context.json({
+      outcome: "available",
+      workspace: result.workspaceStatus,
+      resolvedSource,
+    });
+  });
+
+  get(routes.diffFiles, async (context, query) => {
+    const projectId = context.req.param("id");
+    requirePublicStandardProject(deps.db, projectId);
+    const target = resolveProjectWorkspaceStatusTarget(deps, {
+      projectId,
+      ...(query.environmentId !== undefined
+        ? { environmentId: query.environmentId }
+        : {}),
+      ...(query.hostId !== undefined ? { hostId: query.hostId } : {}),
+    });
+    const diffTarget = toWorkspaceDiffTarget(query);
+    const result = await callHostRetryableOnlineRpc(deps, {
+      hostId: target.hostId,
+      timeoutMs: COMMAND_TIMEOUT_MS,
+      command: {
+        type: "workspace.diffFiles",
+        environmentId: target.environmentId,
+        workspaceContext: target.workspaceContext,
+        target: diffTarget,
+      },
+    });
+    if (result.outcome === "unavailable") {
+      return context.json(
+        result.failure.code === "not_git_repo"
+          ? PROJECT_NON_GIT_DIFF
+          : { outcome: "unavailable" as const, failure: result.failure },
+      );
+    }
+    if (result.files.length > DIFF_FILES_MAX_COUNT) {
+      return context.json({
+        outcome: "not_applicable",
+        reason: "too_many_files",
+        message: `This diff changes more than ${DIFF_FILES_MAX_COUNT} files; it is too large to display.`,
+      });
+    }
+    const files = result.files.map(rawDiffFileStatToEntry);
+    const initialPatchPaths = selectInitialPatchPaths(files);
+    let initialPatches: DiffPatchEntry[] = [];
+    if (initialPatchPaths.length > 0) {
+      const patches = await callHostRetryableOnlineRpc(deps, {
+        hostId: target.hostId,
+        timeoutMs: COMMAND_TIMEOUT_MS,
+        command: {
+          type: "workspace.diffPatch",
+          environmentId: target.environmentId,
+          workspaceContext: target.workspaceContext,
+          target: diffTarget,
+          paths: initialPatchPaths,
+          maxBytesPerFile: DIFF_FILE_PATCH_MAX_BYTES,
+        },
+      });
+      if (patches.outcome === "available") {
+        initialPatches = patches.patches;
+      }
+    }
+    return context.json({
+      outcome: "available",
+      files,
+      shortstat: result.shortstat,
+      mergeBaseRef: result.mergeBaseRef,
+      initialPatches,
+    });
+  });
+
+  post(routes.diffPatch, async (context, payload) => {
+    const projectId = context.req.param("id");
+    requirePublicStandardProject(deps.db, projectId);
+    const target = resolveProjectWorkspaceStatusTarget(deps, {
+      projectId,
+      ...(payload.environmentId !== undefined
+        ? { environmentId: payload.environmentId }
+        : {}),
+      ...(payload.hostId !== undefined ? { hostId: payload.hostId } : {}),
+    });
+    const result = await callHostRetryableOnlineRpc(deps, {
+      hostId: target.hostId,
+      timeoutMs: COMMAND_TIMEOUT_MS,
+      command: {
+        type: "workspace.diffPatch",
+        environmentId: target.environmentId,
+        workspaceContext: target.workspaceContext,
+        target: payload.target,
+        paths: payload.paths,
+        maxBytesPerFile: DIFF_FILE_PATCH_MAX_BYTES,
+      },
+    });
+    if (result.outcome === "unavailable") {
+      return context.json(
+        result.failure.code === "not_git_repo"
+          ? PROJECT_NON_GIT_DIFF
+          : { outcome: "unavailable" as const, failure: result.failure },
+      );
+    }
+    return context.json({ outcome: "available", patches: result.patches });
+  });
+
+  get(routes.diffFile, async (context, query) => {
+    const projectId = context.req.param("id");
+    requirePublicStandardProject(deps.db, projectId);
+    const target = resolveProjectWorkspaceStatusTarget(deps, {
+      projectId,
+      ...(query.environmentId !== undefined
+        ? { environmentId: query.environmentId }
+        : {}),
+      ...(query.hostId !== undefined ? { hostId: query.hostId } : {}),
+    });
+    const status = await callHostRetryableOnlineRpc(deps, {
+      hostId: target.hostId,
+      timeoutMs: COMMAND_TIMEOUT_MS,
+      command: {
+        type: "workspace.status",
+        environmentId: target.environmentId,
+        workspaceContext: target.workspaceContext,
+      },
+    });
+    if (status.outcome === "unavailable") {
+      throw new ApiError(
+        409,
+        status.failure.code,
+        status.failure.code === "not_git_repo"
+          ? PROJECT_NON_GIT_DIFF.message
+          : status.failure.message,
+      );
+    }
+    const relativePath = parseSafeRelativeRoutePath(query.path).relativePath;
+    const ref = resolveDiffFileRef(query);
+    const result = await callHostRetryableOnlineRpc(deps, {
+      hostId: target.hostId,
+      timeoutMs: COMMAND_TIMEOUT_MS,
+      command: {
+        type: "host.read_file",
+        path: path.join(target.workspaceContext.workspacePath, relativePath),
+        rootPath: target.workspaceContext.workspacePath,
+        ...(ref !== undefined ? { ref } : {}),
+      },
+    });
+    return context.json({
+      path: result.path,
+      content: result.content,
+      contentEncoding: result.contentEncoding,
+      ...(result.mimeType ? { mimeType: result.mimeType } : {}),
+      sizeBytes: result.sizeBytes,
+    });
+  });
 
   post(routes.create, async (context, payload) => {
     const { source } = payload;

@@ -34,6 +34,17 @@ A project maps to a code repository. All threads belong to a project.
 Discovery:
 
   bb project branches <id> --host <id>   List branches for a machine source
+  bb project status <id>                 Inspect the exact selected checkout
+    --merge-base-branch <branch>         Include ahead/behind status
+  bb project diff <id>                   Review changed files in that checkout
+    --uncommitted                        Review working-tree changes only
+    --merge-base-branch <branch>         Review all changes from this base
+  bb project diff-file <id> <path>       Read one old/new file side
+    --target <target> --side <old|new>   Select the exact diff side
+    --merge-base-ref <sha> | --sha <sha> Supply the target's resolved ref
+  bb project diff-patch <id> <paths...>  Fetch patches omitted from the TOC
+    --target <target>                    Select the exact diff slice
+    --merge-base-branch <branch> | --sha <sha>
   bb project paths <id>                   Search workspace paths
   bb project files <id>                   List workspace files
   bb project content <id> <path>          Read file content (binary is base64)
@@ -47,6 +58,12 @@ Discovery:
   environment selects its owning machine and workspace; otherwise an explicit
   machine selects that machine's project source. Omitting both intentionally
   falls back to the primary machine's project source.
+
+  Project status uses the same selectors. It never searches above the selected
+  project source; a directory without its own Git repository reports that it is
+  not a Git repository even when an ancestor directory is a repository.
+  Diff-file and diff-patch use the same machine/environment selectors as diff.
+  Use the mergeBaseRef returned by `bb project diff --json` for diff-file.
 
 Attachments:
 

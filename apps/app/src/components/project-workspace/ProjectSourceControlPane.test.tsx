@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   pullRequest: {} as Record<string, unknown>,
   environmentIds: [] as string[],
   statusIds: [] as string[],
+  projectStatus: {} as Record<string, unknown>,
 }));
 
 vi.mock("@/hooks/queries/sidebar-navigation-query", () => ({
@@ -25,6 +26,9 @@ vi.mock("@/hooks/queries/environment-queries", () => ({
     outcome: string;
     pullRequest?: unknown;
   }) => (response?.outcome === "available" ? response.pullRequest : null),
+}));
+vi.mock("@/hooks/queries/project-queries", () => ({
+  useProjectWorkStatus: () => mocks.projectStatus,
 }));
 
 const thread = {
@@ -94,6 +98,16 @@ beforeEach(() => {
       },
     },
   };
+  mocks.projectStatus = {
+    isLoading: false,
+    isError: false,
+    data: {
+      outcome: "not_applicable",
+      reason: "non_git_environment",
+      message: "The configured project checkout is not a Git repository",
+      resolvedSource: { hostId: "host_1", path: "/repo" },
+    },
+  };
 });
 
 describe("ProjectSourceControlPane", () => {
@@ -126,5 +140,18 @@ describe("ProjectSourceControlPane", () => {
     );
     expect(mocks.environmentIds).toEqual(["env_builder", "env_reviewer"]);
     expect(mocks.statusIds).toEqual(["env_builder", "env_reviewer"]);
+  });
+
+  it("shows the configured project checkout as not a Git repository before agents are assigned", () => {
+    render(
+      <ProjectSourceControlPane projectId="proj_demo" environments={[]} />,
+    );
+
+    expect(screen.getByText("Project checkout")).toBeTruthy();
+    expect(screen.getByText("Not a Git repository")).toBeTruthy();
+    expect(screen.getByText("/repo")).toBeTruthy();
+    expect(screen.getByText("Host: host_1")).toBeTruthy();
+    expect(mocks.environmentIds).toEqual([]);
+    expect(mocks.statusIds).toEqual([]);
   });
 });

@@ -2,7 +2,10 @@ import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { WorkspaceDiffTarget } from "@bb/domain";
 import type { EnvironmentDiffFileResponse } from "@bb/server-contract";
-import type { EnvironmentDiffFileArgs } from "@bb/sdk/browser";
+import type {
+  EnvironmentDiffFileArgs,
+  ProjectDiffFileArgs,
+} from "@bb/sdk/browser";
 import { environmentDiffFileQueryKey } from "@/hooks/queries/query-keys";
 import { sdk } from "@/lib/sdk";
 import type {
@@ -12,6 +15,7 @@ import type {
 
 export interface UseDiffFileContentsRequesterArgs {
   environmentId?: string;
+  projectId?: string;
   target?: WorkspaceDiffTarget;
   /**
    * Resolved merge-base SHA from the diff TOC response. Required to lift a
@@ -39,6 +43,7 @@ type DiffFileTarget =
  */
 export function useDiffFileContentsRequester({
   environmentId,
+  projectId,
   target,
   mergeBaseRef,
 }: UseDiffFileContentsRequesterArgs): RequestDiffFileContents | undefined {
@@ -49,34 +54,86 @@ export function useDiffFileContentsRequester({
   );
 
   return useMemo<RequestDiffFileContents | undefined>(() => {
-    if (!environmentId || fileTarget === undefined) return undefined;
-    const envId = environmentId;
+    if ((!environmentId && !projectId) || fileTarget === undefined) {
+      return undefined;
+    }
+    const workspaceId = environmentId ?? `project:${projectId}`;
     const resolvedTarget = fileTarget;
     const targetKey = fileTargetKey(resolvedTarget);
     return async (path, side) => {
       const result = await queryClient.fetchQuery({
         queryKey: environmentDiffFileQueryKey(
-          envId,
+          workspaceId,
           resolvedTarget.type,
           targetKey,
           path,
           side,
         ),
         queryFn: ({ signal }) =>
-          sdk.environments.diffFile(
-            buildEnvironmentDiffFileArgs(
-              envId,
-              resolvedTarget,
-              path,
-              side,
-              signal,
-            ),
-          ),
+          projectId
+            ? sdk.projects.diffFile(
+                buildProjectDiffFileArgs(
+                  projectId,
+                  resolvedTarget,
+                  path,
+                  side,
+                  signal,
+                ),
+              )
+            : sdk.environments.diffFile(
+                buildEnvironmentDiffFileArgs(
+                  environmentId ?? "",
+                  resolvedTarget,
+                  path,
+                  side,
+                  signal,
+                ),
+              ),
         staleTime: 5_000,
       });
       return toDiffFileContentsResult(path, result);
     };
-  }, [environmentId, fileTarget, queryClient]);
+  }, [environmentId, fileTarget, projectId, queryClient]);
+}
+
+function buildProjectDiffFileArgs(
+  projectId: string,
+  target: DiffFileTarget,
+  path: string,
+  side: "old" | "new",
+  signal: AbortSignal,
+): ProjectDiffFileArgs {
+  switch (target.type) {
+    case "uncommitted":
+      return { projectId, path, side, signal, target: target.type };
+    case "branch_committed":
+      return {
+        projectId,
+        mergeBaseRef: target.mergeBaseRef,
+        path,
+        side,
+        signal,
+        target: target.type,
+      };
+    case "all":
+      return {
+        projectId,
+        mergeBaseRef: target.mergeBaseRef,
+        path,
+        side,
+        signal,
+        target: target.type,
+      };
+    case "commit":
+      return {
+        projectId,
+        path,
+        sha: target.sha,
+        side,
+        signal,
+        target: target.type,
+      };
+  }
 }
 
 function buildEnvironmentDiffFileArgs(
