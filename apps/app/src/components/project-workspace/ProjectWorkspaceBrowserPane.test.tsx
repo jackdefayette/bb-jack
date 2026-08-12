@@ -80,8 +80,8 @@ describe("ProjectWorkspaceBrowserPane", () => {
         canShowNativeBrowserView
         environmentId="env_builder"
         environmentOptions={[
-          { id: "env_builder", label: "Builder worktree" },
-          { id: "env_reviewer", label: "Reviewer worktree" },
+          { id: "env_builder", label: "Build worktree" },
+          { id: "env_reviewer", label: "Review worktree" },
         ]}
         projectId="proj_one"
         isFocused={false}
@@ -126,8 +126,8 @@ describe("ProjectWorkspaceBrowserPane", () => {
         canShowNativeBrowserView
         environmentId="env_reviewer"
         environmentOptions={[
-          { id: "env_builder", label: "Builder worktree" },
-          { id: "env_reviewer", label: "Reviewer worktree" },
+          { id: "env_builder", label: "Build worktree" },
+          { id: "env_reviewer", label: "Review worktree" },
         ]}
         projectId="proj_one"
         isFocused={false}

@@ -761,6 +761,40 @@ export function PluginNewThreadComposer({
     [setEnvironmentSelectionValue],
   );
 
+  const hasWorkspaceEnvironmentPicker =
+    workspaceEnvironmentChoices && primaryHostId !== null && !isProjectless;
+  const workspaceEnvironmentPicker = hasWorkspaceEnvironmentPicker ? (
+      <label className="flex items-center gap-2 border-b border-border/60 bg-sidebar/50 px-3 py-1.5 text-xs">
+        <span className="shrink-0 font-medium text-foreground">Workspace</span>
+        <select
+          aria-label="Agent workspace"
+          className="h-7 min-w-0 flex-1 rounded-md bg-canvas px-2 text-xs outline-none ring-ring focus-visible:ring-2"
+          value={effectiveEnvironmentValue}
+          onChange={(event) => setEnvironmentSelectionValue(event.target.value)}
+        >
+          <option
+            value={encodeHostValue(primaryHostId, "worktree")}
+            disabled={projectSourceWorktreeUnavailable}
+          >
+            {projectSourceWorktreeUnavailable
+              ? "New isolated worktree (Not a Git repository)"
+              : "New isolated worktree (Recommended)"}
+          </option>
+          <option value={encodeHostValue(primaryHostId, "local")}>
+            Project checkout (shared)
+          </option>
+          {reuseThreadOptions.map((option) => (
+            <option
+              key={option.environmentId}
+              value={encodeReuseValue(option.environmentId)}
+            >
+              Reuse {option.name ?? option.branchName ?? option.environmentId}
+            </option>
+          ))}
+        </select>
+      </label>
+    ) : null;
+
   return (
     <div
       className={cn(
@@ -770,37 +804,6 @@ export function PluginNewThreadComposer({
         className,
       )}
     >
-      {workspaceEnvironmentChoices && primaryHostId !== null && !isProjectless ? (
-        <label className="mb-2 flex items-center gap-2 rounded-md border border-border/70 bg-sidebar/60 px-2.5 py-2 text-xs">
-          <span className="shrink-0 font-medium">Workspace</span>
-          <select
-            aria-label="Agent workspace"
-            className="min-w-0 flex-1 rounded bg-canvas px-2 py-1 text-xs outline-none ring-ring focus-visible:ring-2"
-            value={effectiveEnvironmentValue}
-            onChange={(event) => setEnvironmentSelectionValue(event.target.value)}
-          >
-            <option
-              value={encodeHostValue(primaryHostId, "worktree")}
-              disabled={projectSourceWorktreeUnavailable}
-            >
-              {projectSourceWorktreeUnavailable
-                ? "New isolated worktree (Not a Git repository)"
-                : "New isolated worktree (Recommended)"}
-            </option>
-            <option value={encodeHostValue(primaryHostId, "local")}>
-              Project checkout (shared)
-            </option>
-            {reuseThreadOptions.map((option) => (
-              <option
-                key={option.environmentId}
-                value={encodeReuseValue(option.environmentId)}
-              >
-                Reuse {option.name ?? option.branchName ?? option.environmentId}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
       <NewThreadPromptBox
         promptBoxRef={promptBoxRef}
         value={promptDraft.text}
@@ -849,11 +852,13 @@ export function PluginNewThreadComposer({
         }}
         promptActions={promptActions}
         modeConfig={{
+          header: workspaceEnvironmentPicker,
           environment: {
             value: effectiveEnvironmentValue,
             onChange: setEnvironmentSelectionValue,
             sources: projectSources,
             reuseDisabled: reuseThreadOptions.length === 0,
+            pickerHidden: hasWorkspaceEnvironmentPicker,
             worktreeDisabledReason: projectSourceWorktreeUnavailable
               ? PROJECT_SOURCE_WORKTREE_DISABLED_REASON
               : null,
@@ -904,12 +909,16 @@ export function PluginNewThreadComposer({
             supported: supportsPermissionModeSelection,
           },
         }}
-        project={{
-          projects: projectOptions,
-          value: projectId,
-          onChange: handleProjectChange,
-          disabled: isCopyingAttachments,
-        }}
+        project={
+          workspaceEnvironmentChoices
+            ? undefined
+            : {
+                projects: projectOptions,
+                value: projectId,
+                onChange: handleProjectChange,
+                disabled: isCopyingAttachments,
+              }
+        }
         execution={{
           providerRouting: executionOptionsRouting,
           provider: {

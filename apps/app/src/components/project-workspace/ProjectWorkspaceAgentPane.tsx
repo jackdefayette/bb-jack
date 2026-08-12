@@ -50,7 +50,7 @@ interface ProjectWorkspaceAgentPaneProps {
   isExpanded?: boolean;
   isFocused: boolean;
   isTopRow: boolean;
-  label: "Builder" | "Reviewer";
+  label: "Build" | "Review";
   onActivate: () => void;
   onNavigate: (thread: ThreadRoutePathArgs) => void;
   onToggleFocus?: () => void;
@@ -88,7 +88,7 @@ export function ProjectWorkspaceAgentPane({
   );
   const paneContext = useMemo<PaneContextValue>(
     () => ({
-      paneId: label === "Builder" ? "workspace-primary" : "workspace-review",
+      paneId: role === "builder" ? "workspace-primary" : "workspace-review",
       isFocused,
       isSplitPane: true,
       secondaryPanelHost: null,
@@ -98,10 +98,10 @@ export function ProjectWorkspaceAgentPane({
       onToggleMaximize: onToggleFocus ?? null,
       isBoundedPane: true,
       isTopRow,
-      ownsWindowTopLeft: label === "Builder",
+      ownsWindowTopLeft: role === "builder",
       navigateInPane,
     }),
-    [isExpanded, isFocused, isTopRow, label, navigateInPane, onToggleFocus],
+    [isExpanded, isFocused, isTopRow, navigateInPane, onToggleFocus, role],
   );
   const startAgent = useCallback(
     async (request: NewThreadRequest) => {
@@ -141,7 +141,7 @@ export function ProjectWorkspaceAgentPane({
       actionLabel={
         isExpanded
           ? "Restore four quadrants"
-          : `Focus ${label.toLowerCase()}`
+          : `Focus ${label.toLowerCase()} chat`
       }
       onActivate={onActivate}
       onHeaderDoubleClick={onToggleFocus}
@@ -165,20 +165,23 @@ export function ProjectWorkspaceAgentPane({
           </div>
         </PaneContext.Provider>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col p-3">
-          <p className="mb-2 text-xs text-muted-foreground">
-            Start a {role} task in {projectName}. A new isolated worktree is
-            recommended for collision-free concurrent work; project checkout
-            and existing-worktree choices remain explicit. Closing this tab
-            retains the selected worktree.
-          </p>
+        <div
+          className="flex min-h-0 flex-1 flex-col p-2"
+          data-workspace-agent-ready={role}
+        >
           {startError ? (
-            <p role="alert" className="mb-2 text-xs text-destructive">{startError}</p>
+            <p role="alert" className="mb-1 px-1 text-xs text-destructive">
+              {startError}
+            </p>
           ) : null}
           <PluginNewThreadComposer
             defaultProjectId={projectId}
             draftKey={`project-workspace:${workspaceTabId}:${role}`}
-            placeholder={`Describe the ${role} task…`}
+            placeholder={
+              role === "builder"
+                ? "What should we build?"
+                : "What should we review?"
+            }
             layout="contained"
             workspaceEnvironmentChoices
             onSubmit={startAgent}

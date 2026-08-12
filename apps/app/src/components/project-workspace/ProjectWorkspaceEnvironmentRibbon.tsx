@@ -40,7 +40,7 @@ export function ProjectWorkspaceEnvironmentRibbon({
   return (
     <div className="flex shrink-0 flex-wrap gap-x-3 gap-y-0.5 border-b border-border/60 bg-sidebar/60 px-2.5 py-1 text-2xs text-muted-foreground">
       <span title="Project">{projectName}</span>
-      <span title="Owning workspace agent">Agent: {role === "builder" ? "Builder" : "Reviewer"}</span>
+      <span title="Owning workspace agent">Agent: {role === "builder" ? "Build" : "Review"}</span>
       <span title="Task key">Task {valueOrUnavailable(taskKey)}</span>
       <span title="Thread">Thread {threadId}</span>
       <span title="Environment name">Environment: {valueOrUnavailable(record?.name)}</span>

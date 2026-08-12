@@ -16,18 +16,19 @@ vi.mock("./ProjectWorkspaceEnvironmentRibbon", () => ({
   ProjectWorkspaceEnvironmentRibbon: () => <div data-testid="environment-ribbon" />,
 }));
 vi.mock("./ProjectWorkspacePaneFrame", () => ({
-  ProjectWorkspacePaneFrame: ({ children, title }: { children: ReactNode; title: string }) => (
-    <section><h2>{title}</h2>{children}</section>
+  ProjectWorkspacePaneFrame: ({ actionLabel, children, title }: { actionLabel?: string; children: ReactNode; title: string }) => (
+    <section data-action-label={actionLabel}><h2>{title}</h2>{children}</section>
   ),
 }));
 vi.mock("@/components/plugin/PluginNewThreadComposer", () => ({
-  PluginNewThreadComposer: ({ defaultProjectId, draftKey, onSubmit, workspaceEnvironmentChoices }: {
+  PluginNewThreadComposer: ({ defaultProjectId, draftKey, onSubmit, placeholder, workspaceEnvironmentChoices }: {
     defaultProjectId: string;
     draftKey: string;
+    placeholder: string;
     workspaceEnvironmentChoices: boolean;
     onSubmit: (request: NewThreadRequest) => Promise<void>;
   }) => (
-    <div data-testid={`composer-${draftKey}`} data-project-id={defaultProjectId} data-workspace-choices={workspaceEnvironmentChoices}>
+    <div data-testid={`composer-${draftKey}`} data-placeholder={placeholder} data-project-id={defaultProjectId} data-workspace-choices={workspaceEnvironmentChoices}>
       <input aria-label={`draft-${draftKey}`} defaultValue="keep this draft" />
       <button type="button" onClick={() => void onSubmit({ projectId: defaultProjectId } as NewThreadRequest).catch(() => undefined)}>
         Submit {draftKey}
@@ -42,7 +43,7 @@ vi.mock("@/components/plugin/PluginNewThreadComposer", () => ({
 function pane(overrides: Partial<React.ComponentProps<typeof ProjectWorkspaceAgentPane>> = {}) {
   return (
     <ProjectWorkspaceAgentPane
-      label="Builder"
+      label="Build"
       role="builder"
       projectId="proj_one"
       projectName="One"
@@ -66,12 +67,24 @@ afterEach(() => {
 });
 
 describe("ProjectWorkspaceAgentPane", () => {
-  it("renders independent ready Builder and Reviewer composers", () => {
-    render(<>{pane()}{pane({ label: "Reviewer", role: "reviewer", workspaceTabId: "workspace_two" })}</>);
+  it("renders independent, symmetric Build and Review chat composers without role instructions", () => {
+    render(<>{pane()}{pane({ label: "Review", role: "reviewer", workspaceTabId: "workspace_two" })}</>);
 
-    expect(screen.getByTestId("composer-project-workspace:workspace_one:builder").getAttribute("data-project-id")).toBe("proj_one");
-    expect(screen.getByTestId("composer-project-workspace:workspace_one:builder").getAttribute("data-workspace-choices")).toBe("true");
-    expect(screen.getByTestId("composer-project-workspace:workspace_two:reviewer").getAttribute("data-project-id")).toBe("proj_one");
+    const buildComposer = screen.getByTestId("composer-project-workspace:workspace_one:builder");
+    const reviewComposer = screen.getByTestId("composer-project-workspace:workspace_two:reviewer");
+    const readySurfaces = document.querySelectorAll("[data-workspace-agent-ready]");
+    expect(screen.getByRole("heading", { name: "Build" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Review" })).toBeTruthy();
+    expect(buildComposer.getAttribute("data-project-id")).toBe("proj_one");
+    expect(buildComposer.getAttribute("data-workspace-choices")).toBe("true");
+    expect(buildComposer.getAttribute("data-placeholder")).toBe("What should we build?");
+    expect(reviewComposer.getAttribute("data-project-id")).toBe("proj_one");
+    expect(reviewComposer.getAttribute("data-placeholder")).toBe("What should we review?");
+    expect(readySurfaces).toHaveLength(2);
+    expect(readySurfaces[0]?.className).toBe(readySurfaces[1]?.className);
+    expect(screen.queryByText(/Start a builder task/u)).toBeNull();
+    expect(screen.getByRole("heading", { name: "Build" }).closest("section")?.getAttribute("data-action-label")).toBe("Focus build chat");
+    expect(screen.getByRole("heading", { name: "Review" }).closest("section")?.getAttribute("data-action-label")).toBe("Focus review chat");
   });
 
   it("accepts a valid project-default result without an environment", async () => {
