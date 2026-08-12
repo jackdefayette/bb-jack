@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
+import type { ProjectWorkspaceTab } from "./ProjectWorkspaceTabsProvider";
 import {
   ACTIVE_PROJECT_WORKSPACE_TAB_STORAGE_KEY,
   PROJECT_WORKSPACE_TABS_STORAGE_KEY,
+  RECENTLY_CLOSED_PROJECT_WORKSPACE_TABS_STORAGE_KEY,
   ProjectWorkspaceTabsProvider,
+  parseRecentlyClosedProjectWorkspaceTabs,
   parseProjectWorkspaceTabs,
   useProjectWorkspaceTabs,
 } from "./ProjectWorkspaceTabsProvider";
@@ -78,9 +81,18 @@ describe("ProjectWorkspaceTabsProvider", () => {
     let reviewerTab = "";
     let otherProjectTab = "";
     act(() => {
-      builderTab = result.current.createTab({ projectId: "proj_one", projectName: "One" }).id;
-      reviewerTab = result.current.createTab({ projectId: "proj_one", projectName: "One" }).id;
-      otherProjectTab = result.current.createTab({ projectId: "proj_two", projectName: "Two" }).id;
+      builderTab = result.current.createTab({
+        projectId: "proj_one",
+        projectName: "One",
+      }).id;
+      reviewerTab = result.current.createTab({
+        projectId: "proj_one",
+        projectName: "One",
+      }).id;
+      otherProjectTab = result.current.createTab({
+        projectId: "proj_two",
+        projectName: "Two",
+      }).id;
       result.current.updateTab(builderTab, {
         primaryThreadId: "thr_builder",
         inspectorEnvironmentId: "env_builder",
@@ -95,12 +107,27 @@ describe("ProjectWorkspaceTabsProvider", () => {
 
     act(() => result.current.closeTab(otherProjectTab));
 
-    expect(result.current.tabs).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: builderTab, primaryThreadId: "thr_builder", inspectorEnvironmentId: "env_builder" }),
-      expect.objectContaining({ id: reviewerTab, reviewThreadId: "thr_reviewer", inspectorEnvironmentId: "env_reviewer", inspectorView: "diff" }),
-    ]));
-    expect(window.localStorage.getItem(PROJECT_WORKSPACE_TABS_STORAGE_KEY)).toContain("env_builder");
-    expect(window.localStorage.getItem(PROJECT_WORKSPACE_TABS_STORAGE_KEY)).toContain("env_reviewer");
+    expect(result.current.tabs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: builderTab,
+          primaryThreadId: "thr_builder",
+          inspectorEnvironmentId: "env_builder",
+        }),
+        expect.objectContaining({
+          id: reviewerTab,
+          reviewThreadId: "thr_reviewer",
+          inspectorEnvironmentId: "env_reviewer",
+          inspectorView: "diff",
+        }),
+      ]),
+    );
+    expect(
+      window.localStorage.getItem(PROJECT_WORKSPACE_TABS_STORAGE_KEY),
+    ).toContain("env_builder");
+    expect(
+      window.localStorage.getItem(PROJECT_WORKSPACE_TABS_STORAGE_KEY),
+    ).toContain("env_reviewer");
   });
 
   it("does not change the active tab when a non-active duplicate closes", () => {
@@ -108,12 +135,216 @@ describe("ProjectWorkspaceTabsProvider", () => {
     let firstId = "";
     let activeId = "";
     act(() => {
-      firstId = result.current.createTab({ projectId: "proj_one", projectName: "One" }).id;
-      activeId = result.current.createTab({ projectId: "proj_one", projectName: "One" }).id;
+      firstId = result.current.createTab({
+        projectId: "proj_one",
+        projectName: "One",
+      }).id;
+      activeId = result.current.createTab({
+        projectId: "proj_one",
+        projectName: "One",
+      }).id;
     });
     act(() => result.current.closeTab(firstId));
     expect(result.current.activeTabId).toBe(activeId);
-    expect(result.current.tabs).toEqual([expect.objectContaining({ id: activeId })]);
+    expect(result.current.tabs).toEqual([
+      expect.objectContaining({ id: activeId }),
+    ]);
+  });
+
+  it("restores a closed project's complete workspace identity and state", () => {
+    const { result } = renderHook(() => useProjectWorkspaceTabs(), { wrapper });
+    let workspaceId = "";
+    act(() => {
+      workspaceId = result.current.createTab({
+        projectId: "proj_restore",
+        projectName: "Restore",
+      }).id;
+      result.current.updateTab(workspaceId, {
+        primaryThreadId: "thr_build",
+        reviewThreadId: "thr_review",
+        primaryTaskKey: "RESTORE-1",
+        reviewTaskKey: "RESTORE-2",
+        focusMode: "browser",
+        toolsView: "source-control",
+        inspectorView: "diff",
+        inspectorEnvironmentId: "env_review",
+        inspectorEnvironmentPinned: true,
+        inspectorFilePath: "src/review.ts",
+        browserTab: {
+          id: "browser:env_review:restore",
+          kind: "browser",
+          environmentId: "env_review",
+          title: "Review docs",
+          url: "https://example.com/review",
+        },
+      });
+    });
+
+    act(() => result.current.closeTab(workspaceId));
+    expect(result.current.tabs).toEqual([]);
+    expect(
+      parseRecentlyClosedProjectWorkspaceTabs(
+        window.localStorage.getItem(
+          RECENTLY_CLOSED_PROJECT_WORKSPACE_TABS_STORAGE_KEY,
+        ),
+      ).tabs,
+    ).toEqual([
+      expect.objectContaining({ id: workspaceId, reviewTaskKey: "RESTORE-2" }),
+    ]);
+    const storageSetItem = vi.spyOn(Storage.prototype, "setItem");
+
+    let restoredId = "";
+    act(() => {
+      restoredId = result.current.openTab({
+        projectId: "proj_restore",
+        projectName: "Renamed Restore",
+      }).id;
+    });
+
+    expect(restoredId).toBe(workspaceId);
+    expect(result.current.activeTabId).toBe(workspaceId);
+    const restoreWrites = storageSetItem.mock.calls.filter(
+      ([key]) =>
+        key === PROJECT_WORKSPACE_TABS_STORAGE_KEY ||
+        key === RECENTLY_CLOSED_PROJECT_WORKSPACE_TABS_STORAGE_KEY,
+    );
+    expect(restoreWrites.map(([key]) => key)).toEqual([
+      PROJECT_WORKSPACE_TABS_STORAGE_KEY,
+      RECENTLY_CLOSED_PROJECT_WORKSPACE_TABS_STORAGE_KEY,
+    ]);
+    expect(parseProjectWorkspaceTabs(restoreWrites[0]?.[1] ?? null)).toEqual([
+      expect.objectContaining({ id: workspaceId }),
+    ]);
+    expect(
+      parseRecentlyClosedProjectWorkspaceTabs(restoreWrites[1]?.[1] ?? null),
+    ).toEqual({ version: 1, tabs: [] });
+    storageSetItem.mockRestore();
+    expect(result.current.tabs).toEqual([
+      {
+        id: workspaceId,
+        projectId: "proj_restore",
+        projectName: "Renamed Restore",
+        primaryThreadId: "thr_build",
+        reviewThreadId: "thr_review",
+        primaryTaskKey: "RESTORE-1",
+        reviewTaskKey: "RESTORE-2",
+        focusMode: "browser",
+        toolsView: "source-control",
+        inspectorView: "diff",
+        inspectorEnvironmentId: "env_review",
+        inspectorEnvironmentPinned: true,
+        inspectorFilePath: "src/review.ts",
+        browserTab: {
+          id: "browser:env_review:restore",
+          kind: "browser",
+          environmentId: "env_review",
+          title: "Review docs",
+          url: "https://example.com/review",
+        },
+      },
+    ]);
+  });
+
+  it("keeps duplicate tabs distinct and explicit creation fresh", () => {
+    const { result } = renderHook(() => useProjectWorkspaceTabs(), { wrapper });
+    let closedId = "";
+    let liveId = "";
+    act(() => {
+      closedId = result.current.createTab({
+        projectId: "proj_duplicate",
+        projectName: "Duplicate",
+      }).id;
+      liveId = result.current.createTab({
+        projectId: "proj_duplicate",
+        projectName: "Duplicate",
+      }).id;
+      result.current.updateTab(closedId, { primaryThreadId: "thr_closed" });
+    });
+    act(() => result.current.closeTab(closedId));
+
+    let ordinaryId = "";
+    act(() => {
+      ordinaryId = result.current.openTab({
+        projectId: "proj_duplicate",
+        projectName: "Duplicate",
+      }).id;
+    });
+    expect(ordinaryId).toBe(liveId);
+    expect(result.current.tabs).toHaveLength(1);
+
+    let freshId = "";
+    act(() => {
+      freshId = result.current.createTab({
+        projectId: "proj_duplicate",
+        projectName: "Duplicate",
+      }).id;
+    });
+    expect(freshId).not.toBe(closedId);
+    expect(freshId).not.toBe(liveId);
+    expect(result.current.tabs).toEqual([
+      expect.objectContaining({ id: liveId }),
+      expect.objectContaining({ id: freshId, primaryThreadId: null }),
+    ]);
+  });
+
+  it("restores and consumes a recently closed tab received from another window", () => {
+    const { result } = renderHook(() => useProjectWorkspaceTabs(), { wrapper });
+    const remoteClosedTab: ProjectWorkspaceTab = {
+      id: "workspace_remote_closed",
+      projectId: "proj_remote_closed",
+      projectName: "Old remote name",
+      primaryThreadId: "thr_remote_build",
+      reviewThreadId: "thr_remote_review",
+      focusMode: "browser",
+      toolsView: "source-control",
+      inspectorView: "diff",
+      inspectorEnvironmentId: "env_remote_review",
+      inspectorEnvironmentPinned: true,
+      inspectorFilePath: "src/remote.ts",
+      primaryTaskKey: "REMOTE-1",
+      reviewTaskKey: "REMOTE-2",
+      browserTab: null,
+    };
+    const serialized = JSON.stringify({
+      version: 1,
+      tabs: [remoteClosedTab],
+    });
+
+    act(() => {
+      window.localStorage.setItem(
+        RECENTLY_CLOSED_PROJECT_WORKSPACE_TABS_STORAGE_KEY,
+        serialized,
+      );
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: RECENTLY_CLOSED_PROJECT_WORKSPACE_TABS_STORAGE_KEY,
+          newValue: serialized,
+        }),
+      );
+    });
+
+    let restoredId = "";
+    act(() => {
+      restoredId = result.current.openTab({
+        projectId: "proj_remote_closed",
+        projectName: "Current remote name",
+      }).id;
+    });
+
+    expect(restoredId).toBe(remoteClosedTab.id);
+    expect(result.current.tabs).toEqual([
+      {
+        ...remoteClosedTab,
+        projectName: "Current remote name",
+      },
+    ]);
+    expect(
+      parseRecentlyClosedProjectWorkspaceTabs(
+        window.localStorage.getItem(
+          RECENTLY_CLOSED_PROJECT_WORKSPACE_TABS_STORAGE_KEY,
+        ),
+      ),
+    ).toEqual({ version: 1, tabs: [] });
   });
 
   it("accepts cross-window storage events and ignores invalid records", () => {
@@ -148,5 +379,9 @@ describe("ProjectWorkspaceTabsProvider", () => {
       }),
     ]);
     expect(parseProjectWorkspaceTabs("not json")).toEqual([]);
+    expect(parseRecentlyClosedProjectWorkspaceTabs("not json")).toEqual({
+      version: 1,
+      tabs: [],
+    });
   });
 });
