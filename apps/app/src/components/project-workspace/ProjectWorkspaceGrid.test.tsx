@@ -20,6 +20,10 @@ import {
 
 const browserDeck = vi.hoisted(() => vi.fn());
 
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ refetchQueries: vi.fn() }),
+}));
+
 vi.mock("@/views/thread-detail/ThreadDetailView", () => ({
   ThreadDetailView: ({ threadId }: { threadId: string }) => (
     <div data-testid={`thread-${threadId}`}>{threadId}</div>
