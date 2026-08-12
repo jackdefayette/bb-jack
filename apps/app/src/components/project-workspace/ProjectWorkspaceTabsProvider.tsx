@@ -11,6 +11,7 @@ import type { BrowserFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
 
 export type ProjectWorkspaceFocusMode = "grid" | "primary" | "browser";
 export type ProjectWorkspaceToolsView = "tasks" | "source-control";
+export type ProjectWorkspaceInspectorView = "browser" | "files" | "diff";
 
 export interface ProjectWorkspaceTab {
   id: string;
@@ -20,6 +21,12 @@ export interface ProjectWorkspaceTab {
   reviewThreadId: string | null;
   focusMode: ProjectWorkspaceFocusMode;
   toolsView: ProjectWorkspaceToolsView;
+  inspectorView: ProjectWorkspaceInspectorView;
+  inspectorEnvironmentId: string | null;
+  inspectorEnvironmentPinned: boolean;
+  inspectorFilePath: string | null;
+  primaryTaskKey: string | null;
+  reviewTaskKey: string | null;
   browserTab: BrowserFixedPanelTab | null;
 }
 
@@ -30,6 +37,10 @@ export interface CreateProjectWorkspaceTabInput {
   reviewThreadId?: string | null;
   focusMode?: ProjectWorkspaceFocusMode;
   toolsView?: ProjectWorkspaceToolsView;
+  inspectorView?: ProjectWorkspaceInspectorView;
+  inspectorEnvironmentId?: string | null;
+  inspectorEnvironmentPinned?: boolean;
+  inspectorFilePath?: string | null;
   browserTab?: BrowserFixedPanelTab | null;
 }
 
@@ -111,6 +122,24 @@ function parseProjectWorkspaceTab(value: unknown): ProjectWorkspaceTab | null {
     reviewThreadId: candidate.reviewThreadId,
     focusMode: candidate.focusMode,
     toolsView: candidate.toolsView,
+    inspectorView:
+      candidate.inspectorView === "files" || candidate.inspectorView === "diff"
+        ? candidate.inspectorView
+        : "browser",
+    inspectorEnvironmentId: isNullableString(candidate.inspectorEnvironmentId)
+      ? candidate.inspectorEnvironmentId
+      : null,
+    inspectorEnvironmentPinned:
+      candidate.inspectorEnvironmentPinned === true,
+    inspectorFilePath: isNullableString(candidate.inspectorFilePath)
+      ? candidate.inspectorFilePath
+      : null,
+    primaryTaskKey: isNullableString(candidate.primaryTaskKey)
+      ? candidate.primaryTaskKey
+      : null,
+    reviewTaskKey: isNullableString(candidate.reviewTaskKey)
+      ? candidate.reviewTaskKey
+      : null,
     browserTab: browserTab ?? null,
   };
 }
@@ -206,6 +235,12 @@ export function ProjectWorkspaceTabsProvider({
         reviewThreadId: input.reviewThreadId ?? null,
         focusMode: input.focusMode ?? "grid",
         toolsView: input.toolsView ?? "tasks",
+        inspectorView: input.inspectorView ?? "browser",
+        inspectorEnvironmentId: input.inspectorEnvironmentId ?? null,
+        inspectorEnvironmentPinned: input.inspectorEnvironmentPinned ?? false,
+        inspectorFilePath: input.inspectorFilePath ?? null,
+        primaryTaskKey: null,
+        reviewTaskKey: null,
         browserTab: input.browserTab ?? null,
       };
       setTabs((currentTabs) => {

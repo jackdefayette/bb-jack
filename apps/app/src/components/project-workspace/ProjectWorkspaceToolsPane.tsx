@@ -9,15 +9,19 @@ export type ProjectWorkspaceToolsView = "tasks" | "source-control";
 
 export interface ProjectWorkspaceToolsPaneProps {
   projectId: string;
+  workspaceTabId: string;
+  environments: readonly { id: string; label: string }[];
   toolsView: ProjectWorkspaceToolsView;
   onToolsViewChange: (view: ProjectWorkspaceToolsView) => void;
 }
 
 function TasksProjectSurface({
   projectId,
+  workspaceTabId,
   createToken,
 }: {
   projectId: string;
+  workspaceTabId: string;
   createToken: number;
 }) {
   const { navPanels } = usePluginSlots();
@@ -49,7 +53,7 @@ function TasksProjectSurface({
       pluginId={panel.pluginId}
       slotKind="navPanel"
       slotId={panel.id}
-      instanceId={`project-workspace-${projectId}`}
+      instanceId={`project-workspace-${workspaceTabId}`}
     >
       <div className="flex h-full min-h-0 flex-1 flex-col">
         <panel.component subPath={subPath} />
@@ -60,6 +64,8 @@ function TasksProjectSurface({
 
 export function ProjectWorkspaceToolsPane({
   projectId,
+  workspaceTabId,
+  environments,
   toolsView,
   onToolsViewChange,
 }: ProjectWorkspaceToolsPaneProps) {
@@ -115,10 +121,14 @@ export function ProjectWorkspaceToolsPane({
         {toolsView === "tasks" ? (
           <TasksProjectSurface
             projectId={projectId}
+            workspaceTabId={workspaceTabId}
             createToken={createToken}
           />
         ) : (
-          <ProjectSourceControlPane projectId={projectId} />
+          <ProjectSourceControlPane
+            projectId={projectId}
+            environments={environments}
+          />
         )}
       </div>
     </section>

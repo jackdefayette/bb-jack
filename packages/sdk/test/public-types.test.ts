@@ -20,6 +20,7 @@ import type {
   ProviderListResult as RootProviderList,
   ProviderModelsArgs as RootProviderModelsArgs,
   StatusResult as RootStatus,
+  WorkspaceAgentStartResult as RootWorkspaceAgentStartResult,
   SystemVersionResult as RootSystemVersion,
   TerminalCreateArgs as RootTerminalCreateArgs,
   TerminalListResult as RootTerminalListResult,
@@ -47,6 +48,7 @@ import type {
   ProviderListResult as BrowserProviderList,
   ProviderModelsArgs as BrowserProviderModelsArgs,
   StatusResult as BrowserStatus,
+  WorkspaceAgentStartResult as BrowserWorkspaceAgentStartResult,
   SystemVersionResult as BrowserSystemVersion,
   TerminalCreateArgs as BrowserTerminalCreateArgs,
   TerminalListResult as BrowserTerminalListResult,
@@ -74,6 +76,7 @@ import type {
   ProviderListResult as CoreProviderList,
   ProviderModelsArgs as CoreProviderModelsArgs,
   StatusResult as CoreStatus,
+  WorkspaceAgentStartResult as CoreWorkspaceAgentStartResult,
   SystemVersionResult as CoreSystemVersion,
   TerminalCreateArgs as CoreTerminalCreateArgs,
   TerminalListResult as CoreTerminalListResult,
@@ -101,6 +104,7 @@ import type {
   ProviderListResult as NodeProviderList,
   ProviderModelsArgs as NodeProviderModelsArgs,
   StatusResult as NodeStatus,
+  WorkspaceAgentStartResult as NodeWorkspaceAgentStartResult,
   SystemVersionResult as NodeSystemVersion,
   TerminalCreateArgs as NodeTerminalCreateArgs,
   TerminalListResult as NodeTerminalListResult,
@@ -128,6 +132,7 @@ interface RootSurface {
   providerModelsArgs: RootProviderModelsArgs;
   realtimeConnection: RootRealtimeConnection;
   status: RootStatus;
+  workspaceAgentStart: RootWorkspaceAgentStartResult;
   systemVersion: RootSystemVersion;
   terminalCreateArgs: RootTerminalCreateArgs;
   terminalList: RootTerminalListResult;
@@ -155,6 +160,7 @@ interface BrowserSurface {
   providerModelsArgs: BrowserProviderModelsArgs;
   realtimeConnection: BrowserRealtimeConnection;
   status: BrowserStatus;
+  workspaceAgentStart: BrowserWorkspaceAgentStartResult;
   systemVersion: BrowserSystemVersion;
   terminalCreateArgs: BrowserTerminalCreateArgs;
   terminalList: BrowserTerminalListResult;
@@ -182,6 +188,7 @@ interface CoreSurface {
   providerModelsArgs: CoreProviderModelsArgs;
   realtimeConnection: CoreRealtimeConnection;
   status: CoreStatus;
+  workspaceAgentStart: CoreWorkspaceAgentStartResult;
   systemVersion: CoreSystemVersion;
   terminalCreateArgs: CoreTerminalCreateArgs;
   terminalList: CoreTerminalListResult;
@@ -209,6 +216,7 @@ interface NodeSurface {
   providerModelsArgs: NodeProviderModelsArgs;
   realtimeConnection: NodeRealtimeConnection;
   status: NodeStatus;
+  workspaceAgentStart: NodeWorkspaceAgentStartResult;
   systemVersion: NodeSystemVersion;
   terminalCreateArgs: NodeTerminalCreateArgs;
   terminalList: NodeTerminalListResult;
@@ -230,12 +238,15 @@ type ExpectedBbSdkKey =
   | "status"
   | "subscribe"
   | "system"
+  | "tasks"
   | "terminals"
   | "theme"
   | "threadSections"
   | "threads";
 
 type ExpectedRealtimeKey = "subscribe";
+
+type ExpectedTasksKey = "startAgent";
 
 type ExpectedEnvironmentsKey =
   | "archiveThreads"
@@ -491,6 +502,7 @@ describe("SDK public type entrypoints", () => {
     expectTypeOf<
       keyof RootBbSdk["plugins"]["catalog"]
     >().toEqualTypeOf<ExpectedPluginCatalogKey>();
+    expectTypeOf<keyof RootBbSdk["tasks"]>().toEqualTypeOf<ExpectedTasksKey>();
     expectTypeOf<
       keyof RootBbSdk["projects"]
     >().toEqualTypeOf<ExpectedProjectsKey>();

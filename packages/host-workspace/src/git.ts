@@ -422,12 +422,32 @@ export async function detectGitRepo(
   cwd: string,
   options: GitTimeoutOptions = {},
 ): Promise<boolean> {
-  const result = await runGit(["rev-parse", "--is-inside-work-tree"], {
+  let canonicalWorkspacePath: string;
+  try {
+    canonicalWorkspacePath = await fs.realpath(cwd);
+  } catch {
+    return false;
+  }
+
+  const result = await runGit(["rev-parse", "--show-toplevel"], {
     cwd,
     allowFailure: true,
     timeoutMs: options.timeoutMs,
   });
-  return result.exitCode === 0 && trimOutput(result.stdout) === "true";
+  if (result.exitCode !== 0) {
+    return false;
+  }
+
+  const gitRoot = trimOutput(result.stdout);
+  if (!gitRoot) {
+    return false;
+  }
+
+  try {
+    return canonicalWorkspacePath === (await fs.realpath(gitRoot));
+  } catch {
+    return false;
+  }
 }
 
 export async function ensureGitRepo(

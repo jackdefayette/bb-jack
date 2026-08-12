@@ -30,6 +30,9 @@ import type {
   TaskLabel,
   TaskThread,
   TaskThreadLiveStatus,
+  WorkspaceAgentStart,
+  CreateWorkspaceAgentStartInput,
+  CompleteWorkspaceAgentStartInput,
   UpdateAttachmentInput,
   UpdateCommentInput,
   UpdateFolderInput,
@@ -144,6 +147,16 @@ interface TaskThreadRow {
   title: string;
   live_status: TaskThreadLiveStatus;
   attached_at: string;
+  updated_at: string;
+}
+
+interface WorkspaceAgentStartRow {
+  bb_project_id: string;
+  workspace_key: string;
+  task_id: string;
+  thread_id: string | null;
+  environment_id: string | null;
+  created_at: string;
   updated_at: string;
 }
 
@@ -426,6 +439,20 @@ function taskThreadFromRow(row: TaskThreadRow): TaskThread {
     title: row.title,
     liveStatus: row.live_status,
     attachedAt: row.attached_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function workspaceAgentStartFromRow(
+  row: WorkspaceAgentStartRow,
+): WorkspaceAgentStart {
+  return {
+    bbProjectId: row.bb_project_id,
+    workspaceKey: row.workspace_key,
+    taskId: row.task_id,
+    threadId: row.thread_id,
+    environmentId: row.environment_id,
+    createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
@@ -1664,6 +1691,98 @@ export function createTasksStore(db: PluginDatabase) {
     return requireTaskThread(id);
   }
 
+  function getWorkspaceAgentStart(
+    bbProjectId: string,
+    workspaceKey: string,
+  ): WorkspaceAgentStart | undefined {
+    const row = db
+      .prepare<[string, string], WorkspaceAgentStartRow>(
+        `
+          SELECT * FROM workspace_agent_starts
+          WHERE bb_project_id = ? AND workspace_key = ?
+        `,
+      )
+      .get(bbProjectId, workspaceKey);
+    return row ? workspaceAgentStartFromRow(row) : undefined;
+  }
+
+  function getWorkspaceAgentStartByWorkspaceKey(
+    workspaceKey: string,
+  ): WorkspaceAgentStart | undefined {
+    const row = db
+      .prepare<[string], WorkspaceAgentStartRow>(
+        `
+          SELECT * FROM workspace_agent_starts
+          WHERE workspace_key = ?
+          ORDER BY created_at, bb_project_id
+          LIMIT 1
+        `,
+      )
+      .get(workspaceKey);
+    return row ? workspaceAgentStartFromRow(row) : undefined;
+  }
+
+  function createWorkspaceAgentStart(
+    input: CreateWorkspaceAgentStartInput,
+  ): WorkspaceAgentStart {
+    const timestamp = nowIso();
+    db.prepare<[string, string, string, string, string]>(
+      `
+        INSERT INTO workspace_agent_starts (
+          bb_project_id, workspace_key, task_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?)
+      `,
+    ).run(
+      requireNonEmpty(input.bbProjectId, "Workspace agent BB project id"),
+      requireNonEmpty(input.workspaceKey, "Workspace agent key"),
+      requireTask(input.taskId).id,
+      timestamp,
+      timestamp,
+    );
+    const start = getWorkspaceAgentStart(input.bbProjectId, input.workspaceKey);
+    if (!start) throw new Error("Workspace agent start was not created");
+    return start;
+  }
+
+  function completeWorkspaceAgentStart(
+    input: CompleteWorkspaceAgentStartInput,
+  ): WorkspaceAgentStart {
+    const result = db
+      .prepare<[string, string | null, string, string, string]>(
+        `
+          UPDATE workspace_agent_starts
+          SET thread_id = ?, environment_id = ?, updated_at = ?
+          WHERE bb_project_id = ? AND workspace_key = ?
+        `,
+      )
+      .run(
+        validateThreadId(input.threadId),
+        input.environmentId,
+        nowIso(),
+        input.bbProjectId,
+        input.workspaceKey,
+      );
+    if (result.changes === 0) {
+      throw new Error("Workspace agent start not found");
+    }
+    const start = getWorkspaceAgentStart(input.bbProjectId, input.workspaceKey);
+    if (!start) throw new Error("Workspace agent start was not completed");
+    return start;
+  }
+
+  function deleteWorkspaceAgentStart(
+    bbProjectId: string,
+    workspaceKey: string,
+  ): boolean {
+    return (
+      db
+        .prepare<
+          [string, string]
+        >(`DELETE FROM workspace_agent_starts WHERE bb_project_id = ? AND workspace_key = ?`)
+        .run(bbProjectId, workspaceKey).changes > 0
+    );
+  }
+
   function updateTaskThreadStatus(
     id: string,
     liveStatus: TaskThreadLiveStatus,
@@ -1855,6 +1974,11 @@ export function createTasksStore(db: PluginDatabase) {
     updateTaskThread,
     updateTaskThreadStatus,
     deleteTaskThread,
+    getWorkspaceAgentStart,
+    getWorkspaceAgentStartByWorkspaceKey,
+    createWorkspaceAgentStart,
+    completeWorkspaceAgentStart,
+    deleteWorkspaceAgentStart,
     createPreset,
     getPreset,
     listPresets,

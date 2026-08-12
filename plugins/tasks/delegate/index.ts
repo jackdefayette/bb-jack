@@ -9,7 +9,7 @@ import type {
   TasksStore,
   TaskThreadLiveStatus,
 } from "../db";
-import type { TasksApiStore } from "../api";
+import { publishProjectsChanged, type TasksApiStore } from "../api";
 import {
   presetPermissionModeSchema,
   type CommentsChangedEvent,
@@ -21,6 +21,7 @@ import { delegationRpcContract } from "./contract";
 const MAX_DELEGATED_THREAD_TITLE_LENGTH = 120;
 const SYSTEM_AUTHOR_NAME = "Tasks";
 const MANUAL_PRESET_NAME = "Attached";
+const WORKSPACE_AGENT_COLORS = ["blue", "purple", "green", "orange"];
 
 const presetExecutionSchema = z
   .object({
@@ -138,6 +139,66 @@ function delegatedThreadTitle(task: Task): string {
     0,
     MAX_DELEGATED_THREAD_TITLE_LENGTH,
   );
+}
+
+function workspaceAgentTitle(
+  role: "builder" | "reviewer",
+  input: readonly { type: string; text?: string }[],
+): string {
+  const firstText = input.find(
+    (entry): entry is { type: "text"; text: string } =>
+      entry.type === "text" &&
+      typeof entry.text === "string" &&
+      entry.text.trim().length > 0,
+  );
+  const fallback = `${role === "builder" ? "Builder" : "Reviewer"} workspace task`;
+  return (firstText?.text.trim() ?? fallback)
+    .replace(/\s+/gu, " ")
+    .slice(0, 120);
+}
+
+function workspaceAgentDescription(
+  input: readonly { type: string; text?: string }[],
+): string {
+  return input
+    .filter(
+      (entry): entry is { type: "text"; text: string } =>
+        entry.type === "text" && typeof entry.text === "string",
+    )
+    .map((entry) => entry.text)
+    .join("\n\n");
+}
+
+function workspaceAgentPrefix(
+  projectName: string,
+  projects: readonly Project[],
+): string {
+  let base = projectName
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/gu, "")
+    .slice(0, 10);
+  if (!base || !/^[A-Z]/u.test(base)) base = `P${base}`;
+  const used = new Set(projects.map((project) => project.prefix));
+  if (!used.has(base)) return base;
+  for (let suffix = 2; suffix < 10_000; suffix += 1) {
+    const suffixText = String(suffix);
+    const candidate = `${base.slice(0, 10 - suffixText.length)}${suffixText}`;
+    if (!used.has(candidate)) return candidate;
+  }
+  throw new Error(`Could not derive a unique Tasks prefix for ${projectName}`);
+}
+
+function workspaceAgentPrompt(
+  task: Task,
+  role: "builder" | "reviewer",
+): string {
+  return [
+    `# ${task.key} · ${task.title}`,
+    "## Task",
+    task.description.trim() || "No text prompt was supplied.",
+    "## Report-back contract",
+    `You are the ${role} agent for ${task.key}. Post meaningful progress milestones with \`bb tasks comment ${task.key} --body ...\`. When the work is ready for human review, run \`bb tasks update ${task.key} --status in_review\`. Do not mark the task Done automatically; explain any blockage in a task comment.`,
+  ].join("\n\n");
 }
 
 function requireTask(store: TasksStore, taskId: string): Task {
@@ -400,6 +461,160 @@ export function handlers(
       publishTasksChanged(bb, task.id, task.projectId);
       publishCommentsChanged(bb, task.id);
       return { threadId: thread.id };
+    },
+
+    async workspaceAgentStart(input) {
+      const existingForKey = store.tasks.getWorkspaceAgentStartByWorkspaceKey(
+        input.workspaceKey,
+      );
+      if (existingForKey && existingForKey.bbProjectId !== input.bbProjectId) {
+        throw new DelegationError(
+          "spawn_target_invalid",
+          "This workspace agent key is already assigned to a different BB project",
+        );
+      }
+      if (existingForKey?.threadId) {
+        const task = requireTask(store.tasks, existingForKey.taskId);
+        return {
+          taskId: task.id,
+          taskKey: task.key,
+          threadId: existingForKey.threadId,
+          environmentId: existingForKey.environmentId,
+        };
+      }
+      if (existingForKey) {
+        throw new DelegationError(
+          "spawn_target_invalid",
+          "This workspace agent is already starting; retry after the first start completes",
+        );
+      }
+
+      const linkedProjects = store.tasks
+        .listProjects()
+        .filter((project) => project.linkedBbProjectId === input.bbProjectId);
+      if (linkedProjects.length > 1) {
+        throw new DelegationError(
+          "project_not_linked",
+          `Multiple Tasks projects are linked to ${input.bbProjectId}; resolve the duplicate link before starting an agent`,
+        );
+      }
+      const createdProject = linkedProjects[0] === undefined;
+      const project =
+        linkedProjects[0] ??
+        store.tasks.createProject({
+          name: input.projectName,
+          prefix: workspaceAgentPrefix(
+            input.projectName,
+            store.tasks.listProjects(),
+          ),
+          color:
+            WORKSPACE_AGENT_COLORS[
+              store.tasks.listProjects().length % WORKSPACE_AGENT_COLORS.length
+            ] ?? "blue",
+          linkedBbProjectId: input.bbProjectId,
+        });
+      const title = workspaceAgentTitle(input.role, input.request.input);
+      const description = workspaceAgentDescription(input.request.input);
+      const task = store.transaction(() => {
+        const created = store.tasks.createTask({
+          projectId: project.id,
+          title,
+          description,
+          status: "in_progress",
+        });
+        store.tasks.createWorkspaceAgentStart({
+          bbProjectId: input.bbProjectId,
+          workspaceKey: input.workspaceKey,
+          taskId: created.id,
+        });
+        return created;
+      });
+
+      let thread: Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["spawn"]>>;
+      try {
+        thread = await bb.sdk.threads.spawn({
+          projectId: input.bbProjectId,
+          providerId: input.request.providerId,
+          model: input.request.model,
+          reasoningLevel: input.request.reasoningLevel,
+          permissionMode: input.request.permissionMode,
+          ...(input.request.serviceTier === undefined
+            ? {}
+            : { serviceTier: input.request.serviceTier }),
+          executionInputSources: input.request.executionInputSources,
+          environment: input.request.environment,
+          title: `${task.key} · ${task.title}`.slice(
+            0,
+            MAX_DELEGATED_THREAD_TITLE_LENGTH,
+          ),
+          input: [
+            ...input.request.input,
+            {
+              type: "text" as const,
+              text: workspaceAgentPrompt(task, input.role),
+              mentions: [],
+              visibility: "agent-only" as const,
+            },
+          ],
+        });
+      } catch (error) {
+        store.transaction(() => {
+          store.tasks.deleteWorkspaceAgentStart(
+            input.bbProjectId,
+            input.workspaceKey,
+          );
+          store.tasks.deleteTask(task.id);
+          if (
+            createdProject &&
+            store.tasks.listTasks({ projectId: project.id }).length === 0 &&
+            store.tasks.listLabels(project.id).length === 0
+          ) {
+            store.tasks.deleteProject(project.id);
+          }
+        });
+        throw error;
+      }
+      const environmentId = thread.environmentId;
+      store.transaction(() => {
+        store.tasks.upsertTaskThread({
+          taskId: task.id,
+          threadId: thread.id,
+          presetName: input.role === "builder" ? "Builder" : "Reviewer",
+          title: `${task.key} · ${task.title}`.slice(
+            0,
+            MAX_DELEGATED_THREAD_TITLE_LENGTH,
+          ),
+          liveStatus: "starting",
+        });
+        store.tasks.completeWorkspaceAgentStart({
+          bbProjectId: input.bbProjectId,
+          workspaceKey: input.workspaceKey,
+          threadId: thread.id,
+          environmentId,
+        });
+        createSystemComment(store.tasks, {
+          taskId: task.id,
+          presetName: input.role === "builder" ? "Builder" : "Reviewer",
+          threadId: thread.id,
+          body: `Status changed to In Progress · ${input.role} workspace agent dispatched`,
+        });
+        createSystemComment(store.tasks, {
+          taskId: task.id,
+          presetName: input.role === "builder" ? "Builder" : "Reviewer",
+          threadId: thread.id,
+          body: `${input.role === "builder" ? "Builder" : "Reviewer"} workspace agent attached`,
+        });
+      });
+      publishProjectsChanged(bb, project.id);
+      publishThreadsChanged(bb, task.id);
+      publishTasksChanged(bb, task.id, project.id);
+      publishCommentsChanged(bb, task.id);
+      return {
+        taskId: task.id,
+        taskKey: task.key,
+        threadId: thread.id,
+        environmentId,
+      };
     },
 
     async taskThreadsAttach(input) {

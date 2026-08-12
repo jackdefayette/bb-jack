@@ -1826,4 +1826,156 @@ describe("bb tasks CLI", () => {
 
     await harness.dispose();
   });
+
+  it("starts workspace agents through project-default, worktree, and reuse CLI selections", async () => {
+    let call = 0;
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        hosts: {
+          list: async () => [{ id: "host_worktree", name: "Worktree host" }],
+        },
+        threads: {
+          spawn: async () => {
+            call += 1;
+            return {
+              id: `thr_start_${call}`,
+              environmentId: `env_start_${call}`,
+            };
+          },
+        },
+      },
+    });
+    await plugin(bb);
+    const common = [
+      "--bb-project",
+      "proj_workspace",
+      "--project-name",
+      "Workspace",
+      "--prompt",
+      "Build the CLI parity",
+      "--provider",
+      "codex",
+      "--model",
+      "gpt-5.6-sol",
+      "--reasoning",
+      "high",
+      "--permission",
+      "full",
+      "--json",
+    ];
+
+    const projectDefault = JSON.parse(
+      stdout(
+        await harness.runCli([
+          "start-agent",
+          "--workspace-key",
+          "tab-1:builder",
+          "--role",
+          "builder",
+          ...common,
+        ]),
+      ),
+    );
+    const worktree = JSON.parse(
+      stdout(
+        await harness.runCli([
+          "start-agent",
+          "--workspace-key",
+          "tab-1:reviewer",
+          "--role",
+          "reviewer",
+          ...common,
+          "--environment",
+          "worktree",
+          "--machine",
+          "Worktree host",
+          "--base-branch",
+          "release/next",
+        ]),
+      ),
+    );
+    const reuse = JSON.parse(
+      stdout(
+        await harness.runCli([
+          "start-agent",
+          "--workspace-key",
+          "tab-2:builder",
+          "--role",
+          "builder",
+          ...common,
+          "--environment",
+          "reuse",
+          "--environment-id",
+          "env_existing",
+        ]),
+      ),
+    );
+
+    expect(projectDefault).toMatchObject({
+      taskKey: "WORKSPACE-1",
+      threadId: "thr_start_1",
+      environmentId: "env_start_1",
+    });
+    expect(worktree).toMatchObject({
+      taskKey: "WORKSPACE-2",
+      threadId: "thr_start_2",
+      environmentId: "env_start_2",
+    });
+    expect(reuse).toMatchObject({
+      taskKey: "WORKSPACE-3",
+      threadId: "thr_start_3",
+      environmentId: "env_start_3",
+    });
+    expect(
+      harness.sdk
+        .callsTo("threads.spawn")
+        .map(([request]) => request.environment),
+    ).toEqual([
+      { type: "project-default" },
+      {
+        type: "host",
+        hostId: "host_worktree",
+        workspace: {
+          type: "managed-worktree",
+          baseBranch: { kind: "named", name: "release/next" },
+        },
+      },
+      { type: "reuse", environmentId: "env_existing" },
+    ]);
+    await harness.dispose();
+  });
+
+  it("validates start-agent environment combinations before spawning", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "tasks" });
+    await plugin(bb);
+    const result = await harness.runCli([
+      "start-agent",
+      "--workspace-key",
+      "tab:builder",
+      "--role",
+      "builder",
+      "--bb-project",
+      "proj_workspace",
+      "--project-name",
+      "Workspace",
+      "--prompt",
+      "Build",
+      "--provider",
+      "codex",
+      "--model",
+      "gpt-5.6-sol",
+      "--reasoning",
+      "high",
+      "--permission",
+      "full",
+      "--environment",
+      "reuse",
+    ]);
+    expect(result.stderr).toBe(
+      "--environment-id is required for --environment reuse",
+    );
+    expect(harness.sdk.callsTo("threads.spawn")).toEqual([]);
+    await harness.dispose();
+  });
 });

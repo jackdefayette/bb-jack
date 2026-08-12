@@ -1,10 +1,16 @@
 import { defineRpcContract } from "@bb/plugin-sdk";
+import {
+  workspaceAgentStartInputSchema,
+  workspaceAgentStartOutputSchema,
+  type WorkspaceAgentRequest,
+} from "@bb/server-contract";
 import { z } from "zod";
 
 const ULID_PATTERN = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
 
 const idSchema = z.string().regex(ULID_PATTERN, "must be a ULID");
 const threadIdSchema = z.string().startsWith("thr_");
+export type { WorkspaceAgentRequest };
 
 export const delegationRpcContract = defineRpcContract({
   delegate: {
@@ -22,6 +28,10 @@ export const delegationRpcContract = defineRpcContract({
   taskThreadsAttach: {
     input: z.object({ taskId: idSchema, threadId: threadIdSchema }).strict(),
     output: z.object({ threadId: threadIdSchema }).strict(),
+  },
+  workspaceAgentStart: {
+    input: workspaceAgentStartInputSchema,
+    output: workspaceAgentStartOutputSchema,
   },
 });
 

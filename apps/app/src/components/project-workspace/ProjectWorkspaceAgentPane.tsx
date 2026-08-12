@@ -1,22 +1,67 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ThreadRoutePathArgs } from "@/lib/route-paths";
+import type { NewThreadRequest } from "@bb/plugin-sdk";
+import { PluginNewThreadComposer } from "@/components/plugin/PluginNewThreadComposer";
+import { callPluginRpc } from "@/lib/plugin-sdk-hooks";
 import { ThreadDetailView } from "@/views/thread-detail/ThreadDetailView";
 import {
   PaneContext,
   type PaneContextValue,
 } from "@/views/thread-detail/PaneContext";
 import { ProjectWorkspacePaneFrame } from "./ProjectWorkspacePaneFrame";
+import { ProjectWorkspaceEnvironmentRibbon } from "./ProjectWorkspaceEnvironmentRibbon";
+
+export type ProjectWorkspaceAgentRole = "builder" | "reviewer";
+
+interface WorkspaceAgentStartResult {
+  taskId: string;
+  taskKey: string;
+  threadId: string;
+  environmentId: string | null;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+/** Strictly narrows the Tasks plugin result at the app/plugin boundary. */
+export function parseWorkspaceAgentStartResult(
+  value: unknown,
+): WorkspaceAgentStartResult | null {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Record<string, unknown>;
+  if (
+    !isNonEmptyString(candidate.taskId) ||
+    !isNonEmptyString(candidate.taskKey) ||
+    !isNonEmptyString(candidate.threadId) ||
+    !(candidate.environmentId === null || isNonEmptyString(candidate.environmentId))
+  ) {
+    return null;
+  }
+  return {
+    taskId: candidate.taskId,
+    taskKey: candidate.taskKey,
+    threadId: candidate.threadId,
+    environmentId: candidate.environmentId,
+  };
+}
 
 interface ProjectWorkspaceAgentPaneProps {
   isExpanded?: boolean;
   isFocused: boolean;
   isTopRow: boolean;
-  label: "Primary Agent" | "Review Agent";
+  label: "Builder" | "Reviewer";
   onActivate: () => void;
   onNavigate: (thread: ThreadRoutePathArgs) => void;
   onToggleFocus?: () => void;
   projectId: string;
+  projectName: string;
+  role: ProjectWorkspaceAgentRole;
+  taskKey: string | null;
+  environmentId: string | null;
   threadId: string | null;
+  workspaceTabId: string;
+  onAgentStarted: (result: WorkspaceAgentStartResult) => void;
 }
 
 export function ProjectWorkspaceAgentPane({
@@ -28,15 +73,22 @@ export function ProjectWorkspaceAgentPane({
   onNavigate,
   onToggleFocus,
   projectId,
+  projectName,
+  role,
+  taskKey,
+  environmentId,
   threadId,
+  workspaceTabId,
+  onAgentStarted,
 }: ProjectWorkspaceAgentPaneProps) {
+  const [startError, setStartError] = useState<string | null>(null);
   const navigateInPane = useCallback(
     (thread: ThreadRoutePathArgs) => onNavigate(thread),
     [onNavigate],
   );
   const paneContext = useMemo<PaneContextValue>(
     () => ({
-      paneId: label === "Primary Agent" ? "workspace-primary" : "workspace-review",
+      paneId: label === "Builder" ? "workspace-primary" : "workspace-review",
       isFocused,
       isSplitPane: true,
       secondaryPanelHost: null,
@@ -46,10 +98,40 @@ export function ProjectWorkspaceAgentPane({
       onToggleMaximize: onToggleFocus ?? null,
       isBoundedPane: true,
       isTopRow,
-      ownsWindowTopLeft: label === "Primary Agent",
+      ownsWindowTopLeft: label === "Builder",
       navigateInPane,
     }),
     [isExpanded, isFocused, isTopRow, label, navigateInPane, onToggleFocus],
+  );
+  const startAgent = useCallback(
+    async (request: NewThreadRequest) => {
+      setStartError(null);
+      if (request.projectId !== projectId) {
+        setStartError("This workspace is fixed to its project. Choose the project shown above.");
+        throw new Error("Workspace project mismatch");
+      }
+      let rpcResult: unknown;
+      try {
+        rpcResult = await callPluginRpc(fetch, "tasks", "workspaceAgentStart", {
+          workspaceKey: `${workspaceTabId}:${role}`,
+          bbProjectId: projectId,
+          projectName,
+          role,
+          request,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to start this agent";
+        setStartError(`${message}. Retry to keep this draft.`);
+        throw error;
+      }
+      const result = parseWorkspaceAgentStartResult(rpcResult);
+      if (result === null) {
+        setStartError("Tasks returned an invalid agent start result. Retry to keep this draft.");
+        throw new Error("Invalid workspace agent start result");
+      }
+      onAgentStarted(result);
+    },
+    [onAgentStarted, projectId, projectName, role, workspaceTabId],
   );
 
   return (
@@ -67,20 +149,40 @@ export function ProjectWorkspaceAgentPane({
     >
       {threadId ? (
         <PaneContext.Provider value={paneContext}>
-          <ThreadDetailView
-            surface="pane"
-            projectId={projectId}
-            threadId={threadId}
-          />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <ProjectWorkspaceEnvironmentRibbon
+              projectName={projectName}
+              environmentId={environmentId}
+              role={role}
+              taskKey={taskKey}
+              threadId={threadId}
+            />
+            <ThreadDetailView
+              surface="pane"
+              projectId={projectId}
+              threadId={threadId}
+            />
+          </div>
         </PaneContext.Provider>
       ) : (
-        <div className="grid min-h-0 flex-1 place-items-center px-6 text-center">
-          <div>
-            <p className="text-sm font-medium text-foreground">No agent assigned</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Create a task in this project to start an agent here.
-            </p>
-          </div>
+        <div className="flex min-h-0 flex-1 flex-col p-3">
+          <p className="mb-2 text-xs text-muted-foreground">
+            Start a {role} task in {projectName}. A new isolated worktree is
+            recommended for collision-free concurrent work; project checkout
+            and existing-worktree choices remain explicit. Closing this tab
+            retains the selected worktree.
+          </p>
+          {startError ? (
+            <p role="alert" className="mb-2 text-xs text-destructive">{startError}</p>
+          ) : null}
+          <PluginNewThreadComposer
+            defaultProjectId={projectId}
+            draftKey={`project-workspace:${workspaceTabId}:${role}`}
+            placeholder={`Describe the ${role} task…`}
+            layout="contained"
+            workspaceEnvironmentChoices
+            onSubmit={startAgent}
+          />
         </div>
       )}
     </ProjectWorkspacePaneFrame>

@@ -59,7 +59,7 @@ describe("tasks storage", () => {
             { count: number }
           >("SELECT COUNT(*) AS count FROM schema_version")
           .get()?.count,
-      ).toBe(5);
+      ).toBe(6);
     } finally {
       await harness.dispose();
     }
@@ -132,6 +132,35 @@ describe("tasks storage", () => {
         .map((preset) => preset.permissionMode);
 
       expect(modes).toEqual(["accept-edits", "accept-edits"]);
+    } finally {
+      await harness.dispose();
+    }
+  });
+
+  it("adds workspace-agent starts to an existing version-5 database", async () => {
+    const { db, harness } = setup();
+    try {
+      db.prepare("DROP TABLE workspace_agent_starts").run();
+      db.prepare("DELETE FROM schema_version WHERE version = 6").run();
+
+      createTasksStore(db);
+
+      expect(
+        db
+          .prepare<
+            [],
+            { count: number }
+          >("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'workspace_agent_starts'")
+          .get()?.count,
+      ).toBe(1);
+      expect(
+        db
+          .prepare<
+            [number],
+            { count: number }
+          >("SELECT COUNT(*) AS count FROM schema_version WHERE version = ?")
+          .get(6)?.count,
+      ).toBe(1);
     } finally {
       await harness.dispose();
     }

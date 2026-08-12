@@ -9,7 +9,7 @@
  * environment to project defaults.
  */
 
-import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NewThreadRequest } from "@bb/plugin-sdk";
@@ -450,5 +450,40 @@ describe("PluginNewThreadComposer seeding", () => {
         workspace: { type: "unmanaged", path: null },
       },
     });
+  });
+
+  it("makes a new isolated worktree the visible workspace-agent default", async () => {
+    const submitted: NewThreadRequest[] = [];
+    render(
+      <MemoryRouter>
+        <PluginNewThreadComposer
+          draftKey="workspace-agent"
+          defaultProjectId="proj_1"
+          initialPrompt="build safely"
+          workspaceEnvironmentChoices
+          onSubmit={(request) => {
+            submitted.push(request);
+          }}
+        />
+      </MemoryRouter>,
+    );
+
+    const picker = screen.getByRole("combobox", { name: "Agent workspace" }) as HTMLSelectElement;
+    expect(picker.value).toBe("host:host_1:worktree");
+    expect(screen.getByRole("option", { name: "New isolated worktree (Recommended)" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Project checkout (shared)" })).toBeTruthy();
+    await waitFor(() => expect(latestPromptBoxProps().disabled).toBe(false));
+    await submit();
+    expect(submitted[0]?.environment).toEqual({
+      type: "host",
+      hostId: "host_1",
+      workspace: {
+        type: "managed-worktree",
+        baseBranch: { kind: "default" },
+      },
+    });
+
+    fireEvent.change(picker, { target: { value: "host:host_1:local" } });
+    expect(picker.value).toBe("host:host_1:local");
   });
 });

@@ -71,6 +71,7 @@ Commands:
   attachment add|get|list|remove
   preset list|show|create|update|delete
   dispatch                       Dispatch a task to a new agent thread
+  start-agent                    Start an idempotent project workspace agent
   attach                         Attach an agent thread to a task
   threads                        List threads attached to a task
   seed-demo                      Create sample data (requires --yes)
@@ -117,6 +118,8 @@ const PRESET_HELP = `Usage:
   bb tasks preset delete <name-or-id> [--json]`;
 const DISPATCH_HELP =
   "Usage: bb tasks dispatch <key> --preset <name> [--instructions <extra>] [--json]";
+const START_AGENT_HELP =
+  "Usage: bb tasks start-agent --workspace-key <tab-id:role> --role <builder|reviewer> --project-name <name> [--bb-project <proj_id>] --prompt <text> --provider <id> --model <id> --reasoning <none|low|medium|high|xhigh|ultracode|max|ultra> --permission <accept-edits|auto|full> [--service-tier <fast|default>] [--environment project-default|worktree|reuse] [--machine <id-or-name> --base-branch <branch>] [--environment-id <env_id>] [--json]";
 const ATTACH_HELP =
   "Usage: bb tasks attach <key> [--thread <thread-id>] [--json]";
 const THREADS_HELP = "Usage: bb tasks threads <key> [--json]";
@@ -1783,6 +1786,132 @@ async function runDispatch(
     : result.threadId;
 }
 
+async function runStartAgent(
+  bb: BbPluginApi,
+  store: TasksApiStore,
+  domain: TasksDomain,
+  ctx: PluginCliContext,
+  argv: string[],
+): Promise<string> {
+  const args = parseArgs(argv);
+  if (args.flags.has("help")) return START_AGENT_HELP;
+  assertAllowed(args, [
+    "workspace-key",
+    "role",
+    "bb-project",
+    "project-name",
+    "prompt",
+    "provider",
+    "model",
+    "reasoning",
+    "permission",
+    "service-tier",
+    "environment",
+    "machine",
+    "base-branch",
+    "environment-id",
+  ]);
+  requirePositionals(args, 0, START_AGENT_HELP);
+  const bbProjectId = option(args, "bb-project") ?? ctx.projectId;
+  if (!bbProjectId) {
+    throw new CliError(
+      "missing --bb-project and no BB project context is available",
+    );
+  }
+  const environmentOption = option(args, "environment") ?? "project-default";
+  const machine = option(args, "machine");
+  const baseBranch = option(args, "base-branch");
+  const environmentId = option(args, "environment-id");
+  let environment:
+    | { type: "project-default" }
+    | { type: "reuse"; environmentId: string }
+    | {
+        type: "host";
+        hostId: string;
+        workspace: {
+          type: "managed-worktree";
+          baseBranch: { kind: "default" } | { kind: "named"; name: string };
+        };
+      };
+  if (environmentOption === "project-default") {
+    if (machine || baseBranch || environmentId) {
+      throw new CliError(
+        "--machine, --base-branch, and --environment-id require --environment worktree or reuse",
+      );
+    }
+    environment = { type: "project-default" };
+  } else if (environmentOption === "worktree") {
+    if (!machine)
+      throw new CliError("--machine is required for --environment worktree");
+    if (environmentId)
+      throw new CliError("--environment-id requires --environment reuse");
+    environment = {
+      type: "host",
+      hostId: await resolveMachineId(domain, machine),
+      workspace: {
+        type: "managed-worktree",
+        baseBranch: baseBranch
+          ? { kind: "named", name: baseBranch }
+          : { kind: "default" },
+      },
+    };
+  } else if (environmentOption === "reuse") {
+    if (!environmentId)
+      throw new CliError(
+        "--environment-id is required for --environment reuse",
+      );
+    if (machine || baseBranch)
+      throw new CliError(
+        "--machine and --base-branch require --environment worktree",
+      );
+    environment = { type: "reuse", environmentId };
+  } else {
+    throw new CliError(
+      "invalid --environment; expected project-default, worktree, or reuse",
+    );
+  }
+  const serviceTier = option(args, "service-tier");
+  if (
+    serviceTier !== undefined &&
+    serviceTier !== "fast" &&
+    serviceTier !== "default"
+  ) {
+    throw new CliError("invalid --service-tier; expected fast or default");
+  }
+  const result = delegationRpcContract.workspaceAgentStart.output.parse(
+    await delegationHandlers(bb, store).workspaceAgentStart(
+      delegationRpcContract.workspaceAgentStart.input.parse({
+        workspaceKey: requireOption(args, "workspace-key"),
+        bbProjectId,
+        projectName: requireOption(args, "project-name"),
+        role: requireOption(args, "role"),
+        request: {
+          projectId: bbProjectId,
+          providerId: requireOption(args, "provider"),
+          model: requireOption(args, "model"),
+          reasoningLevel: requireOption(args, "reasoning"),
+          permissionMode: requireOption(args, "permission"),
+          ...(serviceTier === undefined ? {} : { serviceTier }),
+          executionInputSources: {
+            providerId: "explicit",
+            model: "explicit",
+            reasoningLevel: "explicit",
+            permissionMode: "explicit",
+            ...(serviceTier === undefined ? {} : { serviceTier: "explicit" }),
+          },
+          environment,
+          input: [
+            { type: "text", text: requireOption(args, "prompt"), mentions: [] },
+          ],
+        },
+      }),
+    ),
+  );
+  return args.flags.has("json")
+    ? json(result)
+    : `${result.taskKey}  ${result.threadId}  ${result.environmentId ?? "no environment"}`;
+}
+
 async function runAttach(
   bb: BbPluginApi,
   store: TasksApiStore,
@@ -1939,6 +2068,11 @@ export function registerTasksCli(
         usage: DISPATCH_HELP,
       },
       {
+        name: "start-agent",
+        summary: "Start an idempotent project workspace Builder or Reviewer",
+        usage: START_AGENT_HELP,
+      },
+      {
         name: "attach",
         summary: "Attach an existing agent thread to a task",
         usage: ATTACH_HELP,
@@ -2010,6 +2144,9 @@ export function registerTasksCli(
           // Hidden alias kept for compatibility; help advertises "dispatch".
           case "delegate":
             stdout = await runDispatch(bb, store, domain, rest);
+            break;
+          case "start-agent":
+            stdout = await runStartAgent(bb, store, domain, ctx, rest);
             break;
           case "attach":
             stdout = await runAttach(bb, store, domain, ctx, rest);

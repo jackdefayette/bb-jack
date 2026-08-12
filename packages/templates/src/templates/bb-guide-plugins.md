@@ -120,13 +120,19 @@ and the `bb tasks` command. Common agent operations are:
   bb tasks attachment add <key-or-comment-id> --file <path> [--json]
   bb tasks attachment get <attachment-id> --out <path> [--json]
   bb tasks attach <key-or-id> [--json]
+  bb tasks start-agent --workspace-key <stable-key> --role <builder|reviewer> --project-name <name> --prompt <text> --provider <id> --model <id> --reasoning <level> --permission <mode> [--environment project-default|worktree|reuse] [--machine <id-or-name>] [--base-branch <branch>] [--environment-id <env_id>] [--json]
   bb tasks update <key-or-id> --status in_review [--json]
   bb tasks update <key-or-id> (--parent <parent-key-or-id> | --no-parent) [--json]
 
 Run `bb tasks --help` for project, folder, task, label, attachment, and demo-data
 commands, plus preset management, delegation, and attached-thread inspection.
 Delegated threads are attached automatically; use `bb tasks attach` only when
-work started outside Tasks. Task update resolves both task keys and IDs for
+work started outside Tasks. `bb tasks start-agent` is the idempotent project
+workspace path: it creates and attaches the authoritative task/thread binding
+and supports a project checkout, fresh isolated worktree, or reuse. The typed
+TypeScript SDK equivalent is `sdk.tasks.startAgent(input)`; it uses the same
+validated contract and returns the same task, thread, and nullable environment
+identity. Task update resolves both task keys and IDs for
 `--parent`; use `--no-parent` to promote a subtask to the top level. File paths
 in tasks commands resolve on the invoking machine (the thread's machine inside
 an agent thread, otherwise the server's); pass `--machine <id-or-name>` to

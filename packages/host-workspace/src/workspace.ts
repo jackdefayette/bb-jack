@@ -379,10 +379,6 @@ function isMissingHeadRevisionError(stderr: string): boolean {
   );
 }
 
-function isNotGitRepositoryError(stderr: string): boolean {
-  return stderr.includes("not a git repository");
-}
-
 async function listWorkspaceFilesRecursively(
   args: ListWorkspaceFilesRecursivelyArgs,
 ): Promise<string[]> {
@@ -1006,22 +1002,20 @@ export class Workspace {
   }
 
   async listFiles(): Promise<string[]> {
+    if (!(await detectGitRepo(this.path))) {
+      const filePaths = await listWorkspaceFilesRecursively({
+        dir: this.path,
+        root: this.path,
+      });
+      return filePaths.sort();
+    }
+
     const gitResult = await runGit(
       ["ls-files", "--cached", "--others", "--exclude-standard"],
       { allowFailure: true, cwd: this.path },
     );
     if (gitResult.exitCode === 0) {
       return parseNonEmptyLines(gitResult.stdout).sort();
-    }
-    if (
-      gitResult.exitCode === 128 ||
-      isNotGitRepositoryError(gitResult.stderr)
-    ) {
-      const filePaths = await listWorkspaceFilesRecursively({
-        dir: this.path,
-        root: this.path,
-      });
-      return filePaths.sort();
     }
     throw new WorkspaceError(
       "git_command_failed",

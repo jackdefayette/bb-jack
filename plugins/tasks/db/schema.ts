@@ -235,6 +235,22 @@ const MIGRATIONS = [
     END
     WHERE permission_mode IN ('workspace-write', 'readonly');
   `,
+  `
+    CREATE TABLE workspace_agent_starts (
+      bb_project_id TEXT NOT NULL,
+      workspace_key TEXT NOT NULL,
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      thread_id TEXT UNIQUE,
+      environment_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (bb_project_id, workspace_key),
+      CHECK (bb_project_id GLOB 'proj_*'),
+      CHECK (thread_id IS NULL OR thread_id GLOB 'thr_*')
+    );
+    CREATE INDEX idx_workspace_agent_starts_workspace_key
+      ON workspace_agent_starts(workspace_key);
+  `,
 ] as const;
 
 export function initializeTasksSchema(db: PluginDatabase): void {
