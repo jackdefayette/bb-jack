@@ -52,6 +52,8 @@ export const PROJECTLESS_ARCHIVED_ROUTE_PATH = "/archived";
 export const PROJECTLESS_THREAD_DETAIL_ROUTE_PATH = "/threads/:threadId";
 export const PROJECT_SETTINGS_ROUTE_PATH = "/projects/:projectId/settings";
 export const PROJECT_ARCHIVED_ROUTE_PATH = "/projects/:projectId/archived";
+export const PROJECT_WORKSPACE_ROUTE_PATH =
+  "/projects/:projectId/workspaces/:workspaceTabId";
 export const THREAD_DETAIL_ROUTE_PATH =
   "/projects/:projectId/threads/:threadId";
 // Trailing splat: the remainder is the panel's `subPath` (empty at the root).
@@ -60,6 +62,11 @@ export const PLUGIN_PANEL_ROUTE_PATH = "/plugins/:pluginId/:panelPath/*";
 export interface ThreadRoutePathArgs {
   projectId: string;
   threadId: string;
+}
+
+export interface ProjectWorkspaceRoutePathArgs {
+  projectId: string;
+  workspaceTabId: string;
 }
 
 export interface IsRoutePathArgs {
@@ -208,6 +215,13 @@ export function getProjectSettingsRoutePath(projectId: string): string {
   return `/projects/${projectId}/settings`;
 }
 
+export function getProjectWorkspaceRoutePath({
+  projectId,
+  workspaceTabId,
+}: ProjectWorkspaceRoutePathArgs): string {
+  return `/projects/${encodeURIComponent(projectId)}/workspaces/${encodeURIComponent(workspaceTabId)}`;
+}
+
 export interface PluginPanelRoutePathArgs {
   pluginId: string;
   /** The nav panel's registered `path` segment (validated: [a-zA-Z0-9_-]+). */
@@ -271,6 +285,7 @@ const baseRoutePatterns: readonly string[] = [
   PROJECTLESS_ARCHIVED_ROUTE_PATH,
   PROJECT_SETTINGS_ROUTE_PATH,
   PROJECT_ARCHIVED_ROUTE_PATH,
+  PROJECT_WORKSPACE_ROUTE_PATH,
   PROJECTLESS_THREAD_DETAIL_ROUTE_PATH,
   THREAD_DETAIL_ROUTE_PATH,
   PLUGIN_PANEL_ROUTE_PATH,

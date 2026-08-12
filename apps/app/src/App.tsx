@@ -28,6 +28,7 @@ import {
   PROJECT_ARCHIVED_ROUTE_PATH,
   PROJECTLESS_ARCHIVED_ROUTE_PATH,
   PROJECT_SETTINGS_ROUTE_PATH,
+  PROJECT_WORKSPACE_ROUTE_PATH,
   SETTINGS_PLUGIN_ROUTE_PATH,
   SETTINGS_PLUGINS_ROUTE_PATH,
   SETTINGS_MACHINE_ROUTE_PATH,
@@ -53,6 +54,7 @@ import { OnboardingHost } from "@/components/onboarding/OnboardingHost";
 import { ProviderCliInstallLogDialogHost } from "./components/provider-cli/provider-cli-install";
 import { ToolsExperimentGate } from "./components/tools/ToolsExperimentGate";
 import { PluginSettingsCompatibilityRoute } from "./components/settings/PluginSettingsCompatibilityRoute";
+import { ProjectWorkspaceTabsProvider } from "./components/project-workspace/ProjectWorkspaceTabsProvider";
 
 const SettingsView = lazy(() =>
   import("./views/SettingsView").then((m) => ({
@@ -75,6 +77,11 @@ const ProjectSettingsView = lazy(() =>
   })),
 );
 const SplitWorkspaceRoute = lazy(() => import("./views/SplitWorkspaceRoute"));
+const ProjectWorkspaceView = lazy(() =>
+  import("./views/ProjectWorkspaceView").then((module) => ({
+    default: module.ProjectWorkspaceView,
+  })),
+);
 
 export function LegacyAutomationDetailRedirect() {
   const location = useLocation();
@@ -176,6 +183,10 @@ function AppRoutes() {
             element={<Navigate to={getSettingsRoutePath("archived")} replace />}
           />
           <Route
+            path={PROJECT_WORKSPACE_ROUTE_PATH}
+            element={<ProjectWorkspaceView />}
+          />
+          <Route
             path={PROJECTLESS_ARCHIVED_ROUTE_PATH}
             element={<Navigate to={getSettingsRoutePath("archived")} replace />}
           />
@@ -262,24 +273,26 @@ export function App() {
 
   return (
     <QuickCreateProjectProvider>
-      <AppCommandProvider>
-        <RouteNavigationProvider>
-          <Routes>
-            <Route
-              path={AUTH_CALLBACK_ROUTE_PATH}
-              element={<AuthCallbackView />}
-            />
-            <Route path="*" element={<AppRoutes />} />
-          </Routes>
-          {/* Outside <Routes>: a provider CLI install outlives the page that
+      <ProjectWorkspaceTabsProvider>
+        <AppCommandProvider>
+          <RouteNavigationProvider>
+            <Routes>
+              <Route
+                path={AUTH_CALLBACK_ROUTE_PATH}
+                element={<AuthCallbackView />}
+              />
+              <Route path="*" element={<AppRoutes />} />
+            </Routes>
+            {/* Outside <Routes>: a provider CLI install outlives the page that
               started it, so its failure toast can be clicked from any route —
               including auth callback, which renders no app shell. */}
-          <ProviderCliInstallLogDialogHost />
-          {/* First-run onboarding. Outside <Routes> so it is not tied to a
+            <ProviderCliInstallLogDialogHost />
+            {/* First-run onboarding. Outside <Routes> so it is not tied to a
               page. It self-gates on the experiment and completion timestamp. */}
-          <OnboardingHost />
-        </RouteNavigationProvider>
-      </AppCommandProvider>
+            <OnboardingHost />
+          </RouteNavigationProvider>
+        </AppCommandProvider>
+      </ProjectWorkspaceTabsProvider>
     </QuickCreateProjectProvider>
   );
 }

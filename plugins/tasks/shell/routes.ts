@@ -1,4 +1,10 @@
-import { useMemo } from "react";
+import {
+  createContext,
+  createElement,
+  useContext,
+  useMemo,
+  type ReactNode,
+} from "react";
 import { useBbNavigate } from "@bb/plugin-sdk/app";
 
 /** The nav panel `path` registered in app.tsx; panel URLs are /plugins/tasks/<PANEL_PATH>/<subPath>. */
@@ -10,6 +16,7 @@ export type TasksRoute =
   | { kind: "all" }
   | { kind: "active" }
   | { kind: "manage" }
+  | { kind: "bb-project"; bbProjectId: string; createToken: string | null }
   | { kind: "project"; projectId: string; view: TaskViewMode }
   | { kind: "task"; taskKey: string };
 
@@ -20,6 +27,8 @@ export type TasksRoute =
  *   "active"                → tasks with agents working
  *   "manage"                → manage panel (labels, presets, folders)
  *   "task/<taskKey>"        → task detail (e.g. task/TSK-4)
+ *   "bb-project/<projectId>" → compact view for the tracker project linked
+ *                               to a bb workspace project
  *   "<projectId>"           → project list view
  *   "<projectId>?view=board" → project board view
  */
@@ -43,6 +52,17 @@ export function parseTasksRoute(rawSubPath: string): TasksRoute {
   if (head === undefined || head === "all") return { kind: "all" };
   if (head === "active") return { kind: "active" };
   if (head === "manage") return { kind: "manage" };
+  if (head === "bb-project") {
+    const bbProjectId = segments[1];
+    if (bbProjectId !== undefined) {
+      return {
+        kind: "bb-project",
+        bbProjectId,
+        createToken: new URLSearchParams(query).get("create"),
+      };
+    }
+    return { kind: "all" };
+  }
   if (head === "task") {
     const taskKey = segments[1];
     if (taskKey !== undefined) return { kind: "task", taskKey };
@@ -64,6 +84,12 @@ export function tasksRouteToSubPath(route: TasksRoute): string {
       return "active";
     case "manage":
       return "manage";
+    case "bb-project": {
+      const path = `bb-project/${route.bbProjectId}`;
+      return route.createToken === null
+        ? path
+        : `${path}?create=${encodeURIComponent(route.createToken)}`;
+    }
     case "task":
       return `task/${route.taskKey}`;
     case "project":
@@ -77,9 +103,25 @@ export interface TasksNavigation {
   go: (route: TasksRoute, options?: { replace?: boolean }) => void;
 }
 
+const TasksNavigationContext = createContext<TasksNavigation | null>(null);
+
+export function TasksNavigationProvider({
+  navigation,
+  children,
+}: {
+  navigation: TasksNavigation;
+  children: ReactNode;
+}) {
+  return createElement(
+    TasksNavigationContext.Provider,
+    { value: navigation },
+    children,
+  );
+}
+
 export function useTasksNavigation(): TasksNavigation {
   const navigate = useBbNavigate();
-  return useMemo(
+  const hostNavigation = useMemo<TasksNavigation>(
     () => ({
       go: (route, options) => {
         navigate.toPluginPanel(PANEL_PATH, {
@@ -90,4 +132,5 @@ export function useTasksNavigation(): TasksNavigation {
     }),
     [navigate],
   );
+  return useContext(TasksNavigationContext) ?? hostNavigation;
 }

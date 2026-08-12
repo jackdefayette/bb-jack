@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { PluginNavPanelProps } from "@bb/plugin-sdk/app";
 import {
   useActiveTasks,
@@ -9,6 +9,7 @@ import {
 } from "./data.js";
 import {
   parseTasksRoute,
+  TasksNavigationProvider,
   useTasksNavigation,
   type TasksRoute,
 } from "./routes.js";
@@ -167,6 +168,8 @@ function RouteOutlet({
       return <ListView projectId={null} activeOnly />;
     case "manage":
       return <ManagePanel />;
+    case "bb-project":
+      return null;
     case "task":
       return <DetailView taskKey={route.taskKey} />;
     case "project":
@@ -178,8 +181,135 @@ function RouteOutlet({
   }
 }
 
-function TasksAppShellContent({ subPath }: PluginNavPanelProps) {
-  const route = parseTasksRoute(subPath);
+function LinkedProjectEmptyState({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex h-full items-center justify-center p-5 text-center text-sm text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Compact Tasks surface embedded in a bb project workspace. The link is
+ * resolved from live Tasks project data and deliberately fails closed when
+ * zero or multiple tracker projects target the same bb project.
+ */
+function LinkedBbProjectPane({
+  bbProjectId,
+  createToken,
+}: {
+  bbProjectId: string;
+  createToken: string | null;
+}) {
+  const projects = useProjects();
+  const matches = (projects.data ?? []).filter(
+    (project) => project.linkedBbProjectId === bbProjectId,
+  );
+
+  if (projects.isLoading && projects.data === undefined) {
+    return (
+      <LinkedProjectEmptyState>Loading project tasks…</LinkedProjectEmptyState>
+    );
+  }
+  if (projects.error !== null) {
+    return (
+      <LinkedProjectEmptyState>
+        Tasks are unavailable: {projects.error}
+      </LinkedProjectEmptyState>
+    );
+  }
+  if (matches.length === 0) {
+    return (
+      <LinkedProjectEmptyState>
+        No Tasks project is linked to this bb project. Link one from Tasks →
+        Manage before creating work here.
+      </LinkedProjectEmptyState>
+    );
+  }
+  if (matches.length > 1) {
+    return (
+      <LinkedProjectEmptyState>
+        Multiple Tasks projects are linked to this bb project. Resolve the
+        duplicate links in Tasks → Manage before continuing.
+      </LinkedProjectEmptyState>
+    );
+  }
+  return (
+    <ResolvedLinkedProjectPane
+      projectId={matches[0]!.id}
+      createToken={createToken}
+    />
+  );
+}
+
+function ResolvedLinkedProjectPane({
+  projectId,
+  createToken,
+}: {
+  projectId: string;
+  createToken: string | null;
+}) {
+  const [route, setRoute] = useState<TasksRoute>({
+    kind: "project",
+    projectId,
+    view: "list",
+  });
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const lastCreateTokenRef = useRef<string | null>(null);
+  useEffect(() => {
+    setRoute({ kind: "project", projectId, view: "list" });
+  }, [projectId]);
+  useEffect(() => {
+    if (createToken === null || createToken === lastCreateTokenRef.current)
+      return;
+    lastCreateTokenRef.current = createToken;
+    setNewTaskOpen(true);
+  }, [createToken]);
+  const navigation = useMemo(
+    () => ({
+      go: (next: TasksRoute) => {
+        if (next.kind !== "bb-project") setRoute(next);
+      },
+    }),
+    [],
+  );
+
+  return (
+    <TasksNavigationProvider navigation={navigation}>
+      <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
+        {route.kind === "task" ? (
+          <div className="flex h-9 shrink-0 items-center border-b border-border px-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                setRoute({ kind: "project", projectId, view: "list" })
+              }
+            >
+              <Icon name="ChevronLeft" className="size-3.5" />
+              Back to tasks
+            </Button>
+          </div>
+        ) : null}
+        <div className="min-h-0 flex-1 overflow-auto">
+          <RouteOutlet route={route} boardUsable={false} />
+        </div>
+      </div>
+      <NewTaskDialog
+        open={newTaskOpen}
+        onOpenChange={setNewTaskOpen}
+        projectId={projectId}
+      />
+    </TasksNavigationProvider>
+  );
+}
+
+function StandardTasksAppShellContent({
+  subPath,
+  route,
+}: PluginNavPanelProps & {
+  route: Exclude<TasksRoute, { kind: "bb-project" }>;
+}) {
   const navigation = useTasksNavigation();
   const [sidebarCollapsed, setSidebarCollapsed] =
     useState(loadSidebarCollapsed);
@@ -357,6 +487,18 @@ function TasksAppShellContent({ subPath }: PluginNavPanelProps) {
         onOpenChange={setNewProjectOpen}
       />
     </div>
+  );
+}
+
+function TasksAppShellContent({ subPath }: PluginNavPanelProps) {
+  const route = parseTasksRoute(subPath);
+  return route.kind === "bb-project" ? (
+    <LinkedBbProjectPane
+      bbProjectId={route.bbProjectId}
+      createToken={route.createToken}
+    />
+  ) : (
+    <StandardTasksAppShellContent subPath={subPath} route={route} />
   );
 }
 

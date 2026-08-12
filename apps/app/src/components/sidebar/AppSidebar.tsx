@@ -16,7 +16,8 @@ import {
   useCloseMobileSidebar,
   useSidebar,
 } from "@/components/ui/sidebar.js";
-import { ProjectList, ProjectListActionButtons } from "./ProjectList";
+import { ProjectListActionButtons } from "./ProjectList";
+import { ProjectsOnlySidebar } from "./ProjectsOnlySidebar";
 import { PluginThreadList } from "./PluginThreadList";
 import { useThreadListProvider } from "./threadListProvider";
 import { PluginNavSidebarItems } from "@/components/plugin/PluginNavSidebarItems";
@@ -223,14 +224,13 @@ export function AppSidebar({
   }, [hideThreadShortcuts, isAppCommandModifierHeld, showThreadShortcuts]);
 
   const builtInThreadList = (
-    <ProjectList
+    <ProjectsOnlySidebar
       onNewProject={
         quickCreateProject.isAvailable
           ? quickCreateProject.openCreateDialog
           : undefined
       }
-      onProjectSelect={closeOnMobile}
-      isCreatingProject={quickCreateProject.isCreating}
+      onNavigate={closeOnMobile}
       threadSearch={{
         activeIndex: threadSearch.activeIndex,
         isActive: threadSearch.isActive,

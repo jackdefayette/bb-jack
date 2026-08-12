@@ -3,6 +3,7 @@ import { PERSONAL_PROJECT_ID } from "@bb/domain";
 import {
   getPluginDetailRoutePath,
   getPluginsRoutePath,
+  getProjectWorkspaceRoutePath,
   getRegistrySkillDetailRoutePath,
   getAutomationDetailRoutePath,
   getAutomationEditRoutePath,
@@ -40,6 +41,17 @@ describe("route path helpers", () => {
         threadId: "thr_standard",
       }),
     ).toBe("/projects/proj_standard/threads/thr_standard");
+  });
+
+  it("builds and recognizes project workspace tab URLs", () => {
+    const path = getProjectWorkspaceRoutePath({
+      projectId: "proj/data conductor",
+      workspaceTabId: "workspace/second",
+    });
+    expect(path).toBe(
+      "/projects/proj%2Fdata%20conductor/workspaces/workspace%2Fsecond",
+    );
+    expect(isRoutePath({ path })).toBe(true);
   });
 
   it("recognizes only the personal project id as projectless", () => {
