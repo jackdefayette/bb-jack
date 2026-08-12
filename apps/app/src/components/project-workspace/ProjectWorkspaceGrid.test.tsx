@@ -13,7 +13,10 @@ import type {
   ProjectWorkspaceTab,
   ProjectWorkspaceTabUpdate,
 } from "./ProjectWorkspaceTabsProvider";
-import { buildWorkspaceEnvironments, ProjectWorkspaceGrid } from "./ProjectWorkspaceGrid";
+import {
+  buildWorkspaceEnvironments,
+  ProjectWorkspaceGrid,
+} from "./ProjectWorkspaceGrid";
 
 const browserDeck = vi.hoisted(() => vi.fn());
 
@@ -118,7 +121,7 @@ afterEach(() => {
 describe("ProjectWorkspaceGrid", () => {
   it("deduplicates one environment shared by both workspace agents", () => {
     expect(buildWorkspaceEnvironments("env_shared", "env_shared")).toEqual([
-      { id: "env_shared", label: "Builder & Reviewer environment" },
+      { id: "env_shared", label: "Build & Review environment" },
     ]);
   });
   it("renders four quadrants and never falls back stale roles to unrelated threads", async () => {
@@ -132,8 +135,8 @@ describe("ProjectWorkspaceGrid", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Builder" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Reviewer" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Build" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Review" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Inspector" })).toBeTruthy();
     expect(screen.getByTestId("tools-pane")).toBeTruthy();
     const workspace = screen.getByRole("main", {
@@ -151,8 +154,12 @@ describe("ProjectWorkspaceGrid", () => {
       ),
     ).toEqual(["primary", "review", "browser", "tools"]);
     await waitFor(() => {
-      expect(screen.getByTestId("ready-project-workspace:workspace-1:builder")).toBeTruthy();
-      expect(screen.getByTestId("ready-project-workspace:workspace-1:reviewer")).toBeTruthy();
+      expect(
+        screen.getByTestId("ready-project-workspace:workspace-1:builder"),
+      ).toBeTruthy();
+      expect(
+        screen.getByTestId("ready-project-workspace:workspace-1:reviewer"),
+      ).toBeTruthy();
     });
     expect(screen.queryByTestId("thread-thread-a")).toBeNull();
     expect(screen.queryByTestId("thread-thread-b")).toBeNull();
@@ -161,7 +168,7 @@ describe("ProjectWorkspaceGrid", () => {
   it("focuses and restores the left column without remounting right panes", () => {
     render(<Harness />);
     const reviewPane = screen
-      .getByRole("heading", { name: "Reviewer" })
+      .getByRole("heading", { name: "Review" })
       .closest("[data-project-workspace-pane]");
     const toolsPane = screen.getByTestId("tools-pane");
 
@@ -173,7 +180,7 @@ describe("ProjectWorkspaceGrid", () => {
     ).toBe("browser");
     expect(
       screen
-        .getByRole("heading", { name: "Reviewer" })
+        .getByRole("heading", { name: "Review" })
         .closest("[data-project-workspace-pane]"),
     ).toBe(reviewPane);
     expect(screen.getByTestId("tools-pane")).toBe(toolsPane);
@@ -191,9 +198,7 @@ describe("ProjectWorkspaceGrid", () => {
     render(<Harness />);
     expect(browserDeck.mock.lastCall?.[0].canShowNativeBrowserView).toBe(true);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Focus builder" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Focus build chat" }));
     expect(browserDeck.mock.lastCall?.[0].canShowNativeBrowserView).toBe(false);
     expect(screen.getByTestId("browser-deck")).toBeTruthy();
 

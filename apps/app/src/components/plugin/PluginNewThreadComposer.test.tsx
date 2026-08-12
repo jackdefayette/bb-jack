@@ -11,18 +11,21 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NewThreadRequest } from "@bb/plugin-sdk";
 import { PluginNewThreadComposer } from "./PluginNewThreadComposer";
 
 const mocks = vi.hoisted(() => ({
+  hosts: [{ id: "host_1", name: "Machine" }],
   promptBoxProps: [] as Array<Record<string, any>>,
 }));
 
 vi.mock("@/components/promptbox/NewThreadPromptBox", () => ({
   NewThreadPromptBox: (props: Record<string, unknown>) => {
     mocks.promptBoxProps.push(props);
-    return <div data-testid="new-thread-prompt-box" />;
+    const modeConfig = props.modeConfig as { header?: ReactNode } | undefined;
+    return <div data-testid="new-thread-prompt-box">{modeConfig?.header}</div>;
   },
 }));
 
@@ -70,7 +73,7 @@ vi.mock("@/hooks/queries/sidebar-navigation-query", () => ({
 }));
 
 vi.mock("@/hooks/queries/host-queries", () => ({
-  useHosts: () => ({ data: [{ id: "host_1", name: "Machine" }] }),
+  useHosts: () => ({ data: mocks.hosts }),
   selectPrimaryHost: (
     hosts: Array<{ id: string }> | undefined,
     primaryHostId: string | null,
@@ -263,6 +266,7 @@ async function submit(): Promise<void> {
 
 describe("PluginNewThreadComposer seeding", () => {
   beforeEach(() => {
+    mocks.hosts = [{ id: "host_1", name: "Machine" }];
     mocks.promptBoxProps.length = 0;
     window.localStorage.clear();
   });
@@ -472,6 +476,9 @@ describe("PluginNewThreadComposer seeding", () => {
     expect(picker.value).toBe("host:host_1:worktree");
     expect(screen.getByRole("option", { name: "New isolated worktree (Recommended)" })).toBeTruthy();
     expect(screen.getByRole("option", { name: "Project checkout (shared)" })).toBeTruthy();
+    expect(latestPromptBoxProps().project).toBeUndefined();
+    expect(latestPromptBoxProps().modeConfig.environment.pickerHidden).toBe(true);
+    expect(latestPromptBoxProps().modeConfig.branch.hidden).toBe(false);
     await waitFor(() => expect(latestPromptBoxProps().disabled).toBe(false));
     await submit();
     expect(submitted[0]?.environment).toEqual({
@@ -485,5 +492,22 @@ describe("PluginNewThreadComposer seeding", () => {
 
     fireEvent.change(picker, { target: { value: "host:host_1:local" } });
     expect(picker.value).toBe("host:host_1:local");
+  });
+
+  it("keeps the generic environment picker available without a primary host", () => {
+    mocks.hosts = [];
+    render(
+      <MemoryRouter>
+        <PluginNewThreadComposer
+          draftKey="workspace-agent-no-host"
+          defaultProjectId="proj_1"
+          workspaceEnvironmentChoices
+          onSubmit={() => undefined}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("combobox", { name: "Agent workspace" })).toBeNull();
+    expect(latestPromptBoxProps().modeConfig.environment.pickerHidden).toBe(false);
   });
 });

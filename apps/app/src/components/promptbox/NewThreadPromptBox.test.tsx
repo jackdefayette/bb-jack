@@ -102,6 +102,36 @@ describe("ThreadEnvSlot", () => {
 
     expect(screen.queryByText("Unknown checkout")).toBeNull();
   });
+
+  it("hides a redundant environment picker while preserving branch choice", () => {
+    render(
+      <ThreadEnvSlot
+        environment={{
+          value: `host:${host.id}:worktree`,
+          onChange: vi.fn(),
+          sources,
+          host,
+          isLocal: true,
+          pickerHidden: true,
+        }}
+        branch={{
+          value: "main",
+          currentBranch: "main",
+          isNew: false,
+          options: ["main"],
+          onChange: vi.fn(),
+        }}
+        worktree={{
+          options: [],
+          value: null,
+          onChange: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Environment" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Branch" })).toBeTruthy();
+  });
 });
 
 describe("ProjectlessMachineSlot", () => {

@@ -131,8 +131,8 @@ export function ProjectSourceControlPane({
         <div className="rounded-md border border-dashed border-border p-4 text-center">
           <p className="text-xs font-medium">No assigned agent workspaces</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Changes, pull requests, and history appear only for Builder and
-            Reviewer environments in this workspace tab.
+            Changes, pull requests, and history appear only for agent
+            environments in this workspace tab.
           </p>
         </div>
       ) : (

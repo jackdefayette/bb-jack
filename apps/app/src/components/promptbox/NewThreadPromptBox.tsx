@@ -91,6 +91,9 @@ export interface NewThreadEnvironmentConfig {
   reuseDisabled?: boolean;
   worktreeDisabledReason?: string | null;
   disabled?: boolean;
+  /** Hide the generic environment and reuse pickers when a containing surface
+   * provides a more explicit workspace selector. Branch selection remains. */
+  pickerHidden?: boolean;
 }
 
 export interface NewThreadBranchConfig {
@@ -408,20 +411,22 @@ export function ThreadEnvSlot({
   const showWorktreePicker = parsedEnvironment?.type === "reuse";
   return (
     <>
-      <EnvironmentPickerUI
-        value={environment.value}
-        onChange={environment.onChange}
-        sources={environment.sources}
-        host={environment.host}
-        isLocal={environment.isLocal}
-        machines={environment.machines}
-        onRequestMachineSetup={environment.onRequestMachineSetup}
-        reuseDisabled={environment.reuseDisabled}
-        worktreeDisabledReason={environment.worktreeDisabledReason}
-        disabled={environment.disabled}
-        className="shrink-0"
-        muted
-      />
+      {environment.pickerHidden ? null : (
+        <EnvironmentPickerUI
+          value={environment.value}
+          onChange={environment.onChange}
+          sources={environment.sources}
+          host={environment.host}
+          isLocal={environment.isLocal}
+          machines={environment.machines}
+          onRequestMachineSetup={environment.onRequestMachineSetup}
+          reuseDisabled={environment.reuseDisabled}
+          worktreeDisabledReason={environment.worktreeDisabledReason}
+          disabled={environment.disabled}
+          className="shrink-0"
+          muted
+        />
+      )}
       {showBranchPicker ? (
         <BranchPicker
           variant="option"
@@ -452,7 +457,7 @@ export function ThreadEnvSlot({
           onCreate={branch.onCreate}
         />
       ) : null}
-      {showWorktreePicker ? (
+      {showWorktreePicker && !environment.pickerHidden ? (
         <WorktreePicker
           muted
           options={worktree.options}
@@ -522,6 +527,8 @@ export interface NewThreadConnectedEnvironmentConfig {
   reuseDisabled?: boolean;
   worktreeDisabledReason?: string | null;
   disabled?: boolean;
+  /** Hide the generic picker when the caller provides an explicit selector. */
+  pickerHidden?: boolean;
 }
 
 export interface NewThreadConnectedBranchConfig {

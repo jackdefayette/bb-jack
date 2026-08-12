@@ -36,15 +36,15 @@ export function buildWorkspaceEnvironments(
     builderEnvironmentId === reviewerEnvironmentId
   ) {
     return [
-      { id: builderEnvironmentId, label: "Builder & Reviewer environment" },
+      { id: builderEnvironmentId, label: "Build & Review environment" },
     ];
   }
   return [
     ...(builderEnvironmentId
-      ? [{ id: builderEnvironmentId, label: "Builder environment" }]
+      ? [{ id: builderEnvironmentId, label: "Build environment" }]
       : []),
     ...(reviewerEnvironmentId
-      ? [{ id: reviewerEnvironmentId, label: "Reviewer environment" }]
+      ? [{ id: reviewerEnvironmentId, label: "Review environment" }]
       : []),
   ];
 }
@@ -202,7 +202,7 @@ export function ProjectWorkspaceGrid({
         {...hiddenPaneProps(primaryHidden)}
       >
         <ProjectWorkspaceAgentPane
-          label="Builder"
+          label="Build"
           projectId={tab.projectId}
           projectName={tab.projectName}
           role="builder"
@@ -233,7 +233,7 @@ export function ProjectWorkspaceGrid({
         className="col-start-2 row-start-1 h-full min-h-0 min-w-0"
       >
         <ProjectWorkspaceAgentPane
-          label="Reviewer"
+          label="Review"
           projectId={tab.projectId}
           projectName={tab.projectName}
           role="reviewer"

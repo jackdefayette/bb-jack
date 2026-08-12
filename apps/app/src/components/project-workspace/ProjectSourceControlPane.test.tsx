@@ -98,7 +98,7 @@ beforeEach(() => {
 
 describe("ProjectSourceControlPane", () => {
   it("shows truthful exact-environment changes, branch, pull requests, and history", () => {
-    render(<ProjectSourceControlPane projectId="proj_demo" environments={[{ id: "env_1", label: "Builder worktree" }]} />);
+    render(<ProjectSourceControlPane projectId="proj_demo" environments={[{ id: "env_1", label: "Build worktree" }]} />);
     expect(screen.getAllByText("codex/feature").length).toBeGreaterThan(0);
     expect(screen.getByText("Changes")).toBeTruthy();
     expect(screen.getByText("src/feature.ts")).toBeTruthy();
@@ -110,7 +110,7 @@ describe("ProjectSourceControlPane", () => {
 
   it("reports an unavailable exact environment without inventing state", () => {
     mocks.status = { isLoading: false, isError: true, data: undefined };
-    render(<ProjectSourceControlPane projectId="proj_demo" environments={[{ id: "env_1", label: "Builder worktree" }]} />);
+    render(<ProjectSourceControlPane projectId="proj_demo" environments={[{ id: "env_1", label: "Build worktree" }]} />);
     expect(screen.getByText("Status unavailable")).toBeTruthy();
   });
 
@@ -119,8 +119,8 @@ describe("ProjectSourceControlPane", () => {
       <ProjectSourceControlPane
         projectId="proj_demo"
         environments={[
-          { id: "env_builder", label: "Builder worktree" },
-          { id: "env_reviewer", label: "Reviewer worktree" },
+          { id: "env_builder", label: "Build worktree" },
+          { id: "env_reviewer", label: "Review worktree" },
         ]}
       />,
     );
