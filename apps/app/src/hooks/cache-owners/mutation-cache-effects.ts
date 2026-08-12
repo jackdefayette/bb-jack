@@ -98,6 +98,20 @@ export function refetchThreadListsAfterComposerThreadCreate({
   });
 }
 
+/**
+ * Workspace tabs reject thread IDs missing from the sidebar projection. Wait
+ * for that projection to contain a Tasks-created thread before the tab stores
+ * its ID, preventing a create/refetch render race from clearing the new agent.
+ */
+export async function refetchSidebarNavigationAfterWorkspaceAgentStart({
+  queryClient,
+}: QueryClientArg): Promise<void> {
+  await queryClient.refetchQueries({
+    queryKey: sidebarNavigationQueryKey(),
+    type: "active",
+  }, { throwOnError: true });
+}
+
 export function invalidateThreadListQueries({
   queryClient,
 }: QueryClientArg): void {

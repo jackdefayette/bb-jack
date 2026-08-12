@@ -1,8 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ThreadRoutePathArgs } from "@/lib/route-paths";
 import type { NewThreadRequest } from "@bb/plugin-sdk";
 import { PluginNewThreadComposer } from "@/components/plugin/PluginNewThreadComposer";
 import { callPluginRpc } from "@/lib/plugin-sdk-hooks";
+import { refetchSidebarNavigationAfterWorkspaceAgentStart } from "@/hooks/cache-owners/mutation-cache-effects";
 import { ThreadDetailView } from "@/views/thread-detail/ThreadDetailView";
 import {
   PaneContext,
@@ -81,6 +83,7 @@ export function ProjectWorkspaceAgentPane({
   workspaceTabId,
   onAgentStarted,
 }: ProjectWorkspaceAgentPaneProps) {
+  const queryClient = useQueryClient();
   const [startError, setStartError] = useState<string | null>(null);
   const navigateInPane = useCallback(
     (thread: ThreadRoutePathArgs) => onNavigate(thread),
@@ -129,9 +132,22 @@ export function ProjectWorkspaceAgentPane({
         setStartError("Tasks returned an invalid agent start result. Retry to keep this draft.");
         throw new Error("Invalid workspace agent start result");
       }
+      // The grid resolves saved IDs against the sidebar projection to discard
+      // stale deleted threads. Refresh that projection before publishing a new
+      // ID so the grid never clears a thread that was just created.
+      try {
+        await refetchSidebarNavigationAfterWorkspaceAgentStart({ queryClient });
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unable to refresh the new agent";
+        setStartError(`${message}. Retry to attach the existing task and keep this draft.`);
+        throw error;
+      }
       onAgentStarted(result);
     },
-    [onAgentStarted, projectId, projectName, role, workspaceTabId],
+    [onAgentStarted, projectId, projectName, queryClient, role, workspaceTabId],
   );
 
   return (
