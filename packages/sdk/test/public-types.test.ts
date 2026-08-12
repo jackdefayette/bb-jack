@@ -318,6 +318,9 @@ type ExpectedProjectsKey =
   | "create"
   | "defaultExecutionOptions"
   | "delete"
+  | "diffFile"
+  | "diffFiles"
+  | "diffPatch"
   | "fileContent"
   | "files"
   | "get"
@@ -326,6 +329,7 @@ type ExpectedProjectsKey =
   | "promptHistory"
   | "reorder"
   | "sources"
+  | "status"
   | "update";
 
 type ExpectedProjectSourcesKey = "add" | "delete" | "update";

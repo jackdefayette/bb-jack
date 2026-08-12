@@ -16,6 +16,15 @@ import {
   isCommaSeparatedIncludeQueryValue,
   pathListIncludeQueryValueSchema,
 } from "./shared.js";
+import {
+  environmentDiffFileQuerySchema,
+  environmentDiffFileResponseSchema,
+  environmentDiffFilesResponseSchema,
+  environmentDiffPatchRequestSchema,
+  environmentDiffPatchResponseSchema,
+  environmentDiffQuerySchema,
+  environmentStatusResponseSchema,
+} from "./environments.js";
 
 const localProjectPathRequestSchema = z
   .string()
@@ -174,6 +183,67 @@ export const projectWorkspaceRoutingQuerySchema = z
   .superRefine(rejectMultipleProjectWorkspaceSelectors);
 export type ProjectWorkspaceRoutingQuery = z.infer<
   typeof projectWorkspaceRoutingQuerySchema
+>;
+
+export const projectStatusQuerySchema = z
+  .object({
+    ...projectWorkspaceRoutingFields,
+    mergeBaseBranch: gitBranchNameSchema.optional(),
+  })
+  .partial({ hostId: true, environmentId: true })
+  .superRefine(rejectMultipleProjectWorkspaceSelectors);
+export type ProjectStatusQuery = z.infer<typeof projectStatusQuerySchema>;
+
+const projectStatusResolvedSourceSchema = z
+  .object({ hostId: z.string().min(1), path: z.string().min(1) })
+  .strict();
+
+export const projectStatusResponseSchema = z.discriminatedUnion("outcome", [
+  environmentStatusResponseSchema.options[0].extend({
+    resolvedSource: projectStatusResolvedSourceSchema,
+  }),
+  environmentStatusResponseSchema.options[1].extend({
+    resolvedSource: projectStatusResolvedSourceSchema,
+  }),
+  environmentStatusResponseSchema.options[2].extend({
+    resolvedSource: projectStatusResolvedSourceSchema,
+  }),
+]);
+export type ProjectStatusResponse = z.infer<
+  typeof projectStatusResponseSchema
+>;
+
+export const projectDiffQuerySchema = z.intersection(
+  projectWorkspaceRoutingQuerySchema,
+  environmentDiffQuerySchema,
+);
+export type ProjectDiffQuery = z.infer<typeof projectDiffQuerySchema>;
+
+export const projectDiffFileQuerySchema = z.intersection(
+  projectWorkspaceRoutingQuerySchema,
+  environmentDiffFileQuerySchema,
+);
+export type ProjectDiffFileQuery = z.infer<typeof projectDiffFileQuerySchema>;
+
+export const projectDiffPatchRequestSchema = environmentDiffPatchRequestSchema
+  .extend(projectWorkspaceRoutingFields)
+  .partial({ hostId: true, environmentId: true })
+  .superRefine(rejectMultipleProjectWorkspaceSelectors);
+export type ProjectDiffPatchRequest = z.infer<
+  typeof projectDiffPatchRequestSchema
+>;
+
+export const projectDiffFilesResponseSchema = environmentDiffFilesResponseSchema;
+export type ProjectDiffFilesResponse = z.infer<
+  typeof projectDiffFilesResponseSchema
+>;
+export const projectDiffFileResponseSchema = environmentDiffFileResponseSchema;
+export type ProjectDiffFileResponse = z.infer<
+  typeof projectDiffFileResponseSchema
+>;
+export const projectDiffPatchResponseSchema = environmentDiffPatchResponseSchema;
+export type ProjectDiffPatchResponse = z.infer<
+  typeof projectDiffPatchResponseSchema
 >;
 
 export const projectFilesQuerySchema = z

@@ -1,10 +1,21 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectWorkspaceTab } from "./ProjectWorkspaceTabsProvider";
 import { ProjectWorkspaceBrowserPane } from "./ProjectWorkspaceBrowserPane";
+
+interface MockProjectStatus {
+  data?: {
+    outcome: string;
+    workspace?: {
+      branch: { currentBranch: string; defaultBranch: string };
+    };
+  };
+  isLoading: boolean;
+  isError: boolean;
+}
 
 const mocks = vi.hoisted(() => ({
   browser: vi.fn(),
@@ -12,6 +23,14 @@ const mocks = vi.hoisted(() => ({
   environment: vi.fn(),
   file: vi.fn(),
   diff: vi.fn(),
+  projectStatus: vi.fn((..._args: unknown[]): MockProjectStatus => ({
+    data: {
+      outcome: "available",
+      workspace: { branch: { currentBranch: "main", defaultBranch: "main" } },
+    },
+    isLoading: false,
+    isError: false,
+  })),
 }));
 
 vi.mock("./ProjectWorkspacePaneFrame", () => ({
@@ -30,6 +49,7 @@ vi.mock("@/hooks/queries/project-queries", () => ({
     mocks.paths(args);
     return { data: { paths: [{ path: "src/demo.ts" }] }, isLoading: false };
   },
+  useProjectWorkStatus: (...args: unknown[]) => mocks.projectStatus(...args),
 }));
 vi.mock("@/hooks/queries/environment-queries", () => ({
   useEnvironment: (id: unknown) => {
@@ -70,6 +90,17 @@ const TAB: ProjectWorkspaceTab = {
     url: "",
   },
 };
+
+beforeEach(() => {
+  mocks.browser.mockClear();
+  mocks.paths.mockClear();
+  mocks.environment.mockClear();
+  mocks.file.mockClear();
+  mocks.diff.mockClear();
+  mocks.projectStatus.mockClear();
+});
+
+afterEach(cleanup);
 
 describe("ProjectWorkspaceBrowserPane", () => {
   it("keeps Browser, Files, and Diff mounted and binds Files/Diff to the exact selected environment", () => {
@@ -123,6 +154,23 @@ describe("ProjectWorkspaceBrowserPane", () => {
       inspectorEnvironmentPinned: true,
     });
 
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Inspector environment" }),
+      { target: { value: "__project_checkout__" } },
+    );
+    expect(updateTab).toHaveBeenLastCalledWith("workspace_one", {
+      inspectorEnvironmentId: null,
+      inspectorEnvironmentPinned: true,
+    });
+
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Inspector environment" }),
+      { target: { value: "__follow_active__" } },
+    );
+    expect(updateTab).toHaveBeenLastCalledWith("workspace_one", {
+      inspectorEnvironmentPinned: false,
+    });
+
     view.rerender(
       <ProjectWorkspaceBrowserPane
         backgroundAgentState={null}
@@ -145,5 +193,80 @@ describe("ProjectWorkspaceBrowserPane", () => {
     expect(updateTab).toHaveBeenLastCalledWith("workspace_one", {
       browserTab: expect.objectContaining({ environmentId: "env_reviewer" }),
     });
+  });
+
+  it("browses the project checkout and classifies a non-repository diff without an agent environment", () => {
+    mocks.projectStatus.mockReturnValueOnce({
+      data: { outcome: "not_applicable" },
+      isLoading: false,
+      isError: false,
+    });
+    render(
+      <ProjectWorkspaceBrowserPane
+        backgroundAgentState={null}
+        canShowNativeBrowserView={false}
+        environmentId={null}
+        environmentOptions={[]}
+        projectId="proj_one"
+        isFocused={false}
+        onToggleFocus={() => undefined}
+        tab={{ ...TAB, inspectorView: "diff", inspectorEnvironmentId: null }}
+        updateTab={vi.fn()}
+      />,
+    );
+
+    expect(mocks.paths).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        projectId: "proj_one",
+        environmentId: null,
+        hostId: null,
+      }),
+    );
+    expect(mocks.file).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        projectId: "proj_one",
+        environmentId: null,
+        hostId: null,
+      }),
+    );
+    expect(screen.getByText("Not a Git repository.")).toBeTruthy();
+    expect(
+      screen.getByRole("option", { name: "Project checkout" }),
+    ).toBeTruthy();
+    expect(mocks.diff).not.toHaveBeenCalled();
+  });
+
+  it("opens a real project-scoped diff when the default checkout is Git", () => {
+    mocks.projectStatus.mockReturnValueOnce({
+      data: {
+        outcome: "available",
+        workspace: {
+          branch: { currentBranch: "feature", defaultBranch: "main" },
+        },
+      },
+      isLoading: false,
+      isError: false,
+    });
+    render(
+      <ProjectWorkspaceBrowserPane
+        backgroundAgentState={null}
+        canShowNativeBrowserView={false}
+        environmentId={null}
+        environmentOptions={[]}
+        projectId="proj_one"
+        isFocused={false}
+        onToggleFocus={() => undefined}
+        tab={{ ...TAB, inspectorView: "diff", inspectorEnvironmentId: null }}
+        updateTab={vi.fn()}
+      />,
+    );
+
+    expect(mocks.diff).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        environmentId: undefined,
+        projectId: "proj_one",
+        target: expect.objectContaining({ mergeBaseBranch: "main" }),
+      }),
+    );
   });
 });

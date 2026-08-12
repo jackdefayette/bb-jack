@@ -25,6 +25,7 @@ const DIFF_FILES_GAP_PX = 8;
 
 export interface DiffFilesPanelProps {
   environmentId: string;
+  projectId?: string;
   target: WorkspaceDiffTarget;
   /** Single identity for the active (environment, target) diff slice. */
   diffIdentity: string;
@@ -73,6 +74,7 @@ export interface DiffFilesPanelProps {
  */
 export function DiffFilesPanel({
   environmentId,
+  projectId,
   target,
   diffIdentity,
   files,
@@ -90,7 +92,7 @@ export function DiffFilesPanel({
 }: DiffFilesPanelProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const { requestPaths, getPatchState, retry, loadPath, seedInitialPatches } =
-    useEnvironmentDiffPatches(environmentId, { target });
+    useEnvironmentDiffPatches(environmentId, { projectId, target });
 
   // Prime the cache with the TOC's inline first-screen patches before the
   // scroll-driven fetch runs, so those cards render immediately and aren't

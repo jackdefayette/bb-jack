@@ -5,6 +5,63 @@ import {
   useEnvironmentPullRequest,
   useEnvironmentWorkStatus,
 } from "@/hooks/queries/environment-queries";
+import { useProjectWorkStatus } from "@/hooks/queries/project-queries";
+
+function ProjectSourceSummary({ projectId }: { projectId: string }) {
+  const status = useProjectWorkStatus({
+    projectId,
+    environmentId: null,
+    hostId: null,
+  });
+  const workspace =
+    status.data?.outcome === "available" ? status.data.workspace : null;
+
+  return (
+    <article className="rounded-md border border-border/70 bg-canvas">
+      <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2">
+        <Icon name="GitBranch" className="size-3.5 text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate text-xs font-medium">
+          Project checkout
+        </span>
+        <span className="truncate text-xs text-muted-foreground">
+          {workspace?.branch.currentBranch ?? "branch unavailable"}
+        </span>
+      </div>
+      {status.data?.resolvedSource ? (
+        <div className="border-b border-border/60 px-3 py-2 text-xs text-muted-foreground">
+          <p className="truncate" title={status.data.resolvedSource.path}>
+            {status.data.resolvedSource.path}
+          </p>
+          <p className="truncate">Host: {status.data.resolvedSource.hostId}</p>
+        </div>
+      ) : null}
+      <section className="min-w-0 p-3" aria-label="Project changes">
+        {status.isLoading ? (
+          <p className="text-xs text-muted-foreground">Inspecting checkout…</p>
+        ) : status.isError || status.data?.outcome === "unavailable" ? (
+          <p className="text-xs text-destructive">Status unavailable</p>
+        ) : status.data?.outcome === "not_applicable" ? (
+          <p className="text-xs text-muted-foreground">Not a Git repository</p>
+        ) : workspace?.workingTree.files.length ? (
+          <ul className="space-y-1">
+            {workspace.workingTree.files.slice(0, 8).map((file) => (
+              <li key={file.path} className="flex min-w-0 gap-1.5 text-xs">
+                <span className="shrink-0 text-muted-foreground">
+                  {file.status}
+                </span>
+                <span className="truncate" title={file.path}>
+                  {file.path}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-muted-foreground">Working tree clean</p>
+        )}
+      </section>
+    </article>
+  );
+}
 
 function EnvironmentSourceSummary({ environmentId, label }: { environmentId: string; label: string }) {
   const environment = useEnvironment(environmentId);
@@ -120,6 +177,7 @@ function EnvironmentSourceSummary({ environmentId, label }: { environmentId: str
 }
 
 export function ProjectSourceControlPane({
+  projectId,
   environments,
 }: {
   projectId: string;
@@ -128,13 +186,7 @@ export function ProjectSourceControlPane({
   return (
     <div className="min-h-0 flex-1 overflow-auto p-2">
       {environments.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border p-4 text-center">
-          <p className="text-xs font-medium">No assigned agent workspaces</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Changes, pull requests, and history appear only for agent
-            environments in this workspace tab.
-          </p>
-        </div>
+        <ProjectSourceSummary projectId={projectId} />
       ) : (
         <div className="space-y-2">
           {environments.map((environment) => (

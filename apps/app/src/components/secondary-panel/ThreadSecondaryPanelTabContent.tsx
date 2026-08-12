@@ -7,7 +7,10 @@ import {
   useEnvironmentDiffFiles,
   useEnvironmentFilePreview,
 } from "@/hooks/queries/environment-queries";
-import { useProjectFilePreview } from "@/hooks/queries/project-queries";
+import {
+  useProjectDiffFiles,
+  useProjectFilePreview,
+} from "@/hooks/queries/project-queries";
 import {
   useThreadHostFilePreview,
   useThreadStorageFilePreview,
@@ -41,6 +44,7 @@ interface ThreadDiffSkeletonProps {
 
 export interface GitDiffTabContentProps {
   environmentId?: string;
+  projectId?: string;
   target: WorkspaceDiffTarget | undefined;
   isDiffPanelActive: boolean;
   gitDiffViewOptions: Record<string, string | boolean | number>;
@@ -142,6 +146,7 @@ function ThreadDiffSkeleton({
  */
 export function GitDiffTabContent({
   environmentId,
+  projectId,
   target,
   isDiffPanelActive,
   gitDiffViewOptions,
@@ -153,29 +158,36 @@ export function GitDiffTabContent({
   workspaceRootPath,
 }: GitDiffTabContentProps) {
   const isQueryEnabled =
-    isDiffPanelActive && Boolean(environmentId) && target !== undefined;
+    isDiffPanelActive &&
+    Boolean(environmentId || projectId) &&
+    target !== undefined;
+  const environmentDiffQuery = useEnvironmentDiffFiles(environmentId ?? "", {
+    enabled: isQueryEnabled && !projectId,
+    target,
+  });
+  const projectDiffQuery = useProjectDiffFiles(projectId, target, {
+    enabled: isQueryEnabled && Boolean(projectId),
+  });
   const {
     data: diffFilesResponse,
     dataUpdatedAt: diffFilesUpdatedAt,
     isLoading: isDiffFilesLoading,
     isPlaceholderData: isDiffFilesPlaceholder,
     error: diffFilesError,
-  } = useEnvironmentDiffFiles(environmentId ?? "", {
-    enabled: isQueryEnabled,
-    target,
-  });
+  } = projectId ? projectDiffQuery : environmentDiffQuery;
 
   const mergeBaseRef =
     diffFilesResponse?.outcome === "available"
       ? diffFilesResponse.mergeBaseRef
       : null;
   const diffIdentity = buildGitDiffIdentity({
-    environmentId,
+    environmentId: environmentId ?? (projectId ? `project:${projectId}` : undefined),
     mergeBaseRef,
     target,
   });
   const onRequestFileContents = useDiffFileContentsRequester({
     environmentId,
+    projectId,
     target,
     mergeBaseRef,
   });
@@ -258,7 +270,7 @@ export function GitDiffTabContent({
 
   // The panel needs a concrete target to drive its patch fetches; `isQueryEnabled`
   // above already guarantees both once an `available` outcome resolved.
-  if (!environmentId || target === undefined) {
+  if ((!environmentId && !projectId) || target === undefined) {
     return (
       <div className={cn(PANEL_SCROLL_SLOT_CLASS, "px-4 pb-3")}>
         <EmptyStatePanel className="rounded-lg">
@@ -270,7 +282,8 @@ export function GitDiffTabContent({
 
   return (
     <DiffFilesPanel
-      environmentId={environmentId}
+      environmentId={environmentId ?? `project:${projectId}`}
+      projectId={projectId}
       target={target}
       diffIdentity={diffIdentity}
       files={diffFilesResponse.files}

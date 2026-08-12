@@ -491,6 +491,71 @@ describe("@bb/sdk", () => {
     ]);
   });
 
+  it("routes project status through the selected exact workspace", async () => {
+    const queue = createFetchQueue([
+      {
+        body: {
+          outcome: "not_applicable",
+          reason: "non_git_environment",
+          message: "The configured project checkout is not a Git repository",
+          resolvedSource: {
+            hostId: "host_remote",
+            path: "/remote/project",
+          },
+        },
+      },
+    ]);
+    const sdk = createBbSdk({
+      transport: createHttpTransport({
+        baseUrl: "http://bb.test",
+        fetch: queue.fetch,
+        runtime: "browser",
+      }),
+    });
+
+    await expect(
+      sdk.projects.status({
+        projectId: "proj_remote",
+        environmentId: "env_remote",
+        mergeBaseBranch: "main",
+      }),
+    ).resolves.toMatchObject({ outcome: "not_applicable" });
+    expect(queue.requests[0]?.url).toBe(
+      "http://bb.test/api/v1/projects/proj_remote/status?environmentId=env_remote&mergeBaseBranch=main",
+    );
+  });
+
+  it("routes project diff through the configured project checkout", async () => {
+    const queue = createFetchQueue([
+      {
+        body: {
+          outcome: "available",
+          files: [],
+          shortstat: "",
+          mergeBaseRef: null,
+          initialPatches: [],
+        },
+      },
+    ]);
+    const sdk = createBbSdk({
+      transport: createHttpTransport({
+        baseUrl: "http://bb.test",
+        fetch: queue.fetch,
+        runtime: "browser",
+      }),
+    });
+
+    await expect(
+      sdk.projects.diffFiles({
+        projectId: "proj_remote",
+        target: "uncommitted",
+      }),
+    ).resolves.toMatchObject({ outcome: "available", files: [] });
+    expect(queue.requests[0]?.url).toBe(
+      "http://bb.test/api/v1/projects/proj_remote/diff/files?target=uncommitted",
+    );
+  });
+
   it("routes provider list and model discovery through portable host selectors", async () => {
     const queue = createFetchQueue([
       { body: [] },

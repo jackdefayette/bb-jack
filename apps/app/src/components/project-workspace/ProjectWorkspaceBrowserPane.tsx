@@ -13,7 +13,10 @@ import { BrowserTabDeck } from "@/components/secondary-panel/BrowserTabDeck";
 import type { UpdateBrowserTabArgs } from "@/components/secondary-panel/useThreadFileTabs";
 import { dispatchBrowserViewBoundsSync } from "@/lib/browser-view-bounds-sync";
 import { useEnvironment } from "@/hooks/queries/environment-queries";
-import { useProjectPathSuggestions } from "@/hooks/queries/project-queries";
+import {
+  useProjectPathSuggestions,
+  useProjectWorkStatus,
+} from "@/hooks/queries/project-queries";
 import {
   ProjectFilePreviewTabContent,
   GitDiffTabContent,
@@ -34,6 +37,9 @@ interface ProjectWorkspaceBrowserPaneProps {
   tab: ProjectWorkspaceTab;
   updateTab: (id: string, patch: ProjectWorkspaceTabUpdate) => void;
 }
+
+const INSPECTOR_FOLLOW_ACTIVE_VALUE = "__follow_active__";
+const INSPECTOR_PROJECT_CHECKOUT_VALUE = "__project_checkout__";
 
 function readBrowserTab(tab: ProjectWorkspaceTab): BrowserFixedPanelTab | null {
   return tab.browserTab;
@@ -176,21 +182,39 @@ function InspectorTabs({
   const environment = useEnvironment(environmentId, {
     enabled: environmentId !== null,
   });
+  const projectStatus = useProjectWorkStatus(
+    { projectId, environmentId: null, hostId: null },
+    { enabled: environmentId === null },
+  );
   const isGitRepository = environment.data?.isGitRepo === true;
+  const projectWorkspace =
+    projectStatus.data?.outcome === "available"
+      ? projectStatus.data.workspace
+      : null;
   const diffTarget = buildGitDiffTarget(
     null,
     environment.data?.mergeBaseBranch ??
       environment.data?.baseBranch ??
       environment.data?.defaultBranch ??
+      projectWorkspace?.branch.defaultBranch ??
       undefined,
   );
   const selectView = (inspectorView: ProjectWorkspaceTab["inspectorView"]) =>
     updateTab(tab.id, { inspectorView });
-  const selectEnvironment = (inspectorEnvironmentId: string | null) =>
+  const selectEnvironment = (value: string) => {
+    if (value === INSPECTOR_FOLLOW_ACTIVE_VALUE) {
+      updateTab(tab.id, { inspectorEnvironmentPinned: false });
+      return;
+    }
     updateTab(tab.id, {
-      inspectorEnvironmentId,
-      inspectorEnvironmentPinned: inspectorEnvironmentId !== null,
+      inspectorEnvironmentId:
+        value === INSPECTOR_PROJECT_CHECKOUT_VALUE ? null : value,
+      inspectorEnvironmentPinned: true,
     });
+  };
+  const selectedEnvironmentValue = tab.inspectorEnvironmentPinned
+    ? (environmentId ?? INSPECTOR_PROJECT_CHECKOUT_VALUE)
+    : INSPECTOR_FOLLOW_ACTIVE_VALUE;
 
   return (
     <div
@@ -220,10 +244,15 @@ function InspectorTabs({
         <select
           aria-label="Inspector environment"
           className="max-w-40 truncate rounded bg-transparent px-2 py-1 text-xs text-muted-foreground outline-none hover:bg-accent"
-          value={environmentId ?? ""}
-          onChange={(event) => selectEnvironment(event.target.value || null)}
+          value={selectedEnvironmentValue}
+          onChange={(event) => selectEnvironment(event.target.value)}
         >
-          <option value="">Follow active agent</option>
+          <option value={INSPECTOR_FOLLOW_ACTIVE_VALUE}>
+            Follow active agent
+          </option>
+          <option value={INSPECTOR_PROJECT_CHECKOUT_VALUE}>
+            Project checkout
+          </option>
           {environmentOptions.map((option) => (
             <option key={option.id} value={option.id}>
               {option.label}
@@ -252,10 +281,7 @@ function InspectorTabs({
           tab.inspectorView !== "files" && "hidden",
         )}
       >
-        {environmentId === null ? (
-          <InspectorEmpty message="Select an agent environment to browse files." />
-        ) : (
-          <>
+        <>
             <label className="flex shrink-0 items-center gap-1 border-b border-border/60 px-2 py-1">
               <Icon
                 name="Search"
@@ -308,8 +334,7 @@ function InspectorTabs({
                 <InspectorEmpty message="Choose a file to preview." />
               )}
             </div>
-          </>
-        )}
+        </>
       </div>
       <div
         className={cn(
@@ -317,15 +342,25 @@ function InspectorTabs({
           tab.inspectorView !== "diff" && "hidden",
         )}
       >
-        {environmentId === null ? (
-          <InspectorEmpty message="Select an agent environment to review changes." />
+        {environmentId === null && projectStatus.isLoading ? (
+          <InspectorEmpty message="Inspecting project checkout…" />
+        ) : environmentId === null &&
+          projectStatus.data?.outcome === "not_applicable" ? (
+          <InspectorEmpty message="Not a Git repository." />
+        ) : environmentId === null &&
+          (projectStatus.isError ||
+            projectStatus.data?.outcome === "unavailable") ? (
+          <InspectorEmpty message="Project checkout status unavailable." />
+        ) : environmentId === null && diffTarget === undefined ? (
+          <InspectorEmpty message="Diff unavailable until the project checkout has a Git base branch." />
         ) : environment.data && !isGitRepository ? (
           <InspectorEmpty message="Not a Git repository." />
         ) : diffTarget === undefined ? (
           <InspectorEmpty message="Diff unavailable until a Git base branch is available." />
         ) : (
           <GitDiffTabContent
-            environmentId={environmentId}
+            environmentId={environmentId ?? undefined}
+            projectId={environmentId === null ? projectId : undefined}
             target={diffTarget}
             isDiffPanelActive={tab.inspectorView === "diff"}
             gitDiffViewOptions={{}}

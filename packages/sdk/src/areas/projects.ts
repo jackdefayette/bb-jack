@@ -6,12 +6,21 @@ import type {
   ProjectBranchesResponse,
   ProjectBranchesQuery,
   ProjectCommandsQuery,
+  ProjectDiffFileQuery,
+  ProjectDiffFileResponse,
+  ProjectDiffFilesResponse,
+  ProjectDiffPatchRequest,
+  ProjectDiffPatchResponse,
+  ProjectDiffQuery,
   ProjectFileContentQuery,
   ProjectFilesQuery,
   ProjectResponse,
   ProjectWithThreadsResponse,
   ProjectListQuery,
   ProjectPathsQuery,
+  ProjectStatusQuery,
+  ProjectStatusResponse,
+  ProjectWorkspaceRoutingQuery,
   PromptHistoryResponse,
   PromptHistoryQuery,
   ReorderProjectRequest,
@@ -76,6 +85,28 @@ export type ProjectPathsArgs = ProjectWorkspaceRoutingArgs &
 
 export type ProjectCommandsArgs = ProjectWorkspaceRoutingArgs &
   Omit<ProjectCommandsQuery, "environmentId" | "hostId"> & {
+    projectId: string;
+    signal?: AbortSignal;
+  };
+
+export type ProjectStatusArgs = ProjectWorkspaceRoutingArgs &
+  Omit<ProjectStatusQuery, "environmentId" | "hostId"> & {
+    projectId: string;
+    signal?: AbortSignal;
+  };
+
+export type ProjectDiffArgs = ProjectWorkspaceRoutingArgs &
+  ProjectDiffQuery & {
+    projectId: string;
+    signal?: AbortSignal;
+  };
+export type ProjectDiffFileArgs = ProjectWorkspaceRoutingArgs &
+  ProjectDiffFileQuery & {
+    projectId: string;
+    signal?: AbortSignal;
+  };
+export type ProjectDiffPatchArgs = ProjectWorkspaceRoutingArgs &
+  Omit<ProjectDiffPatchRequest, "environmentId" | "hostId"> & {
     projectId: string;
     signal?: AbortSignal;
   };
@@ -180,6 +211,10 @@ export type ProjectListResult =
   | ProjectWithThreadsResponse[];
 export type ProjectPathsResult = WorkspacePathListResponse;
 export type ProjectPromptHistoryResult = PromptHistoryResponse;
+export type ProjectDiffFileResult = ProjectDiffFileResponse;
+export type ProjectDiffFilesResult = ProjectDiffFilesResponse;
+export type ProjectDiffPatchResult = ProjectDiffPatchResponse;
+export type ProjectStatusResult = ProjectStatusResponse;
 export type ProjectReorderResult = ProjectResponse[];
 export type ProjectSourceAddResult = ProjectSource;
 export type ProjectSourceDeleteResult = { ok: true };
@@ -190,6 +225,60 @@ export interface ProjectSourcesArea {
   add(args: ProjectSourceAddArgs): Promise<ProjectSourceAddResult>;
   delete(args: ProjectSourceDeleteArgs): Promise<ProjectSourceDeleteResult>;
   update(args: ProjectSourceUpdateArgs): Promise<ProjectSourceUpdateResult>;
+}
+
+function projectWorkspaceRoutingQuery(
+  args: ProjectWorkspaceRoutingArgs,
+): ProjectWorkspaceRoutingQuery {
+  if (args.environmentId !== undefined) {
+    return { environmentId: args.environmentId };
+  }
+  if (args.hostId !== undefined) {
+    return { hostId: args.hostId };
+  }
+  return {};
+}
+
+function projectDiffQuery(args: ProjectDiffArgs): ProjectDiffQuery {
+  const routing = projectWorkspaceRoutingQuery(args);
+  switch (args.target) {
+    case "uncommitted":
+      return { ...routing, target: args.target };
+    case "branch_committed":
+    case "all":
+      return {
+        ...routing,
+        target: args.target,
+        mergeBaseBranch: args.mergeBaseBranch,
+      };
+    case "commit":
+      return { ...routing, target: args.target, sha: args.sha };
+  }
+}
+
+function projectDiffFileQuery(args: ProjectDiffFileArgs): ProjectDiffFileQuery {
+  const routing = projectWorkspaceRoutingQuery(args);
+  switch (args.target) {
+    case "uncommitted":
+      return { ...routing, target: args.target, path: args.path, side: args.side };
+    case "branch_committed":
+    case "all":
+      return {
+        ...routing,
+        target: args.target,
+        mergeBaseRef: args.mergeBaseRef,
+        path: args.path,
+        side: args.side,
+      };
+    case "commit":
+      return {
+        ...routing,
+        target: args.target,
+        sha: args.sha,
+        path: args.path,
+        side: args.side,
+      };
+  }
 }
 
 export interface ProjectAttachmentsArea {
@@ -208,6 +297,9 @@ export interface ProjectsArea {
   defaultExecutionOptions(
     args: ProjectDefaultExecutionOptionsArgs,
   ): Promise<ProjectDefaultExecutionOptionsResult>;
+  diffFile(args: ProjectDiffFileArgs): Promise<ProjectDiffFileResult>;
+  diffFiles(args: ProjectDiffArgs): Promise<ProjectDiffFilesResult>;
+  diffPatch(args: ProjectDiffPatchArgs): Promise<ProjectDiffPatchResult>;
   delete(args: ProjectDeleteArgs): Promise<ProjectDeleteResult>;
   fileContent(args: ProjectFileContentArgs): Promise<ProjectFileContentResult>;
   files(args: ProjectFilesArgs): Promise<ProjectFilesResult>;
@@ -217,6 +309,7 @@ export interface ProjectsArea {
   promptHistory(
     args: ProjectPromptHistoryArgs,
   ): Promise<ProjectPromptHistoryResult>;
+  status(args: ProjectStatusArgs): Promise<ProjectStatusResult>;
   reorder(args: ProjectReorderArgs): Promise<ProjectReorderResult>;
   sources: ProjectSourcesArea;
   update(args: ProjectUpdateArgs): Promise<ProjectUpdateResult>;
@@ -457,6 +550,34 @@ export function createProjectsArea(args: CreateSdkAreaArgs): ProjectsArea {
         ),
       );
     },
+    async diffFile(input) {
+      return transport.readJson(
+        transport.api.v1.projects[":id"].diff.file.$get(
+          {
+            param: { id: input.projectId },
+            query: projectDiffFileQuery(input),
+          },
+          ...signalRequestArgs(input.signal),
+        ),
+      );
+    },
+    async diffFiles(input) {
+      return transport.readJson(
+        transport.api.v1.projects[":id"].diff.files.$get(
+          { param: { id: input.projectId }, query: projectDiffQuery(input) },
+          ...signalRequestArgs(input.signal),
+        ),
+      );
+    },
+    async diffPatch(input) {
+      const { projectId, signal, ...json } = input;
+      return transport.readJson(
+        transport.api.v1.projects[":id"].diff.patch.$post(
+          { param: { id: projectId }, json },
+          ...signalRequestArgs(signal),
+        ),
+      );
+    },
     async fileContent(input) {
       const { projectId, signal, ...query } = input;
       const response = await transport.resolve(
@@ -539,6 +660,18 @@ export function createProjectsArea(args: CreateSdkAreaArgs): ProjectsArea {
             query: { limit: input.limit },
           },
           ...signalRequestArgs(input.signal),
+        ),
+      );
+    },
+    async status(input) {
+      const { projectId, signal, ...query } = input;
+      return transport.readJson(
+        transport.api.v1.projects[":id"].status.$get(
+          {
+            param: { id: projectId },
+            query,
+          },
+          ...signalRequestArgs(signal),
         ),
       );
     },

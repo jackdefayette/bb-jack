@@ -10,8 +10,6 @@ import {
   publicApiRoutes,
   typedRoutes,
   type DiffPatchEntry,
-  type EnvironmentDiffFileQuery,
-  type EnvironmentDiffQuery,
   type PublicApiSchema,
 } from "@bb/server-contract";
 import type { Hono } from "hono";
@@ -49,6 +47,10 @@ import {
   rawDiffFileStatToEntry,
   selectInitialPatchPaths,
 } from "./diff-tiering.js";
+import {
+  resolveDiffFileRef,
+  toWorkspaceDiffTarget,
+} from "./workspace-diff-target.js";
 
 const COMMIT_FALLBACK_MESSAGE = "bb: automated commit";
 const SQUASH_MERGE_FALLBACK_MESSAGE = "bb: squash merge";
@@ -122,32 +124,6 @@ function assertSquashMergeTargetIsLocal({
     "invalid_request",
     `Target branch does not exist: ${targetBranch}`,
   );
-}
-
-function toWorkspaceDiffTarget(query: EnvironmentDiffQuery) {
-  switch (query.target) {
-    case "uncommitted":
-      return { type: "uncommitted" as const };
-    case "branch_committed":
-      return {
-        type: "branch_committed" as const,
-        mergeBaseBranch: query.mergeBaseBranch,
-      };
-    case "all":
-      return {
-        type: "all" as const,
-        mergeBaseBranch: query.mergeBaseBranch,
-      };
-    case "commit":
-      return {
-        type: "commit" as const,
-        sha: query.sha,
-      };
-    default: {
-      const _exhaustive: never = query;
-      return _exhaustive;
-    }
-  }
 }
 
 function isWorktreeEnvironment(environment: Environment): boolean {
@@ -240,25 +216,6 @@ function assertCanMergePullRequest(
  * `git cat-file` fallback already returns empty content for missing
  * objects, so we don't special-case the root-commit edge here.
  */
-function resolveDiffFileRef(
-  query: EnvironmentDiffFileQuery,
-): string | undefined {
-  switch (query.target) {
-    case "uncommitted":
-      return query.side === "old" ? "HEAD" : undefined;
-    case "branch_committed":
-      return query.side === "old" ? query.mergeBaseRef : "HEAD";
-    case "all":
-      return query.side === "old" ? query.mergeBaseRef : undefined;
-    case "commit":
-      return query.side === "old" ? `${query.sha}^` : query.sha;
-    default: {
-      const _exhaustive: never = query;
-      return _exhaustive;
-    }
-  }
-}
-
 /** Shared `not_applicable` body for the diff routes on non-git environments. */
 const NON_GIT_DIFF_NOT_APPLICABLE = {
   outcome: "not_applicable",

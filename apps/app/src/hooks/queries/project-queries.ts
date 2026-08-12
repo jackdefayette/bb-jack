@@ -1,11 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
+import type { WorkspaceDiffTarget } from "@bb/domain";
 import type {
   CommandListResponse,
   ProjectBranchesResponse,
+  ProjectStatusResponse,
   ProjectWithThreadsResponse,
   PromptHistoryResponse,
   WorkspacePathListResponse,
+  ProjectDiffFilesResponse,
 } from "@bb/server-contract";
+import type { ProjectDiffArgs } from "@bb/sdk/browser";
 import {
   buildFilePreview,
   normalizeFilePreviewMimeType,
@@ -20,6 +24,9 @@ import {
   projectPathsQueryKey,
   projectPromptHistoryQueryKey,
   projectSourceBranchesQueryKey,
+  projectWorkStatusQueryKey,
+  environmentDiffFilesQueryKey,
+  environmentDiffTargetKey,
 } from "./query-keys";
 import { resolveProjectSourceBranchesPlaceholder } from "./query-placeholders";
 import {
@@ -59,6 +66,13 @@ interface UseProjectCommandsArgs {
   providerId: string | undefined;
   environmentId: string | null;
   hostId: string | null;
+}
+
+interface UseProjectWorkStatusArgs {
+  projectId: string | undefined;
+  environmentId: string | null;
+  hostId: string | null;
+  mergeBaseBranch?: string;
 }
 
 const PROJECT_SOURCE_BRANCHES_LIMIT = 50;
@@ -164,6 +178,93 @@ export function useProjectPromptHistory(
     enabled,
     staleTime: PROMPT_HISTORY_STALE_TIME_MS,
   });
+}
+
+export function useProjectWorkStatus(
+  args: UseProjectWorkStatusArgs,
+  options?: QueryOptions,
+) {
+  const enabled = (options?.enabled ?? true) && Boolean(args.projectId);
+  useProjectDetailRealtimeSubscription(args.projectId, { enabled });
+
+  return useQuery<ProjectStatusResponse>({
+    queryKey: projectWorkStatusQueryKey(
+      args.projectId,
+      args.environmentId,
+      args.hostId,
+      args.mergeBaseBranch ?? null,
+    ),
+    queryFn: ({ signal }) =>
+      sdk.projects.status({
+        projectId: requireProjectId(args.projectId, "useProjectWorkStatus"),
+        signal,
+        ...(args.environmentId !== null
+          ? { environmentId: args.environmentId }
+          : args.hostId !== null
+            ? { hostId: args.hostId }
+            : {}),
+        ...(args.mergeBaseBranch
+          ? { mergeBaseBranch: args.mergeBaseBranch }
+          : {}),
+      }),
+    enabled,
+    ...FAST_FOCUS_OWNED_LIVE_QUERY_POLICY,
+  });
+}
+
+export function useProjectDiffFiles(
+  projectId: string | undefined,
+  target: WorkspaceDiffTarget | undefined,
+  options?: QueryOptions,
+) {
+  const enabled =
+    (options?.enabled ?? true) && Boolean(projectId) && target !== undefined;
+  useProjectDetailRealtimeSubscription(projectId, { enabled });
+  return useQuery<ProjectDiffFilesResponse>({
+    queryKey: environmentDiffFilesQueryKey(
+      `project:${projectId ?? ""}`,
+      target?.type ?? null,
+      environmentDiffTargetKey(target),
+    ),
+    queryFn: ({ signal }) =>
+      sdk.projects.diffFiles({
+        ...buildProjectDiffArgs(
+          requireProjectId(projectId, "useProjectDiffFiles"),
+          requireEnabledQueryArg({
+            value: target,
+            hookName: "useProjectDiffFiles",
+            argName: "target",
+          }),
+        ),
+        signal,
+      }),
+    enabled,
+    ...FAST_FOCUS_OWNED_LIVE_QUERY_POLICY,
+  });
+}
+
+function buildProjectDiffArgs(
+  projectId: string,
+  target: WorkspaceDiffTarget,
+): ProjectDiffArgs {
+  switch (target.type) {
+    case "uncommitted":
+      return { projectId, target: target.type };
+    case "branch_committed":
+      return {
+        projectId,
+        mergeBaseBranch: target.mergeBaseBranch,
+        target: target.type,
+      };
+    case "all":
+      return {
+        projectId,
+        mergeBaseBranch: target.mergeBaseBranch,
+        target: target.type,
+      };
+    case "commit":
+      return { projectId, sha: target.sha, target: target.type };
+  }
 }
 
 export function useProjectPathSuggestions(args: UseProjectPathSuggestionsArgs) {
