@@ -219,11 +219,18 @@ export function resolveDevInstanceConfig(
 
 export function resolveCurrentDevInstanceConfig(
   repoRoot: string,
+  env: NodeJS.ProcessEnv = process.env,
 ): DevInstanceConfig {
-  return resolveDevInstanceConfig({
+  const rawInstanceRepoRoot = env.BB_DEV_INSTANCE_REPO_ROOT?.trim();
+  const instanceRepoRoot =
+    rawInstanceRepoRoot && rawInstanceRepoRoot.length > 0
+      ? resolve(rawInstanceRepoRoot)
+      : repoRoot;
+  const instanceConfig = resolveDevInstanceConfig({
     homeDir: homedir(),
-    repoRoot,
+    repoRoot: instanceRepoRoot,
   });
+  return { ...instanceConfig, repoRoot };
 }
 
 export function resolveInheritedDevSkillsRootPaths(

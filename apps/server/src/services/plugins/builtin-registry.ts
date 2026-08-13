@@ -109,6 +109,12 @@ export const BUILTIN_PLUGINS = [
  */
 export const OFFICIAL_PLUGINS = [
   {
+    name: "computer-use",
+    pluginId: "computer-use",
+    defaultEnabled: true,
+    category: "Host access",
+  },
+  {
     name: "github",
     pluginId: "github",
     defaultEnabled: true,

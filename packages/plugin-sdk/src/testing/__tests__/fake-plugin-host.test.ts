@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
   PLUGIN_CLI_OUTPUT_MAX_BYTES,
   type BbPluginApi,
   type PluginAgentConfigurationContext,
+  type PluginComputerUseToolName,
 } from "../../backend-contract.js";
 import { defineRpcContract } from "../../rpc-contract.js";
 import { createFakePluginHost, makeThreadResponse } from "../index.js";
@@ -101,6 +102,28 @@ describe("host control plane", () => {
 
     await harness.dispose();
     expect(harness.sharedPortDeclarations).toEqual([]);
+  });
+
+  it("forwards bounded computer-use calls", async () => {
+    const computerUseCall = vi.fn(
+      async (hostId: string, tool: PluginComputerUseToolName) => ({
+        tool,
+        result: { hostId, width: 1470 },
+      }),
+    );
+    const { bb } = createFakePluginHost({ computerUseCall });
+
+    await expect(
+      bb.hosts.experimental_callComputerUse("host-1", "get_screen_size", {}),
+    ).resolves.toEqual({
+      tool: "get_screen_size",
+      result: { hostId: "host-1", width: 1470 },
+    });
+    expect(computerUseCall).toHaveBeenCalledWith(
+      "host-1",
+      "get_screen_size",
+      {},
+    );
   });
 });
 

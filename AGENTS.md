@@ -58,3 +58,4 @@
 
 - Do not assume. Inspect logs, query the database, call server APIs, or use the CLI to observe real state.
 - See [docs/debugging-and-qa.md](docs/debugging-and-qa.md) for dev ports/data dirs, entity-ID lookups, and the `scripts/bb-dev-app` local dev QA launcher.
+- Jack has one persistent development IDE. Feature-worktree QA must launch through `scripts/bb-dev-app` and reuse the canonical checkout's instance data, projects, ports, and desktop profile. Never launch or keep a separate empty worktree-specific dev instance.

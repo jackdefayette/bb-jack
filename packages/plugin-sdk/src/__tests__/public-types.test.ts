@@ -40,6 +40,8 @@ const EXPECTED_BACKEND_ROOT_TYPE_EXPORTS = [
   "PluginCliOutputLimitError",
   "PluginCliRegistration",
   "PluginCliResult",
+  "PluginComputerUseResult",
+  "PluginComputerUseToolName",
   "PluginEvents",
   "PluginHosts",
   "PluginHttp",

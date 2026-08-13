@@ -283,7 +283,6 @@ export interface FakeAgentToolRecord {
   ): PluginAgentToolResult | Promise<PluginAgentToolResult>;
 }
 
-
 export interface FakeMentionProviderRecord {
   id: string;
   label: string;
@@ -478,6 +477,8 @@ export interface CreateFakePluginHostOptions {
   agentSkillIds?: readonly string[];
   /** Read-only identities returned by bb.hosts.ensureSharedPortTunnel. */
   sharedPortTunnelIdentities?: Record<string, PluginSharedPortTunnelIdentity>;
+  /** Optional implementation of the experimental bounded CUA host call. */
+  computerUseCall?: PluginHosts["experimental_callComputerUse"];
 }
 
 export interface FakePluginHost {
@@ -1812,6 +1813,16 @@ function createFakePluginHostInternal(
       } else {
         sharedPortDeclarations[existingIndex] = replacement;
       }
+    },
+    experimental_callComputerUse(hostId, tool, args) {
+      assertLive();
+      if (hostId.trim().length === 0) {
+        throw new Error("computer-use hostId must be non-empty");
+      }
+      if (!options.computerUseCall) {
+        throw new Error("computer-use control plane is not configured");
+      }
+      return options.computerUseCall(hostId, tool, args);
     },
   };
   disposeHooks.push(() => {

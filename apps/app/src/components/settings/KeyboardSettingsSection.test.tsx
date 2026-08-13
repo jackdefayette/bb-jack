@@ -231,7 +231,9 @@ describe("KeyboardSettingsSection", () => {
 
   it("records, clears, and resets a command shortcut", () => {
     render(<KeyboardSettingsSection />);
-    const defaults = screen.getByLabelText("Default shortcuts for New thread");
+    const defaults = screen.getByLabelText(
+      "Default shortcuts for Open Jack's IDE",
+    );
     const webLabel = within(defaults).getByText("Web");
     const webGroup = webLabel.parentElement;
     const webDefault = within(webGroup!).getByText("Ctrl + Shift + O");
@@ -244,7 +246,7 @@ describe("KeyboardSettingsSection", () => {
     expect(within(defaults).queryByText("macOS web")).toBeNull();
     expect(within(defaults).queryByText("Windows/Linux web")).toBeNull();
     const recorder = screen.getByRole("button", {
-      name: "Record shortcut for New thread, current shortcut Ctrl + Shift + O",
+      name: "Record shortcut for Open Jack's IDE, current shortcut Ctrl + Shift + O",
     });
     const recorderShortcut = within(recorder).getByText("Ctrl + Shift + O");
     expect(recorderShortcut.tagName).toBe("KBD");
@@ -278,7 +280,7 @@ describe("KeyboardSettingsSection", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Clear shortcut for New thread",
+        name: "Clear shortcut for Open Jack's IDE",
       }),
     );
     expect(testState.mutate).toHaveBeenLastCalledWith(
@@ -288,7 +290,7 @@ describe("KeyboardSettingsSection", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Reset shortcut for New thread",
+        name: "Reset shortcut for Open Jack's IDE",
       }),
     );
     expect(testState.mutate).toHaveBeenLastCalledWith(
@@ -333,7 +335,7 @@ describe("KeyboardSettingsSection", () => {
   it("renders only rows whose presentation changes during a settings transaction", () => {
     const { rerender } = render(<KeyboardSettingsSection />);
     const recorder = screen.getByRole("button", {
-      name: "Record shortcut for New thread, current shortcut Ctrl + Shift + O",
+      name: "Record shortcut for Open Jack's IDE, current shortcut Ctrl + Shift + O",
     });
 
     testState.metadataCalls.clear();
@@ -424,7 +426,7 @@ describe("KeyboardSettingsSection", () => {
   it("updates conflict warnings on another customized row", () => {
     render(<KeyboardSettingsSection />);
     const newThreadRecorder = screen.getByRole("button", {
-      name: "Record shortcut for New thread, current shortcut Ctrl + Shift + O",
+      name: "Record shortcut for Open Jack's IDE, current shortcut Ctrl + Shift + O",
     });
     fireEvent.click(newThreadRecorder);
     fireEvent.keyDown(newThreadRecorder, {
@@ -445,11 +447,11 @@ describe("KeyboardSettingsSection", () => {
     });
 
     expect(screen.getByText(/Also used by Open thread 1\./u)).toBeDefined();
-    expect(screen.getByText(/Also used by New thread\./u)).toBeDefined();
+    expect(screen.getByText(/Also used by Open Jack's IDE\./u)).toBeDefined();
     expect(testState.mutate.mock.lastCall?.[0]).toHaveLength(2);
     expect(
       [...testState.recorderButtonCalls.keys()].filter((label) =>
-        label.includes("New thread"),
+        label.includes("Open Jack's IDE"),
       ),
     ).toEqual([]);
     expect(
@@ -462,7 +464,7 @@ describe("KeyboardSettingsSection", () => {
   it("rolls reset-all draft state back when the mutation fails", () => {
     render(<KeyboardSettingsSection />);
     const recorder = screen.getByRole("button", {
-      name: "Record shortcut for New thread, current shortcut Ctrl + Shift + O",
+      name: "Record shortcut for Open Jack's IDE, current shortcut Ctrl + Shift + O",
     });
     fireEvent.click(recorder);
     fireEvent.keyDown(recorder, {
@@ -475,7 +477,7 @@ describe("KeyboardSettingsSection", () => {
     expect(testState.mutate.mock.lastCall?.[0]).toEqual([]);
     expect(
       screen.getByRole("button", {
-        name: "Record shortcut for New thread, current shortcut Ctrl + Shift + O",
+        name: "Record shortcut for Open Jack's IDE, current shortcut Ctrl + Shift + O",
       }),
     ).toBeDefined();
 
@@ -485,7 +487,7 @@ describe("KeyboardSettingsSection", () => {
 
     expect(
       screen.getByRole("button", {
-        name: "Record shortcut for New thread, current shortcut Ctrl + Shift + U",
+        name: "Record shortcut for Open Jack's IDE, current shortcut Ctrl + Shift + U",
       }),
     ).toBeDefined();
   });

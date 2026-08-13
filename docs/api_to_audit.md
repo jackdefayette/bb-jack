@@ -44,7 +44,6 @@ Each label is capped at 80 characters and rendered as a truncating segment.
    only for non-MCP native plugin tools. Confirm that distinction stays sound
    as provider adapters and dynamic-tool provenance evolve.
 
-
 ## `experimental_NewThreadComposer` (`@bb/plugin-sdk/app`)
 
 **What it does.** The host-owned new-thread compose surface, the create-side
@@ -266,3 +265,25 @@ other pane's copy (or release its owned state). The thread-list slot omits it
 deliberately: it mounts once, and a crash there should disable it everywhere.
 Confirm that split before stabilizing, and decide whether other multi-mount
 slots need the same treatment.
+
+## `bb.hosts.experimental_callComputerUse` (`@bb/plugin-sdk`)
+
+**What it does.** Sends one allowlisted Computer Use tool call to the selected
+enrolled host. The daemon invokes the open-source CUA Driver with argv-only
+process execution, a timeout, and a bounded output buffer. Plugins receive the
+parsed JSON result; they do not receive a shell, arbitrary executable access,
+or an unrestricted driver method name.
+
+**Audit before stabilizing.**
+
+1. Confirm the initial inspect/act/verify allowlist is the smallest useful
+   cross-platform surface and decide whether session lifecycle calls belong in
+   a separate capability.
+2. Add an explicit plugin permission model before third-party plugins can use
+   host automation without the installation trust boundary.
+3. Confirm the 16 MiB daemon response ceiling and plugin-side screenshot
+   truncation/forwarding rules against high-DPI multi-display captures.
+4. Decide whether the API should expose structured permission state and driver
+   version metadata instead of leaving those as ordinary tool results.
+5. Revisit timeout and cancellation once CUA Driver exposes a stable
+   cancellation contract for in-flight actions.

@@ -11,6 +11,11 @@
 
 Use `scripts/bb-dev-app` when validating changes in the desktop dev app or helping QA from this checkout:
 
+The launcher treats a linked feature worktree as source code for the same
+canonical Jack's IDE instance. It reuses the primary checkout's data,
+projects, ports, desktop profile, and launcher sessions; it must never create
+an empty worktree-specific IDE instance.
+
 - `pnpm dev:status` runs `scripts/bb-dev-app status` to print the active branch, dev URLs, data dir, and logs.
 - `scripts/bb-dev-app current` restarts the dev server on the current branch.
 - `scripts/bb-dev-app main` fetches `origin/main`, fast-forwards `main`, and launches the dev server from this checkout.

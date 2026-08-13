@@ -4,6 +4,21 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="${BB_DEV_REPO_ROOT:-$(dirname -- "${script_dir}")}"
 
+resolve_instance_repo_root() {
+  local common_git_dir
+  common_git_dir="$(git -C "${REPO_ROOT}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  if [[ -n "${common_git_dir}" ]]; then
+    dirname -- "${common_git_dir}"
+    return
+  fi
+  printf '%s\n' "${REPO_ROOT}"
+}
+
+# A feature worktree supplies source code, never a separate product identity.
+# Reuse the primary checkout's ports, data, desktop profile, and launcher name
+# so every QA launch opens Jack's one persistent IDE instance.
+INSTANCE_REPO_ROOT="${BB_DEV_INSTANCE_REPO_ROOT:-$(resolve_instance_repo_root)}"
+
 resolve_dev_node_bin_dir() {
   if [[ -n "${BB_DEV_NODE_BIN_DIR:-}" ]]; then
     printf '%s\n' "${BB_DEV_NODE_BIN_DIR}"
@@ -70,9 +85,9 @@ sanitize_label() {
     | sed -E 's/[^a-z0-9._-]+/-/g; s/^[._-]+//; s/[._-]+$//'
 }
 
-repo_label="${REPO_ROOT#$HOME/}"
-if [[ "${repo_label}" == "${REPO_ROOT}" ]]; then
-  repo_label="${REPO_ROOT}"
+repo_label="${INSTANCE_REPO_ROOT#$HOME/}"
+if [[ "${repo_label}" == "${INSTANCE_REPO_ROOT}" ]]; then
+  repo_label="${INSTANCE_REPO_ROOT}"
 fi
 
 LAUNCHER_NAME="${BB_DEV_LAUNCHER_NAME:-$(sanitize_label "${repo_label}")}"
@@ -157,7 +172,7 @@ ensure_repo() {
 load_config() {
   local config
   config="$(
-    node - "${REPO_ROOT}" <<'NODE'
+    node - "${INSTANCE_REPO_ROOT}" <<'NODE'
 const crypto = require("node:crypto");
 const os = require("node:os");
 const path = require("node:path");
@@ -358,24 +373,26 @@ wait_for_log_pattern() {
 }
 
 start_dev_server() {
-  local repo_root_q path_q dev_log_q
+  local instance_repo_root_q repo_root_q path_q dev_log_q
+  printf -v instance_repo_root_q '%q' "${INSTANCE_REPO_ROOT}"
   printf -v repo_root_q '%q' "${REPO_ROOT}"
   printf -v path_q '%q' "${PATH}"
   printf -v dev_log_q '%q' "${DEV_LOG}"
   log "Starting dev server session ${DEV_SESSION}"
   rm -f "${DEV_LOG}"
-  screen -dmS "${DEV_SESSION}" "${BASH}" -lc "cd ${repo_root_q} && export PATH=${path_q} && unset BB_THREAD_ID BB_ENVIRONMENT_ID BB_THREAD_STORAGE && exec pnpm dev > ${dev_log_q} 2>&1"
+  screen -dmS "${DEV_SESSION}" "${BASH}" -lc "cd ${repo_root_q} && export PATH=${path_q} && export BB_DEV_INSTANCE_REPO_ROOT=${instance_repo_root_q} && unset BB_THREAD_ID BB_ENVIRONMENT_ID BB_THREAD_STORAGE && exec pnpm dev > ${dev_log_q} 2>&1"
   wait_for_log_pattern "${DEV_LOG}" "Host daemon started" "dev server" 90
 }
 
 start_desktop() {
-  local repo_root_q path_q desktop_log_q
+  local instance_repo_root_q repo_root_q path_q desktop_log_q
+  printf -v instance_repo_root_q '%q' "${INSTANCE_REPO_ROOT}"
   printf -v repo_root_q '%q' "${REPO_ROOT}"
   printf -v path_q '%q' "${PATH}"
   printf -v desktop_log_q '%q' "${DESKTOP_LOG}"
   log "Starting desktop session ${DESKTOP_SESSION}"
   rm -f "${DESKTOP_LOG}"
-  screen -dmS "${DESKTOP_SESSION}" "${BASH}" -lc "cd ${repo_root_q} && export PATH=${path_q} && unset BB_THREAD_ID BB_ENVIRONMENT_ID BB_THREAD_STORAGE && exec pnpm exec turbo run dev --filter=@bb/desktop > ${desktop_log_q} 2>&1"
+  screen -dmS "${DESKTOP_SESSION}" "${BASH}" -lc "cd ${repo_root_q} && export PATH=${path_q} && export BB_DEV_INSTANCE_REPO_ROOT=${instance_repo_root_q} && unset BB_THREAD_ID BB_ENVIRONMENT_ID BB_THREAD_STORAGE && exec pnpm exec turbo run dev --filter=@bb/desktop > ${desktop_log_q} 2>&1"
   wait_for_log_pattern "${DESKTOP_LOG}" "@bb/desktop: app http://localhost:${BB_DEV_APP_PORT}" "desktop app" 120
 }
 
@@ -411,6 +428,7 @@ status() {
   codex_version="$(codex --version 2>/dev/null || true)"
 
   printf 'Repo: %s\n' "${REPO_ROOT}"
+  printf 'Jack IDE instance root: %s\n' "${INSTANCE_REPO_ROOT}"
   printf 'Branch: %s (%s)\n' "${branch:-detached}" "${head:-unknown}"
   printf 'Codex: %s\n' "${codex_version:-not found}"
   printf 'Instance: %s\n' "${INSTANCE_ID}"

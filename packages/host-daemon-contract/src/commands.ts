@@ -36,7 +36,7 @@ import {
   providerCliStatusResponseSchema,
 } from "./local.js";
 
-export const HOST_DAEMON_PROTOCOL_VERSION = 96 as const;
+export const HOST_DAEMON_PROTOCOL_VERSION = 97 as const;
 
 export {
   BRANCH_LIST_LIMIT_MAX,
@@ -1512,6 +1512,48 @@ const providerCliInstallResultSchema = z
   })
   .strict();
 
+export const computerUseToolNameSchema = z.enum([
+  "check_permissions",
+  "list_apps",
+  "list_windows",
+  "get_accessibility_tree",
+  "get_window_state",
+  "get_desktop_state",
+  "get_screen_size",
+  "get_cursor_position",
+  "bring_to_front",
+  "launch_app",
+  "click",
+  "double_click",
+  "right_click",
+  "scroll",
+  "drag",
+  "type_text",
+  "press_key",
+  "hotkey",
+  "set_value",
+  "invoke_menu",
+  "verify_state",
+  "start_session",
+  "end_session",
+]);
+export type ComputerUseToolName = z.infer<typeof computerUseToolNameSchema>;
+
+const hostComputerUseCallCommandSchema = z
+  .object({
+    type: z.literal("host.computer_use.call"),
+    tool: computerUseToolNameSchema,
+    arguments: jsonObjectSchema,
+  })
+  .strict();
+
+const hostComputerUseCallResultSchema = z
+  .object({
+    tool: computerUseToolNameSchema,
+    result: z.json(),
+  })
+  .strict();
+
 type HostDaemonCommandTransport = "settled" | "onlineRpc";
 export type HostDaemonCommandEnvironmentLane = "read" | "write";
 type HostDaemonFlushEventsBeforeResult = boolean | "when-initiated";
@@ -1814,6 +1856,17 @@ export const hostDaemonCommandRegistry = {
     schema: hostCaffeinateCommandSchema,
     resultSchema: hostCaffeinateResultSchema,
     transport: "onlineRpc",
+    retryable: false,
+    flushEventsBeforeResult: false,
+    envLane: null,
+  }),
+  "host.computer_use.call": defineHostDaemonCommandDescriptor({
+    type: "host.computer_use.call",
+    schema: hostComputerUseCallCommandSchema,
+    resultSchema: hostComputerUseCallResultSchema,
+    transport: "onlineRpc",
+    // UI actions are not generally idempotent, so transport recovery must
+    // never replay one silently.
     retryable: false,
     flushEventsBeforeResult: false,
     envLane: null,

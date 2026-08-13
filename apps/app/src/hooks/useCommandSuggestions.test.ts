@@ -3,6 +3,7 @@ import { AUTOMATION_PROMPT_ACTION } from "@/components/promptbox/PromptBoxAction
 import {
   commandSuggestionMatchesQuery,
   filterCommandSuggestions,
+  mergeCommandSuggestions,
   promptActionCommandSuggestions,
 } from "./useCommandSuggestions";
 
@@ -129,5 +130,30 @@ describe("commandSuggestionMatchesQuery", () => {
     ).map((suggestion) => suggestion.name);
 
     expect(names).toEqual(["review-helper", "deploy"]);
+  });
+});
+
+describe("mergeCommandSuggestions", () => {
+  it("shows one slash result when a BB plugin replaces its provider-native alias", () => {
+    const pluginSkill = {
+      kind: "command",
+      name: "computer-use",
+      source: "skill",
+      origin: "user",
+      description: "Provider-independent Computer Use",
+      argumentHint: null,
+      pluginId: "computer-use",
+    } as const;
+    const providerNativeAlias = {
+      ...pluginSkill,
+      name: "computer-use:computer-use",
+      pluginId: undefined,
+    };
+
+    expect(
+      mergeCommandSuggestions([], [pluginSkill, providerNativeAlias]).map(
+        (suggestion) => suggestion.name,
+      ),
+    ).toEqual(["computer-use"]);
   });
 });

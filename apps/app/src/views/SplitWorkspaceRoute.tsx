@@ -2,11 +2,16 @@ import { useMemo } from "react";
 import { matchPath, Navigate, useLocation } from "react-router-dom";
 import {
   APP_ROOT_ROUTE_PATH,
+  isProjectlessProjectId,
   LEGACY_PROJECT_COMPOSE_ROUTE_PATH,
   PLUGIN_PANEL_ROUTE_PATH,
 } from "@/lib/route-paths";
 import type { PaneContent } from "@/lib/split-layout";
 import { useRouteState } from "@/hooks/useRouteState";
+import {
+  JacksIdeThreadWorkspace,
+  JacksIdeWorkspaceHome,
+} from "./JacksIdeWorkspaceNavigation";
 import { LegacyProjectComposeRedirect } from "./RootComposeView";
 import { SplitThreadArea } from "./thread-detail/SplitThreadArea";
 
@@ -60,6 +65,17 @@ export default function SplitWorkspaceRoute() {
   const legacyProjectId = legacyProjectMatch?.params.projectId;
   if (legacyProjectId) {
     return <LegacyProjectComposeRedirect projectId={legacyProjectId} />;
+  }
+  if (location.pathname === APP_ROOT_ROUTE_PATH) {
+    return <JacksIdeWorkspaceHome />;
+  }
+  if (isThreadView && projectId && threadId) {
+    if (isProjectlessProjectId(projectId)) {
+      return <Navigate to={APP_ROOT_ROUTE_PATH} replace />;
+    }
+    return (
+      <JacksIdeThreadWorkspace projectId={projectId} threadId={threadId} />
+    );
   }
   if (routeContent === null) {
     return <Navigate to={APP_ROOT_ROUTE_PATH} replace />;

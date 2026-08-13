@@ -2238,6 +2238,7 @@ function ThreadDetailViewInternal(props: ThreadDetailViewInternalProps) {
     (environment.isWorktree ||
       environment.workspaceProvisionType === "managed-worktree");
   const onCreateNewThreadInWorktree =
+    props.surface === "page" &&
     isThreadOnProvisionedWorktreeEnvironment &&
     projectId &&
     thread.environmentId !== null

@@ -21,6 +21,11 @@ vi.mock("./thread-detail/SplitThreadArea", () => ({
   },
 }));
 
+vi.mock("./JacksIdeWorkspaceNavigation", () => ({
+  JacksIdeThreadWorkspace: () => <div>Jack's IDE thread workspace</div>,
+  JacksIdeWorkspaceHome: () => <div>Jack's IDE workspace home</div>,
+}));
+
 vi.mock("./RootComposeView", () => ({
   LegacyProjectComposeRedirect: () => <div>legacy redirect</div>,
 }));
@@ -33,7 +38,12 @@ function NavigationControls() {
       <button onClick={() => navigate("/plugins/docs/docs/work/today.md")}>
         plugin
       </button>
-      <button onClick={() => navigate("/threads/thread-1")}>thread</button>
+      <button onClick={() => navigate("/projects/project-1/threads/thread-1")}>
+        thread
+      </button>
+      <button onClick={() => navigate("/threads/projectless-thread")}>
+        projectless thread
+      </button>
     </>
   );
 }
@@ -44,9 +54,9 @@ describe("SplitWorkspaceRoute", () => {
     workspaceLifecycle.unmounts = 0;
   });
 
-  it("preserves the workspace mount across focus-driven page URL changes", () => {
+  it("keeps plugin panels mounted and routes threads into Jack's IDE", () => {
     render(
-      <MemoryRouter initialEntries={["/"]}>
+      <MemoryRouter initialEntries={["/plugins/docs/docs/work/today.md"]}>
         <NavigationControls />
         <Routes>
           <Route path="*" element={<SplitWorkspaceRoute />} />
@@ -54,15 +64,20 @@ describe("SplitWorkspaceRoute", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByTestId("route-content").textContent).toBe("new-thread");
-
-    fireEvent.click(screen.getByRole("button", { name: "plugin" }));
     expect(screen.getByTestId("route-content").textContent).toBe(
       "plugin-panel",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "thread" }));
-    expect(screen.getByTestId("route-content").textContent).toBe("thread");
-    expect(workspaceLifecycle).toEqual({ mounts: 1, unmounts: 0 });
+    expect(screen.getByText("Jack's IDE thread workspace")).toBeDefined();
+    expect(workspaceLifecycle).toEqual({ mounts: 1, unmounts: 1 });
+
+    fireEvent.click(screen.getByRole("button", { name: "projectless thread" }));
+    expect(screen.getByText("Jack's IDE workspace home")).toBeDefined();
+    expect(workspaceLifecycle).toEqual({ mounts: 1, unmounts: 1 });
+
+    fireEvent.click(screen.getByRole("button", { name: "compose" }));
+    expect(screen.getByText("Jack's IDE workspace home")).toBeDefined();
+    expect(workspaceLifecycle).toEqual({ mounts: 1, unmounts: 1 });
   });
 });

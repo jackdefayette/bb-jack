@@ -627,6 +627,36 @@ export interface PluginSharedPortTunnelIdentity {
   baseDomain: string;
 }
 
+export type PluginComputerUseToolName =
+  | "check_permissions"
+  | "list_apps"
+  | "list_windows"
+  | "get_accessibility_tree"
+  | "get_window_state"
+  | "get_desktop_state"
+  | "get_screen_size"
+  | "get_cursor_position"
+  | "bring_to_front"
+  | "launch_app"
+  | "click"
+  | "double_click"
+  | "right_click"
+  | "scroll"
+  | "drag"
+  | "type_text"
+  | "press_key"
+  | "hotkey"
+  | "set_value"
+  | "invoke_menu"
+  | "verify_state"
+  | "start_session"
+  | "end_session";
+
+export interface PluginComputerUseResult {
+  tool: PluginComputerUseToolName;
+  result: JsonValue;
+}
+
 export interface PluginHosts {
   /**
    * Ensure this enrolled host has a gate label and return its read-only public
@@ -644,6 +674,17 @@ export interface PluginHosts {
    * accepted here: it is owned by the daemon's trusted enrollment.
    */
   declareSharedPorts(hostId: string, ports: readonly number[]): void;
+
+  /**
+   * Call one bounded CUA Driver tool on an enrolled host. The server and host
+   * daemon enforce the tool allowlist; plugins never receive a shell or raw
+   * process surface.
+   */
+  experimental_callComputerUse(
+    hostId: string,
+    tool: PluginComputerUseToolName,
+    args: Readonly<Record<string, JsonValue>>,
+  ): Promise<PluginComputerUseResult>;
 }
 
 // ---------------------------------------------------------------------------

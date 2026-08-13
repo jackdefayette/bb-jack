@@ -278,7 +278,6 @@ export interface PluginMentionProviderRecord {
   ) => { context: string } | Promise<{ context: string }>;
 }
 
-
 /** Runtime record of a registered background service. */
 export interface PluginBackgroundServiceRecord {
   name: string;
@@ -534,6 +533,7 @@ export function createPluginApi(options: {
     signal?: AbortSignal;
   }) => Promise<PluginInteractionResult>;
   ensureSharedPortTunnel: PluginHosts["ensureSharedPortTunnel"];
+  callComputerUse: PluginHosts["experimental_callComputerUse"];
   validateSharedPortDeclaration: (
     hostId: string,
     ports: readonly number[],
@@ -559,6 +559,7 @@ export function createPluginApi(options: {
     reportAgentToolProblem,
     requestInteraction,
     ensureSharedPortTunnel,
+    callComputerUse,
     validateSharedPortDeclaration,
     declareSharedPorts,
     replaceDeclaredSharedPorts,
@@ -1261,6 +1262,10 @@ export function createPluginApi(options: {
           validateSharedPortDeclaration(hostId, ports),
         );
       }
+    },
+    experimental_callComputerUse(hostId, tool, args) {
+      assertLive();
+      return callComputerUse(hostId, tool, args);
     },
   };
   const events: PluginEvents = {

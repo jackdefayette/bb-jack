@@ -34,7 +34,6 @@ import {
 } from "@/lib/bb-desktop";
 import { getRootComposeRoutePath, getThreadRoutePath } from "@/lib/route-paths";
 import { useThreadSplitsEnabled } from "@/hooks/useThreadSplitsEnabled";
-import { usePaneContentSplitDrag } from "./usePaneContentSplitDrag";
 import { openUrlInExternalBrowser } from "@/lib/url-open-routing";
 import type { SidebarThreadSearchNavigationItem } from "./sidebarThreadSearch";
 import { useSidebarThreadSearch } from "./useSidebarThreadSearch";
@@ -54,8 +53,6 @@ import {
   useIndexedAppCommandHandlers,
 } from "@/components/commands/AppCommandProvider";
 import { useRouteState } from "@/hooks/useRouteState";
-
-const NEW_THREAD_PANE_CONTENT = { kind: "new-thread" } as const;
 
 const BUG_REPORT_NEW_ISSUE_URL = "https://github.com/get-bb/bb/issues/new";
 const SIDEBAR_FOOTER_ACTION_CLASS = cn(
@@ -86,11 +83,6 @@ export function AppSidebar({
   const { threadId: activeThreadId } = useRouteState();
   const navigate = useNavigate();
   const threadSplitsEnabled = useThreadSplitsEnabled();
-  const newThreadSplit = usePaneContentSplitDrag({
-    content: NEW_THREAD_PANE_CONTENT,
-    enabled: threadSplitsEnabled,
-    label: "New thread",
-  });
   const closeOnMobile = useCloseMobileSidebar();
   const { isCompactViewport, setOpen, setOpenMobile } = useSidebar();
   const [desktopInfo] = useState(getBbDesktopInfo);
@@ -281,8 +273,7 @@ export function AppSidebar({
           className="shrink-0 px-2 py-2 group-data-[collapsible=icon]:hidden"
         >
           <ProjectListActionButtons
-            splitEnabled={threadSplitsEnabled}
-            newThreadSplit={newThreadSplit}
+            newThreadLabel="Jack's IDE"
             onNewChat={handleNewChat}
             threadSearch={{
               activeDescendantId: threadSearch.activeDescendantId,
@@ -295,11 +286,6 @@ export function AppSidebar({
             }}
           />
         </div>
-        <PluginNavSidebarItems
-          onNavigate={closeOnMobile}
-          splitEnabled={threadSplitsEnabled}
-          toolsRoutePath={toolsRoutePath}
-        />
         <SidebarContent>
           {threadListProvider ? (
             <PluginThreadList
@@ -312,6 +298,11 @@ export function AppSidebar({
             builtInThreadList
           )}
         </SidebarContent>
+        <PluginNavSidebarItems
+          onNavigate={closeOnMobile}
+          splitEnabled={threadSplitsEnabled}
+          toolsRoutePath={toolsRoutePath}
+        />
         <SidebarFooter className="relative">
           <OverflowFade placement="above" tone="sidebar" size="sm" />
           {/* The footer holds a variable number of plugin action buttons, so a

@@ -1043,6 +1043,12 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         }
         return deps.ensureSharedPortTunnel(hostId);
       },
+      callComputerUse: (hostId, tool, args) => {
+        if (!deps.callComputerUse) {
+          throw new Error("host computer-use control plane is unavailable");
+        }
+        return deps.callComputerUse(hostId, tool, args);
+      },
       validateSharedPortDeclaration: (hostId, ports) => {
         if (!deps.sharedPorts) {
           throw new Error("host shared-port control plane is unavailable");

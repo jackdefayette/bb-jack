@@ -175,6 +175,10 @@ const ONLINE_RPC_RESPONSE_RESULT_FIXTURES: OnlineRpcResponseResultFixtures = {
     label: "sawyer-air",
     baseDomain: "getbb.app",
   },
+  "host.computer_use.call": {
+    tool: "get_screen_size",
+    result: { width: 1470, height: 956, scale_factor: 1 },
+  },
   "host.list_files": {
     files: [
       {
@@ -1054,8 +1058,8 @@ describe("host-daemon command schemas", () => {
   // Version 96 rejects Git roots above the configured workspace for
   // repository discovery and branch commands. An older daemon can still
   // return ancestor-repository data, so it must update before connecting.
-  it("uses protocol version 96 for exact workspace Git boundaries", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(96);
+  it("uses protocol version 97 for bounded computer-use host calls", () => {
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(97);
   });
 
   it("binds Plan cancellation to a required turn id and typed result", () => {

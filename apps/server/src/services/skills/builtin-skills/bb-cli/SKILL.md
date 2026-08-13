@@ -324,6 +324,11 @@ environment pull-request show <id>`. Diff commands require an explicit target
 - Top-level `sharedSkillRoots` uses the same relative `user` and `project`
   paths. bb lists these skills as read-only. bb injects them into each provider,
   so one physical skill collection can support bb and standalone provider CLIs.
+- The optional Computer Use official plugin adds `/computer-use` plus bounded
+  provider-neutral inspect, act, and verify tools backed by CUA Driver. Install
+  it with `bb plugin install computer-use`; inspect host readiness with
+  `bb computer-use status [--json]`, and call an allowlisted driver tool with
+  `bb computer-use call <tool> [--args '<json>'] [--host <id>] [--json]`.
 
 Give spawned threads clear prompts: objective, constraints, expected deliverable,
 validation to perform, and what to report back. Ask for outcome, changed files
@@ -683,15 +688,15 @@ them by mixing ink into canvas), the `--primary` accent, the secondary text tier
   (except `side-chat`, which is gated by the **"Side chat plugin"**
   experiment); official plugins install from the bundled store on demand.
 - **BB Official plugins** (store under `/api/v1/plugin-catalog`):
-  - BB's official plugins (GitHub, Docs, Memory, and Tasks) ship
+  - BB's official plugins (Computer Use, GitHub, Docs, Memory, and Tasks) ship
     bundled inside the app and install from the local copy — no network. Installed official
     plugins are pinned to the bundled copy and update with BB app releases.
   - `bb plugin search <query> [--json]` — search the official plugins by id,
     name, description, or category; status shows installed / compatible /
     requires newer bb.
 - Commands:
-  - `bb plugin install <src>` — official plugin name (github, docs, memory,
-    tasks), local path, `builtin:<name>`,
+  - `bb plugin install <src>` — official plugin name (computer-use, github,
+    docs, memory, tasks), local path, `builtin:<name>`,
     `git:<url>@<ref>`, or `npm:<package>[@<version|tag|range>]` (npm on PATH
     required for `npm:`). Prefixes `path:` / `npm:` / `git:` / `builtin:` skip
     official-plugin resolution. To pin or range an npm package, install with

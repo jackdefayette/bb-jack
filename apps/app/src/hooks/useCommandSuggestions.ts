@@ -135,14 +135,28 @@ export function promptActionCommandSuggestions({
     .filter((suggestion) => commandSuggestionMatchesQuery(suggestion, query));
 }
 
-function mergeCommandSuggestions(
+export function mergeCommandSuggestions(
   preferred: readonly ProviderCommandSuggestion[],
   fallback: readonly ProviderCommandSuggestion[],
 ): ProviderCommandSuggestion[] {
   const suggestions: ProviderCommandSuggestion[] = [];
   const seen = new Set<string>();
+  const providerNativeAliasesReplacedByPluginSkills = new Set(
+    [...preferred, ...fallback].flatMap((suggestion) =>
+      suggestion.source === "skill" && suggestion.pluginId
+        ? [`${suggestion.pluginId}:${suggestion.name}`]
+        : [],
+    ),
+  );
 
   for (const suggestion of [...preferred, ...fallback]) {
+    if (
+      suggestion.source === "skill" &&
+      !suggestion.pluginId &&
+      providerNativeAliasesReplacedByPluginSkills.has(suggestion.name)
+    ) {
+      continue;
+    }
     const key = `${suggestion.source}:${suggestion.name}`;
     if (seen.has(key)) {
       continue;

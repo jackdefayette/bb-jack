@@ -24,6 +24,7 @@ import {
   type CaffeinateManager,
 } from "./command-handlers/caffeinate.js";
 import { listHostBranches } from "./command-handlers/host-branches.js";
+import { callComputerUseTool } from "./command-handlers/computer-use.js";
 import {
   installGlobalSkills,
   readGlobalSkillsStatus,
@@ -460,6 +461,7 @@ const onlineRpcHandlers: OnlineRpcHandlerMap = {
     return options.ensureConnectTunnelIdentity();
   },
   "host.list_files": listHostFiles,
+  "host.computer_use.call": async (command) => callComputerUseTool(command),
   "host.list_paths": listHostPaths,
   "host.mkdir": mkdirHostPath,
   "host.move_path": moveHostPath,

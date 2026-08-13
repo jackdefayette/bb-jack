@@ -570,13 +570,20 @@ Plugin state lives under the data dir:
                                    commands, injected into agent threads)
 ```
 
-BB's official plugins (GitHub, Docs, Memory, and Tasks) ship bundled
+BB's official plugins (Computer Use, GitHub, Docs, Memory, and Tasks) ship bundled
 inside the app and install from the local bundled copy — no network, no remote catalog.
 Discover them with `bb plugin search` or Extensions → Plugins → Browse; users
 cannot add, remove, or configure the official plugin set. Installed official
 plugins are pinned to the bundled copy and update with BB app releases. Local
 path installs remain available directly through `bb plugin install ./path` or
 `path:...`, and direct `npm:`/`git:` installs stay supported.
+
+Computer Use is store-only and remains disabled until installed with
+`bb plugin install computer-use`. It requires the open-source CUA Driver on the
+selected execution host. `bb computer-use status` reports Accessibility and
+Screen Recording readiness; typing `/computer-use` in a four-pane Build or
+Agent composer loads its bounded inspect → act → verify workflow for any
+provider.
 
 ### Plugin updates
 

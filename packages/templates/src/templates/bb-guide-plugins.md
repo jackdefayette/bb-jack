@@ -158,7 +158,7 @@ added/updated/unchanged counts.
   bb plugin search <query>       Search BB's official plugins (bundled with
                                  the app)
   bb plugin install <entry>      Install a bundled official plugin by name
-                                 (github, docs, memory, tasks), a local
+                                 (computer-use, github, docs, memory, tasks), a local
                                  path, builtin:<name>,
                                  git:<url>@<ref>, or
                                  npm:<package>[@<version|tag|range>]
@@ -217,12 +217,13 @@ added/updated/unchanged counts.
 
 BB Official plugins
 
-BB's official plugins — GitHub, Docs, Memory, and Tasks — ship bundled inside
+BB's official plugins — Computer Use, GitHub, Docs, Memory, and Tasks — ship bundled inside
 the app itself. They appear in Extensions → Plugins → Browse
 and install with one click from the local bundled copy: no network, no
 download, no separate release. Install from the CLI by bare name
-(`bb plugin install github`, `bb plugin install docs`, `bb plugin install
-memory`, or `bb plugin install tasks`). Installed official plugins are pinned
+(`bb plugin install computer-use`, `bb plugin install github`,
+`bb plugin install docs`, `bb plugin install memory`, or
+`bb plugin install tasks`). Installed official plugins are pinned
 to the bundled copy and update automatically when the BB app updates.
 
 For direct git:/npm: installs, updates are manual: `bb plugin outdated`
@@ -238,6 +239,17 @@ category across the bundled official plugins (status: installed / compatible
 / requires newer bb). Install an official plugin by its bare name. Direct
 `path:`, `npm:`, `git:`, and `builtin:` sources—and path-like
 syntax—continue to bypass official-plugin resolution.
+
+The optional Computer Use plugin uses the open-source CUA Driver on the task's
+execution host. It adds the `/computer-use` skill plus bounded inspect, act,
+and verify tools for every provider:
+
+  bb computer-use status [--json]
+  bb computer-use call <tool> [--args '<json>'] [--host <id>] [--json]
+
+Install it with `bb plugin install computer-use`. V1 deliberately excludes
+force-kill, clipboard reads, downloads, unrestricted filesystem access, and
+existing browser-profile attachment.
 
 Builds are automatic once installed. Git installs run `npm install`
 (lifecycle scripts disabled), then compile both bundles — so a git plugin may

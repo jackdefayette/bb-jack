@@ -71,7 +71,10 @@ import {
   createPluginCatalogService,
   type PluginCatalogService,
 } from "./services/plugin-catalog/plugin-catalog-service.js";
-import { callHostRetryableOnlineRpc } from "./services/hosts/online-rpc.js";
+import {
+  callHostOnlineRpc,
+  callHostRetryableOnlineRpc,
+} from "./services/hosts/online-rpc.js";
 import { browserRequestProblem } from "./browser-request-guard.js";
 import { rankAcceptedAssetEncodings } from "./asset-content-encoding.js";
 
@@ -402,6 +405,16 @@ export function createApp(
           timeoutMs: 30_000,
         }),
       ),
+    callComputerUse: (hostId, tool, args) =>
+      callHostOnlineRpc(deps, {
+        command: {
+          type: "host.computer_use.call",
+          tool,
+          arguments: { ...args },
+        },
+        hostId,
+        timeoutMs: 35_000,
+      }),
     watchBuiltinPluginSources:
       process.env.BB_MANAGED_DEV_BUILTIN_PLUGIN_HOT_RELOAD === "1",
   });

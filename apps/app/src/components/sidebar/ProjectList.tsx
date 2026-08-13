@@ -164,6 +164,7 @@ interface ProjectListProps {
 }
 
 interface ProjectListActionButtonsProps {
+  newThreadLabel?: string;
   splitEnabled?: boolean;
   newThreadSplit?: {
     onPointerDown?: PointerEventHandler<HTMLElement>;
@@ -801,6 +802,7 @@ function ProjectListNavigationLoadingRow({
 }
 
 export function ProjectListActionButtons({
+  newThreadLabel = "New thread",
   splitEnabled = false,
   newThreadSplit,
   onNewChat,
@@ -879,14 +881,16 @@ export function ProjectListActionButtons({
             disabled={isNewChatDisabled}
             aria-label={
               newThreadShortcut
-                ? `New thread (${newThreadShortcut.label})`
-                : "New thread"
+                ? `${newThreadLabel} (${newThreadShortcut.label})`
+                : newThreadLabel
             }
             aria-keyshortcuts={newThreadShortcut?.ariaKeyshortcuts}
           >
             <Icon name="MessageSquarePlus" />
             <span className="flex min-w-0 flex-1 items-center gap-1.5">
-              <span className="min-w-0 truncate text-left">New thread</span>
+              <span className="min-w-0 truncate text-left">
+                {newThreadLabel}
+              </span>
               {newThreadSplitIndicator.miniMap ? (
                 <SplitPaneMiniMap
                   slots={newThreadSplitIndicator.miniMap}

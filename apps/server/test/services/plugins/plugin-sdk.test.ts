@@ -72,6 +72,10 @@ describe("plugin bb.sdk bind gate", () => {
     label: "sawyer-air",
     baseDomain: "getbb.app",
   });
+  const callComputerUse = vi.fn().mockResolvedValue({
+    tool: "get_screen_size",
+    result: { width: 1470, height: 956 },
+  });
 
   beforeEach(async () => {
     db = createConnection(":memory:");
@@ -82,10 +86,12 @@ describe("plugin bb.sdk bind gate", () => {
     sharedPorts.replaceDeclarationsForOwner.mockClear();
     sharedPorts.clearDeclarationsForOwner.mockClear();
     ensureSharedPortTunnel.mockClear();
+    callComputerUse.mockClear();
     service = createPluginService({
       db,
       sharedPorts,
       ensureSharedPortTunnel,
+      callComputerUse,
       hub: {
         getDaemonSessionIdForHost: () => null,
         notifyPluginSignal: () => 0,
@@ -161,6 +167,27 @@ describe("plugin bb.sdk bind gate", () => {
     await service.stop();
     expect(sharedPorts.clearDeclarationsForOwner).toHaveBeenCalledWith(
       "shares",
+    );
+  });
+
+  it("delivers bounded computer-use calls through the server control plane", async () => {
+    const rootDir = await writePlugin(workDir, {
+      name: "bb-plugin-host-control",
+      serverSource: `export default function plugin() {}`,
+    });
+    await service.installPath(rootDir);
+    const api = requireApi(service, "host-control");
+
+    await expect(
+      api.hosts.experimental_callComputerUse("host-1", "get_screen_size", {}),
+    ).resolves.toEqual({
+      tool: "get_screen_size",
+      result: { width: 1470, height: 956 },
+    });
+    expect(callComputerUse).toHaveBeenCalledWith(
+      "host-1",
+      "get_screen_size",
+      {},
     );
   });
 

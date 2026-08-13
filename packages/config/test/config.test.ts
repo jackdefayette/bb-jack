@@ -15,6 +15,8 @@ import { parseProviderModelConfig } from "../src/inference-model.js";
 import { loadLoggerConfig } from "../src/logger.js";
 import {
   resolveConfiguredDataDir,
+  resolveCurrentDevInstanceConfig,
+  resolveDevInstanceConfig,
   parsePortValue,
   resolvePortFromEnv,
   resolveRuntimeDataDir,
@@ -144,6 +146,21 @@ describe("common config", () => {
 });
 
 describe("data-dir helpers", () => {
+  it("can run feature-worktree source against one canonical dev instance", () => {
+    const sourceRepoRoot = "/Users/tester/src/bb/.worktrees/computer-use";
+    const instanceRepoRoot = "/Users/tester/src/bb";
+    const expected = resolveDevInstanceConfig({
+      homeDir: os.homedir(),
+      repoRoot: instanceRepoRoot,
+    });
+
+    expect(
+      resolveCurrentDevInstanceConfig(sourceRepoRoot, {
+        BB_DEV_INSTANCE_REPO_ROOT: instanceRepoRoot,
+      }),
+    ).toEqual({ ...expected, repoRoot: sourceRepoRoot });
+  });
+
   it("expands a bare home-directory override", () => {
     expect(
       resolveConfiguredDataDir({

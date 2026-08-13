@@ -30,8 +30,8 @@ export const APP_COMMAND_GROUPS: readonly AppCommandGroup[] = [
     commands: [
       command(
         "thread.new",
-        "New thread",
-        "Start a thread in the active project.",
+        "Open Jack's IDE",
+        "Return to the active four-pane project workspace.",
       ),
       command(
         "thread.search",

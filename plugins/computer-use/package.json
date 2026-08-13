@@ -1,0 +1,64 @@
+{
+  "name": "bb-plugin-computer-use",
+  "version": "0.1.0",
+  "description": "Provider-independent, bounded desktop control through the open-source CUA Driver.",
+  "private": true,
+  "license": "MIT",
+  "homepage": "https://github.com/get-bb/bb#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/get-bb/bb.git",
+    "directory": "plugins/computer-use"
+  },
+  "type": "module",
+  "files": [
+    "dist",
+    "server.ts",
+    "app.tsx",
+    "skills",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0",
+    "bbPluginSdk": "^0.4.1"
+  },
+  "bb": {
+    "name": "Computer Use",
+    "description": "Inspect, operate, and verify desktop apps through a bounded CUA Driver bridge.",
+    "branding": {
+      "icon": "MousePointerClick"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": [
+      "skills"
+    ]
+  },
+  "keywords": [
+    "bb-plugin",
+    "computer-use",
+    "cua"
+  ],
+  "scripts": {
+    "build": "node --conditions=source --import tsx ../../scripts/build-official-plugins.mjs computer-use",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@bb/shared-ui": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@bb/plugin-sdk": "workspace:*",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^29.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-7": "npm:typescript@^7.0.2",
+    "vitest": "^4.1.1"
+  }
+}

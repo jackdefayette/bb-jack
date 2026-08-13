@@ -417,6 +417,7 @@ const hostDaemonOnlineRpcResponseSuccessSchema = z.discriminatedUnion(
     onlineRpcResponseSuccessSchemaFor("project.clone_default_path"),
     onlineRpcResponseSuccessSchemaFor("host.pick_folder"),
     onlineRpcResponseSuccessSchemaFor("host.caffeinate"),
+    onlineRpcResponseSuccessSchemaFor("host.computer_use.call"),
     onlineRpcResponseSuccessSchemaFor("connect-tunnel.ensure-identity"),
     onlineRpcResponseSuccessSchemaFor("host.list_commands"),
     onlineRpcResponseSuccessSchemaFor("host.list_skills"),
