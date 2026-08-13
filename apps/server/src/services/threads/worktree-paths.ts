@@ -7,13 +7,17 @@ export function deriveRepoDirName(sourcePath: string): string {
   const trimmed = sourcePath.replace(/\/+$/, "");
 
   const scpMatch = /^[^:/]+@[^:]+:(?<path>.+)$/.exec(trimmed);
-  const pathPart =
-    scpMatch?.groups?.path ?? tryParseUrlPath(trimmed) ?? trimmed;
+  const urlPath = tryParseUrlPath(trimmed);
+  const pathPart = scpMatch?.groups?.path ?? urlPath ?? trimmed;
+  const isRemoteSource = scpMatch !== null || urlPath !== null;
 
   const basename = path.posix.basename(pathPart);
-  const candidate = basename.endsWith(".git")
+  const rawCandidate = basename.endsWith(".git")
     ? basename.slice(0, -".git".length)
     : basename;
+  const candidate = isRemoteSource
+    ? rawCandidate
+    : sanitizeLocalRepoDirName(rawCandidate);
 
   if (
     !candidate ||
@@ -28,6 +32,14 @@ export function deriveRepoDirName(sourcePath: string): string {
     );
   }
   return candidate;
+}
+
+function sanitizeLocalRepoDirName(value: string): string {
+  if (REPO_DIR_NAME_PATTERN.test(value)) {
+    return value;
+  }
+
+  return value.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/-+/g, "-");
 }
 
 function tryParseUrlPath(value: string): string | null {

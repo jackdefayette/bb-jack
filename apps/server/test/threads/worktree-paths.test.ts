@@ -10,6 +10,12 @@ describe("deriveRepoDirName", () => {
       "/Users/someone/code/my-repo/",
       "my-repo",
     ],
+    ["local path with spaces", "/tmp/my repo", "my-repo"],
+    [
+      "local path with spaces and an apostrophe",
+      "/Users/jack/Documents/Jack's CRM",
+      "Jack-s-CRM",
+    ],
     ["https URL", "https://github.com/octocat/Hello-World.git", "Hello-World"],
     ["ssh URL", "ssh://git@github.com/octocat/Hello-World.git", "Hello-World"],
     ["scp-style", "git@github.com:octocat/Hello-World.git", "Hello-World"],
@@ -30,7 +36,6 @@ describe("deriveRepoDirName", () => {
     ["parent traversal", "/Users/me/code/.."],
     ["current dir", "/Users/me/code/."],
     ["leading dash (could be interpreted as flag)", "/tmp/-dangerous"],
-    ["whitespace in name", "/tmp/my repo"],
     [
       "url with query parameter encoded into basename",
       "https://host/foo/bar.git;param=x",
