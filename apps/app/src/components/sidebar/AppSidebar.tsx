@@ -217,6 +217,9 @@ export function AppSidebar({
 
   const builtInThreadList = (
     <ProjectsOnlySidebar
+      isAddingProject={
+        quickCreateProject.isChoosingFolder || quickCreateProject.isCreating
+      }
       onNewProject={
         quickCreateProject.isAvailable
           ? quickCreateProject.openCreateDialog

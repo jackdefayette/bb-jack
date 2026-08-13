@@ -118,6 +118,53 @@ describe("useLocalPathPicker", () => {
       );
     });
   });
+
+  it("exposes native picker progress and suppresses duplicate dialogs", async () => {
+    let resolvePicker: ((value: { path: string | null }) => void) | null = null;
+    mocks.pickFolder.mockImplementationOnce(
+      () =>
+        new Promise<{ path: string | null }>((resolve) => {
+          resolvePicker = resolve;
+        }),
+    );
+    const submit = vi.fn();
+    const { result } = renderHook(() =>
+      useLocalPathPicker({ isPending: false, submit }),
+    );
+
+    act(() => {
+      result.current.openPicker({ kind: "create" });
+    });
+
+    expect(result.current.isChoosingFolder).toBe(true);
+    act(() => {
+      result.current.openPicker({ kind: "create" });
+    });
+    expect(mocks.pickFolder).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolvePicker?.({ path: "/home/me/repo" });
+    });
+
+    expect(result.current.isChoosingFolder).toBe(false);
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears native picker progress before opening the fallback dialog", async () => {
+    mocks.pickFolder.mockRejectedValueOnce(new Error("picker unavailable"));
+    const { result } = renderHook(() =>
+      useLocalPathPicker({ isPending: false, submit: vi.fn() }),
+    );
+
+    act(() => {
+      result.current.openPicker({ kind: "create" });
+    });
+
+    await waitFor(() => {
+      expect(result.current.projectPathDialog.isOpen).toBe(true);
+    });
+    expect(result.current.isChoosingFolder).toBe(false);
+  });
 });
 
 /**

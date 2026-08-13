@@ -23,12 +23,14 @@ import type { SidebarThreadSearchPanelController } from "./sidebarThreadSearch";
 import { SIDEBAR_ROW_SELECTED_STATE_CLASS } from "./sidebarRowClasses";
 
 interface ProjectsOnlySidebarProps {
+  isAddingProject?: boolean;
   onNavigate?: () => void;
   onNewProject?: () => void;
   threadSearch?: SidebarThreadSearchPanelController;
 }
 
 export function ProjectsOnlySidebar({
+  isAddingProject = false,
   onNavigate,
   onNewProject,
   threadSearch,
@@ -74,11 +76,11 @@ export function ProjectsOnlySidebar({
 
   const navigateToTab = useCallback(
     (tabId: string, projectId: string) => {
-      selectTab(tabId);
-      onNavigate?.();
       void navigate(
         getProjectWorkspaceRoutePath({ projectId, workspaceTabId: tabId }),
       );
+      selectTab(tabId);
+      onNavigate?.();
     },
     [navigate, onNavigate, selectTab],
   );
@@ -112,7 +114,9 @@ export function ProjectsOnlySidebar({
     <button
       type="button"
       aria-label="Add project"
-      className="inline-flex size-6 items-center justify-center rounded-md text-subtle-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+      aria-busy={isAddingProject}
+      disabled={isAddingProject}
+      className="inline-flex size-6 items-center justify-center rounded-md text-subtle-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring disabled:pointer-events-none disabled:opacity-50"
       onClick={onNewProject}
     >
       <Icon name="Plus" className="size-3.5" aria-hidden="true" />

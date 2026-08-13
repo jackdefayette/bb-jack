@@ -123,8 +123,29 @@ export function compareCommandSuggestionSections(
  */
 export function orderCommandSuggestionsBySection(
   suggestions: readonly ComposerCommandSuggestion[],
+  query = "",
 ): ComposerCommandSuggestion[] {
-  return [...suggestions].sort(compareCommandSuggestionSections);
+  const normalizedQuery = query.trim().toLowerCase();
+  const matchRank = (suggestion: ComposerCommandSuggestion): number => {
+    if (normalizedQuery.length === 0) return 0;
+    const name = suggestion.name.toLowerCase();
+    const directName = name.slice(name.lastIndexOf(":") + 1);
+    if (name === normalizedQuery || directName === normalizedQuery) return 0;
+    if (
+      name.startsWith(normalizedQuery) ||
+      directName.startsWith(normalizedQuery)
+    ) {
+      return 1;
+    }
+    return 2;
+  };
+
+  return [...suggestions].sort((left, right) => {
+    const byMatch = matchRank(left) - matchRank(right);
+    return byMatch !== 0
+      ? byMatch
+      : compareCommandSuggestionSections(left, right);
+  });
 }
 
 /**

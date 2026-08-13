@@ -32,6 +32,7 @@ export interface QuickCreateProjectDialogState {
 
 export interface QuickCreateProjectController {
   isAvailable: boolean;
+  isChoosingFolder: boolean;
   isCreating: boolean;
   openCreateDialog: () => void;
   platform: HostPlatform | null;
@@ -92,6 +93,7 @@ export function useQuickCreateProject(): QuickCreateProjectController {
   return useMemo(
     () => ({
       isAvailable: controller.isAvailable,
+      isChoosingFolder: controller.isChoosingFolder,
       isCreating: isPending,
       openCreateDialog,
       platform: controller.platform,

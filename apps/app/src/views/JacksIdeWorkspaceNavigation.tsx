@@ -18,7 +18,6 @@ export function JacksIdeWorkspaceHome() {
     const existingTab =
       tabs.find((tab) => tab.id === activeTabId) ?? tabs.at(-1) ?? null;
     if (existingTab) {
-      selectTab(existingTab.id);
       void navigate(
         getProjectWorkspaceRoutePath({
           projectId: existingTab.projectId,
@@ -26,6 +25,7 @@ export function JacksIdeWorkspaceHome() {
         }),
         { replace: true },
       );
+      selectTab(existingTab.id);
       return;
     }
 
@@ -35,7 +35,6 @@ export function JacksIdeWorkspaceHome() {
       projectId: firstProject.id,
       projectName: firstProject.name,
     });
-    selectTab(tab.id);
     void navigate(
       getProjectWorkspaceRoutePath({
         projectId: tab.projectId,
@@ -43,6 +42,7 @@ export function JacksIdeWorkspaceHome() {
       }),
       { replace: true },
     );
+    selectTab(tab.id);
   }, [
     activeTabId,
     navigate,
@@ -105,7 +105,6 @@ export function JacksIdeThreadWorkspace({
     if (tab.primaryThreadId !== threadId) {
       updateTab(tab.id, { primaryThreadId: threadId });
     }
-    selectTab(tab.id);
     void navigate(
       getProjectWorkspaceRoutePath({
         projectId: tab.projectId,
@@ -113,6 +112,7 @@ export function JacksIdeThreadWorkspace({
       }),
       { replace: true },
     );
+    selectTab(tab.id);
   }, [
     activeTabId,
     navigate,

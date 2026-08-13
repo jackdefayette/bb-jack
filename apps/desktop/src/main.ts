@@ -411,12 +411,23 @@ function registerApplicationRendererReloadShortcut(
       return;
     }
     event.preventDefault();
-    if (shortcut === "force-reload") {
-      webContents.reloadIgnoringCache();
-    } else {
-      webContents.reload();
+    const browserWindow = resolveApplicationWindow(webContents);
+    if (browserWindow !== null) {
+      reloadApplicationRenderer(browserWindow, shortcut === "force-reload");
     }
   });
+}
+
+function reloadApplicationRenderer(
+  browserWindow: BrowserWindow,
+  ignoreCache: boolean,
+): void {
+  desktopBrowserViewManager?.destroyForWindow(browserWindow);
+  if (ignoreCache) {
+    browserWindow.webContents.reloadIgnoringCache();
+  } else {
+    browserWindow.webContents.reload();
+  }
 }
 
 function sendDesktopInfoChanged(): void {
@@ -693,11 +704,7 @@ function installCurrentApplicationMenu(): void {
       if (!(browserWindow instanceof BrowserWindow)) {
         return;
       }
-      if (ignoreCache) {
-        browserWindow.webContents.reloadIgnoringCache();
-      } else {
-        browserWindow.webContents.reload();
-      }
+      reloadApplicationRenderer(browserWindow, ignoreCache);
     },
     closeWindowOrSideTab(browserWindow) {
       if (browserWindow === undefined) {

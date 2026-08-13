@@ -89,17 +89,16 @@ export function filterCommandSuggestions(
       commandSuggestionMatchesQuery(suggestion, normalizedQuery),
     )
     .sort((left, right) => {
-      const bySection = compareCommandSuggestionSections(left, right);
-      if (bySection !== 0) {
-        return bySection;
-      }
       const leftPrefix = commandSuggestionSearchNames(left).some((name) =>
         name.startsWith(normalizedQuery),
       );
       const rightPrefix = commandSuggestionSearchNames(right).some((name) =>
         name.startsWith(normalizedQuery),
       );
-      return leftPrefix === rightPrefix ? 0 : leftPrefix ? -1 : 1;
+      if (leftPrefix !== rightPrefix) {
+        return leftPrefix ? -1 : 1;
+      }
+      return compareCommandSuggestionSections(left, right);
     });
 }
 
@@ -222,6 +221,7 @@ export function useCommandSuggestions(
     );
     return orderCommandSuggestionsBySection(
       mergeCommandSuggestions(promptActionSuggestions, discoveredSuggestions),
+      trimmedQuery,
     );
   }, [
     commandsQuery.data?.commands,

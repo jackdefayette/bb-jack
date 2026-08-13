@@ -183,6 +183,12 @@ export interface DesktopBrowserViewManager {
    */
   endWindowResize(hostWindow: DesktopBrowserHostWindow): void;
   /**
+   * Destroy every native browser view owned by a live host window. Renderer
+   * reloads must call this first: WebContentsView children outlive the React
+   * renderer and can otherwise keep covering the freshly reloaded app.
+   */
+  destroyForWindow(hostWindow: DesktopBrowserHostWindow): void;
+  /**
    * Drop every view owned by a closed host window. Keyed by the host
    * `webContents.id` because the host `BrowserWindow` (and its child views) are
    * already torn down by the time `closed` fires.
@@ -787,6 +793,15 @@ export function createDesktopBrowserViewManager(
           tabId: key.slice(prefix.length),
           dataUrl: null,
         });
+      }
+    },
+    destroyForWindow(hostWindow) {
+      resizingHostIds.delete(hostWindow.webContents.id);
+      const prefix = `${hostWindow.webContents.id}:`;
+      for (const [key] of [...entries.entries()]) {
+        if (key.startsWith(prefix)) {
+          destroyEntry(hostWindow, key);
+        }
       }
     },
     releaseWindow(hostWebContentsId) {

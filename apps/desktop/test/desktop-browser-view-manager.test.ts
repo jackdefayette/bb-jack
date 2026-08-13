@@ -1491,6 +1491,42 @@ describe("DesktopBrowserViewManager", () => {
     ).toBe(true);
   });
 
+  it("destroys only the live window views before its renderer reloads", () => {
+    const manager = createDesktopBrowserViewManager({
+      partition: "persist:test",
+    });
+    const reloadingWindow = new FakeHostWindow({
+      contentBounds: { width: 700, height: 450 },
+      webContentsId: 71,
+    });
+    const otherWindow = new FakeHostWindow({
+      contentBounds: { width: 700, height: 450 },
+      webContentsId: 72,
+    });
+
+    attachBrowserTab({
+      manager,
+      hostWindow: reloadingWindow,
+      tabId: "browser:a",
+      url: "https://example.com/",
+    });
+    attachBrowserTab({
+      manager,
+      hostWindow: otherWindow,
+      tabId: "browser:b",
+      url: "https://example.org/",
+    });
+    const reloadingView = requireFakeView(0);
+    const retainedView = requireFakeView(1);
+
+    manager.destroyForWindow(reloadingWindow);
+
+    expect(reloadingView.webContents.destroyed).toBe(true);
+    expect(reloadingWindow.contentView.removedViews).toEqual([reloadingView]);
+    expect(retainedView.webContents.destroyed).toBe(false);
+    expect(otherWindow.contentView.removedViews).toEqual([]);
+  });
+
   it("snapshots then hides visible views on resize, revealing them clamped to the shrunken window", async () => {
     const manager = createDesktopBrowserViewManager({
       partition: "persist:test",

@@ -274,9 +274,7 @@ function getMentionIcon(item: PromptMentionSuggestion): ReactNode {
   if (iconName === null) {
     return null;
   }
-  return (
-    <Icon name={iconName} className={ROW_ICON_CLASS} aria-hidden />
-  );
+  return <Icon name={iconName} className={ROW_ICON_CLASS} aria-hidden />;
 }
 
 function getCommandKey(item: ComposerCommandSuggestion, index: number): string {
@@ -334,6 +332,8 @@ function SuggestionRow({
         itemRefs.current[index] = element;
       }}
       type="button"
+      aria-label={primary}
+      aria-current={isSelected ? "true" : undefined}
       onMouseDown={(event) => {
         event.preventDefault();
         onApply();
@@ -344,11 +344,12 @@ function SuggestionRow({
         "w-full scroll-mt-7 rounded px-2 py-1.5 text-left text-xs",
         isSelected ? "bg-state-active text-foreground" : "hover:bg-state-hover",
       )}
-      title={title}
     >
       <div className="flex min-w-0 items-center gap-1.5">
         {icon}
-        <span className="truncate text-foreground">{primary}</span>
+        <span className="truncate text-foreground" title={title}>
+          {primary}
+        </span>
         {trailing}
       </div>
     </button>
@@ -562,7 +563,18 @@ export function MentionMenu({
 
   return (
     <div className="overflow-hidden rounded-md border border-border bg-popover text-popover-foreground">
-      <div className="max-h-48 overflow-y-auto" onScroll={handleScroll}>
+      <div
+        className="max-h-48 overflow-y-auto"
+        onScroll={handleScroll}
+        role={innerState.kind === "results" ? "region" : undefined}
+        aria-label={
+          innerState.kind === "results"
+            ? state.trigger === "command"
+              ? "Command suggestions"
+              : "Mention suggestions"
+            : undefined
+        }
+      >
         {innerState.kind === "hint" ? (
           <div className="px-3 py-2 text-xs text-muted-foreground">
             Type to search mentions

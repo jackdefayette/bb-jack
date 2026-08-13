@@ -885,6 +885,15 @@ export function AppLayout({ children }: AppLayoutProps) {
                 usesDesktopChrome={usesDesktopChrome}
               />
             </SidebarStateBridge>
+            {quickCreateProject.isChoosingFolder ? (
+              <div
+                role="status"
+                aria-live="polite"
+                className="pointer-events-none fixed left-1/2 top-3 z-50 -translate-x-1/2 rounded-md border border-border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md"
+              >
+                Choose a project folder in the system dialog…
+              </div>
+            ) : null}
             <ProjectPathDialog
               target={quickCreateProject.projectPathDialog.target}
               pending={quickCreateProject.isCreating}

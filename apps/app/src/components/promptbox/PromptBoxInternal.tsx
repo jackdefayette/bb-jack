@@ -1929,6 +1929,8 @@ export function PromptBoxInternal({
   const hasSubmittableInput = trimmedValue.length > 0 || hasAttachments;
 
   const activeTriggerKind = activeTrigger?.kind ?? null;
+  const activeCommandQuery =
+    activeTrigger?.kind === "command" ? activeTrigger.query : "";
   const commandHasMore = typeahead.command.hasMore;
   const commandIsLoadingMore = typeahead.command.isLoadingMore;
   const loadMoreCommands = typeahead.command.loadMore;
@@ -1940,8 +1942,9 @@ export function PromptBoxInternal({
       isLoadingMore: commandIsLoadingMore,
     });
   const orderedCommandSuggestions = useMemo(
-    () => orderCommandSuggestionsBySection(commandSuggestions),
-    [commandSuggestions],
+    () =>
+      orderCommandSuggestionsBySection(commandSuggestions, activeCommandQuery),
+    [activeCommandQuery, commandSuggestions],
   );
   // The suggestion list driving keyboard nav + Enter/Tab apply for whichever
   // trigger is active. Empty when no trigger is open. Memoized so the keyboard

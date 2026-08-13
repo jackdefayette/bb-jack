@@ -111,7 +111,7 @@ describe("commandSuggestionMatchesQuery", () => {
     ]);
   });
 
-  it("keeps menu sections primary when ranking prefix matches", () => {
+  it("puts direct prefix matches ahead of description-only section matches", () => {
     const names = filterCommandSuggestions(
       [
         {
@@ -129,7 +129,27 @@ describe("commandSuggestionMatchesQuery", () => {
       "deploy",
     ).map((suggestion) => suggestion.name);
 
-    expect(names).toEqual(["review-helper", "deploy"]);
+    expect(names).toEqual(["deploy", "review-helper"]);
+  });
+
+  it("puts a directly named Computer Use skill first while typing", () => {
+    const names = filterCommandSuggestions(
+      [
+        {
+          ...pluginSkill,
+          name: "desktop-helper",
+          description: "computer-use setup notes",
+        },
+        {
+          ...pluginSkill,
+          name: "computer-use:computer-use",
+          pluginId: "computer-use",
+        },
+      ],
+      "computer-use",
+    ).map((suggestion) => suggestion.name);
+
+    expect(names).toEqual(["computer-use:computer-use", "desktop-helper"]);
   });
 });
 

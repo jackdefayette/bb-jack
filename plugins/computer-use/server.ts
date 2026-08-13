@@ -352,7 +352,7 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
     description:
       "Inspect desktop UI. list_apps/list_windows/check_permissions/get_accessibility_tree/get_screen_size/get_cursor_position use {}. get_window_state requires {pid,window_id} and accepts {session,query,include_screenshot}. Resolve pid/window_id from fresh list results.",
     instructions:
-      "Inspect fresh state before acting. Call get_window_state again before every element-indexed action; never reuse stale element indices, snapshot ids, or tokens.",
+      "Inspect fresh state before acting. Use fresh list_windows results to confirm the intended titled window is on_current_space and is_on_screen. If it is not, bring it to front and list windows again before inspecting it; treat a partial or unverified fronting result as a limitation. Call get_window_state again before every element-indexed action; never reuse stale element indices, snapshot ids, or tokens.",
     experimental_statusLabels: {
       pending: "Inspecting desktop",
       completed: "Inspected desktop",
@@ -369,7 +369,7 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
     description:
       "Perform one bounded CUA action. First start_session with {session:<non-empty id>,capture_scope:'window'}; reuse session and end_session with {session}. bring_to_front requires {pid} and optional window_id. hotkey requires {keys} plus pid/window_id/session. press_key requires {key}. type_text requires {text}. Element-index actions also require their fresh snapshot_id and window_id; prefer element_token.",
     instructions:
-      "Never call start_session with {}. Prefer accessibility element tokens over coordinates. After every action, inspect fresh state before deciding the next action. No clipboard read, force-kill, unrestricted filesystem, or existing browser profile access is available.",
+      "Never call start_session with {}. Prefer accessibility element tokens over coordinates. Before acting, confirm the intended titled window is on the current Space; after bring_to_front, re-list windows and do not infer exact focus from a partial result. After every action, inspect fresh state before deciding the next action. No clipboard read, force-kill, unrestricted filesystem, or existing browser profile access is available.",
     experimental_statusLabels: {
       pending: "Using desktop",
       completed: "Used desktop",

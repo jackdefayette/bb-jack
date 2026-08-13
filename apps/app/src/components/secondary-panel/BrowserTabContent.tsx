@@ -491,6 +491,15 @@ export function BrowserTabContent({
   const hasPage = currentUrl.length > 0;
   const pageLoadErrorText = state?.errorText ?? null;
   const hasPageLoadError = pageLoadErrorText !== null && hasPage;
+  const accessiblePageStatus = !hasPage
+    ? "Browser new tab page"
+    : hasPageLoadError
+      ? `Browser page failed to load: ${currentUrl}`
+      : state?.isLoading
+        ? `Loading browser page: ${currentUrl}`
+        : state === null
+          ? `Opening browser page: ${currentUrl}`
+          : `Browser page loaded: ${state.title || getBrowserUrlHost(currentUrl) || currentUrl}, ${currentUrl}`;
   // A blocking modal (e.g. the git-action dialog) dims the panel with a DOM
   // backdrop the native browser overlay cannot sit behind. While one is open,
   // hide the view and fall back to the DOM new-tab screen so the backdrop dims
@@ -818,6 +827,9 @@ export function BrowserTabContent({
         locationShortcut={locationShortcut}
         reloadShortcut={reloadShortcut}
       />
+      <div className="sr-only" role="status" aria-live="polite">
+        {accessiblePageStatus}
+      </div>
       <div ref={contentRef} className="relative min-h-0 flex-1">
         {hasPageLoadError ? (
           <BrowserPageLoadError

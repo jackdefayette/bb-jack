@@ -133,6 +133,25 @@ describe("BrowserTabContent persistent navigation", () => {
     expect(harness.stop).toHaveBeenCalledWith("browser:test");
   });
 
+  it("exposes native page progress and completion to accessibility clients", () => {
+    const harness = createBrowserChromeHarness();
+    renderBrowserChrome(harness, "https://example.com/docs");
+
+    expect(screen.getByRole("status").textContent).toBe(
+      "Opening browser page: https://example.com/docs",
+    );
+
+    act(() => harness.emitState(browserState({ isLoading: true })));
+    expect(screen.getByRole("status").textContent).toBe(
+      "Loading browser page: https://example.com/docs",
+    );
+
+    act(() => harness.emitState(browserState()));
+    expect(screen.getByRole("status").textContent).toBe(
+      "Browser page loaded: Example docs, https://example.com/docs",
+    );
+  });
+
   it("preserves browser navigation actions", () => {
     const harness = createBrowserChromeHarness();
     renderBrowserChrome(harness, "https://example.com/docs");

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { normalizeProjectPathInput } from "@bb/domain";
 import type { HostPlatform } from "@bb/host-daemon-contract";
 import { useDialogState } from "@/hooks/useDialogState";
@@ -24,6 +24,7 @@ interface UseLocalPathPickerOptions {
 
 export interface LocalPathPickerController {
   isAvailable: boolean;
+  isChoosingFolder: boolean;
   hostId: string | null;
   hostName: string | null;
   /**
@@ -86,6 +87,7 @@ export function useLocalPathPicker({
     (host) => host.status === "connected",
   ).length;
   const projectPathDialog = useDialogState<ProjectPathDialogTarget>();
+  const [isChoosingFolder, setIsChoosingFolder] = useState(false);
   const closeDialog = projectPathDialog.onClose;
 
   // The target host is always passed explicitly: a default parameter would
@@ -105,9 +107,10 @@ export function useLocalPathPicker({
 
   const openPicker = useCallback(
     (target: ProjectPathDialogTarget) => {
-      if (isPending || !hostId) return;
+      if (isPending || isChoosingFolder || !hostId) return;
 
       if (canUseNativeFolderPicker && clientHostId !== null) {
+        setIsChoosingFolder(true);
         void (async () => {
           let selectedPath: string | null;
           try {
@@ -117,6 +120,8 @@ export function useLocalPathPicker({
           } catch {
             projectPathDialog.onOpen(target);
             return;
+          } finally {
+            setIsChoosingFolder(false);
           }
           if (!selectedPath) return;
           submitPath(normalizeProjectPathInput(selectedPath), target, hostId);
@@ -130,6 +135,7 @@ export function useLocalPathPicker({
       canUseNativeFolderPicker,
       clientHostId,
       hostId,
+      isChoosingFolder,
       isPending,
       projectPathDialog,
       submitPath,
@@ -150,17 +156,28 @@ export function useLocalPathPicker({
   // committing to the primary host behind the user's back.
   const openPathEntry = useCallback(
     (target: ProjectPathDialogTarget) => {
+      if (isPending || isChoosingFolder) {
+        return;
+      }
       if (isLoadingHosts || connectedHostCount > 1) {
         projectPathDialog.onOpen(target);
         return;
       }
       openPicker(target);
     },
-    [connectedHostCount, isLoadingHosts, openPicker, projectPathDialog],
+    [
+      connectedHostCount,
+      isChoosingFolder,
+      isLoadingHosts,
+      isPending,
+      openPicker,
+      projectPathDialog,
+    ],
   );
 
   return {
     isAvailable: hostId != null,
+    isChoosingFolder,
     hostId,
     hostName,
     openPathEntry,

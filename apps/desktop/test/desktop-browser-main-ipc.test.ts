@@ -92,6 +92,7 @@ class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
   public readonly attachCalls: AttachCall[] = [];
   public readonly beginWindowResizeCalls: WindowResizeCall[] = [];
   public readonly destroyAllCalls: string[] = [];
+  public readonly destroyForWindowCalls: WindowResizeCall[] = [];
   public readonly detachCalls: DetachCall[] = [];
   public readonly endWindowResizeCalls: WindowResizeCall[] = [];
   public readonly goBackCalls: TabCommandCall[] = [];
@@ -113,6 +114,10 @@ class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
 
   destroyAll(): void {
     this.destroyAllCalls.push("destroyAll");
+  }
+
+  destroyForWindow(hostWindow: WindowResizeCall): void {
+    this.destroyForWindowCalls.push(hostWindow);
   }
 
   detach(args: DetachCall): void {
