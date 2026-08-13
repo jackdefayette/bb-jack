@@ -95,13 +95,13 @@ describe("ProjectWorkspaceEnvironmentRibbon", () => {
     );
 
     const trigger = screen.getByRole("button", {
-      name: "Review workspace details",
+      name: "Agent 2 workspace details",
     });
     expect(trigger.textContent).toContain("No environment");
     fireEvent.click(trigger);
 
     expect(screen.getByText("Not attached")).toBeTruthy();
-    expect(screen.getByText("Review")).toBeTruthy();
+    expect(screen.getByText("Agent 2")).toBeTruthy();
     expect(screen.getAllByText("Unavailable").length).toBeGreaterThanOrEqual(6);
     expect(
       screen.getByText("Safe — no environment attached; no cleanup performed"),

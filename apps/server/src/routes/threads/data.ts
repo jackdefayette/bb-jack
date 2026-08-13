@@ -381,9 +381,9 @@ export function registerThreadDataRoutes(app: Hono, deps: AppDeps): void {
       deps,
       thread.providerId,
     );
-    const includeProviderUnhandledOperations =
-      deps.config.isDevelopment ||
-      getAppSettings(deps.db).showUnhandledProviderEvents;
+    const includeProviderUnhandledOperations = getAppSettings(
+      deps.db,
+    ).showUnhandledProviderEvents;
     // Resolved once at server start. The timeline caches deliberately do NOT
     // key on it: if this ever becomes per-request or per-thread, they must,
     // because the same `maxSeq` names a different set of rows under a
@@ -480,9 +480,9 @@ export function registerThreadDataRoutes(app: Hono, deps: AppDeps): void {
 
   get(routes.timelineTurnSummaryDetails, (context, query) => {
     const thread = requirePublicThread(deps.db, context.req.param("id"));
-    const includeProviderUnhandledOperations =
-      deps.config.isDevelopment ||
-      getAppSettings(deps.db).showUnhandledProviderEvents;
+    const includeProviderUnhandledOperations = getAppSettings(
+      deps.db,
+    ).showUnhandledProviderEvents;
     return context.json(
       buildTimelineTurnSummaryDetails(deps.db, thread, {
         includeProviderUnhandledOperations,

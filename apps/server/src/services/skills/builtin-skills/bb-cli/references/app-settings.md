@@ -37,10 +37,9 @@ every window and client sees the same value.
 
 - `showUnhandledProviderEvents` defaults to false. Set it with
   `bb settings general showUnhandledProviderEvents <true|false>`.
-- When enabled, packaged builds show raw provider events that bb has persisted
-  but does not yet understand. These diagnostic payloads can be noisy.
-- Development builds always show unhandled provider events regardless of the
-  saved preference.
+- When enabled, bb shows raw provider events that it has persisted but does not
+  yet understand. These diagnostic payloads can be noisy, so enable the setting
+  only when diagnosing a provider integration.
 
 ## Active-thread Enter behavior
 

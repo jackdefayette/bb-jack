@@ -62,8 +62,8 @@ Control on macOS, or Control on Windows/Linux. Shortcut commands continue to
 work.
 
 Settings → General includes `showUnhandledProviderEvents`, which defaults to
-false in packaged builds. Turn it on to show raw provider events bb does not yet
-understand; development builds always show these diagnostic rows.
+false. Turn it on only when diagnosing a provider integration to show raw
+provider events bb does not yet understand.
 
 Settings → General also includes `steerActiveThreadOnEnter`, which defaults to
 false. Outside an open typeahead menu, enabling it makes Enter steer a running

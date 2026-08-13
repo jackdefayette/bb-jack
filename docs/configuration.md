@@ -149,10 +149,10 @@ Sleep manually still sleeps the Mac. The toggle is hidden unless the connected
 primary host daemon reports macOS.
 
 The "Show unhandled provider events" toggle in Settings → General exposes raw
-provider events that bb does not yet understand. It defaults to off in packaged
-builds because these diagnostic payloads are noisy. Development builds continue
-to show them regardless of the toggle. Set the persisted preference from an
-agent or terminal with
+provider events that bb does not yet understand. It defaults to off in every
+build because these diagnostic payloads are noisy. Enable it only when
+diagnosing a provider integration. Set the persisted preference from an agent
+or terminal with
 `bb settings general showUnhandledProviderEvents <true|false>`.
 
 The "Steer running threads on Enter" toggle in Settings → General changes the

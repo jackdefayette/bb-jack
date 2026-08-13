@@ -13,6 +13,9 @@ export type ProjectWorkspaceFocusMode = "grid" | "primary" | "browser";
 export type ProjectWorkspaceToolsView = "tasks" | "source-control";
 export type ProjectWorkspaceInspectorView = "browser" | "files" | "diff";
 
+export const DEFAULT_PROJECT_WORKSPACE_ROW_SPLIT_PERCENT = 64;
+export const DEFAULT_PROJECT_WORKSPACE_COLUMN_SPLIT_PERCENT = 50;
+
 export interface ProjectWorkspaceTab {
   id: string;
   projectId: string;
@@ -25,6 +28,9 @@ export interface ProjectWorkspaceTab {
   inspectorEnvironmentId: string | null;
   inspectorEnvironmentPinned: boolean;
   inspectorFilePath: string | null;
+  rowSplitPercent: number;
+  topColumnSplitPercent: number;
+  bottomColumnSplitPercent: number;
   primaryTaskKey: string | null;
   reviewTaskKey: string | null;
   browserTab: BrowserFixedPanelTab | null;
@@ -41,6 +47,9 @@ export interface CreateProjectWorkspaceTabInput {
   inspectorEnvironmentId?: string | null;
   inspectorEnvironmentPinned?: boolean;
   inspectorFilePath?: string | null;
+  rowSplitPercent?: number;
+  topColumnSplitPercent?: number;
+  bottomColumnSplitPercent?: number;
   browserTab?: BrowserFixedPanelTab | null;
 }
 
@@ -54,6 +63,7 @@ interface ProjectWorkspaceTabsContextValue {
   createTab: (input: CreateProjectWorkspaceTabInput) => ProjectWorkspaceTab;
   openTab: (input: CreateProjectWorkspaceTabInput) => ProjectWorkspaceTab;
   selectTab: (tabId: string) => void;
+  reorderTab: (activeTabId: string, overTabId: string) => void;
   closeTab: (tabId: string) => void;
   updateTab: (tabId: string, update: ProjectWorkspaceTabUpdate) => void;
 }
@@ -77,6 +87,12 @@ const ProjectWorkspaceTabsContext =
 
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
+}
+
+function parseSplitPercent(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(80, Math.max(20, value))
+    : fallback;
 }
 
 function isBrowserTab(value: unknown): value is BrowserFixedPanelTab {
@@ -143,6 +159,18 @@ function parseProjectWorkspaceTab(value: unknown): ProjectWorkspaceTab | null {
     inspectorFilePath: isNullableString(candidate.inspectorFilePath)
       ? candidate.inspectorFilePath
       : null,
+    rowSplitPercent: parseSplitPercent(
+      candidate.rowSplitPercent,
+      DEFAULT_PROJECT_WORKSPACE_ROW_SPLIT_PERCENT,
+    ),
+    topColumnSplitPercent: parseSplitPercent(
+      candidate.topColumnSplitPercent,
+      DEFAULT_PROJECT_WORKSPACE_COLUMN_SPLIT_PERCENT,
+    ),
+    bottomColumnSplitPercent: parseSplitPercent(
+      candidate.bottomColumnSplitPercent,
+      DEFAULT_PROJECT_WORKSPACE_COLUMN_SPLIT_PERCENT,
+    ),
     primaryTaskKey: isNullableString(candidate.primaryTaskKey)
       ? candidate.primaryTaskKey
       : null,
@@ -308,6 +336,14 @@ export function ProjectWorkspaceTabsProvider({
         inspectorEnvironmentId: input.inspectorEnvironmentId ?? null,
         inspectorEnvironmentPinned: input.inspectorEnvironmentPinned ?? false,
         inspectorFilePath: input.inspectorFilePath ?? null,
+        rowSplitPercent:
+          input.rowSplitPercent ?? DEFAULT_PROJECT_WORKSPACE_ROW_SPLIT_PERCENT,
+        topColumnSplitPercent:
+          input.topColumnSplitPercent ??
+          DEFAULT_PROJECT_WORKSPACE_COLUMN_SPLIT_PERCENT,
+        bottomColumnSplitPercent:
+          input.bottomColumnSplitPercent ??
+          DEFAULT_PROJECT_WORKSPACE_COLUMN_SPLIT_PERCENT,
         primaryTaskKey: null,
         reviewTaskKey: null,
         browserTab: input.browserTab ?? null,
@@ -383,6 +419,23 @@ export function ProjectWorkspaceTabsProvider({
     });
   }, []);
 
+  const reorderTab = useCallback((activeTabId: string, overTabId: string) => {
+    if (activeTabId === overTabId) return;
+    setTabs((currentTabs) => {
+      const activeIndex = currentTabs.findIndex(
+        (tab) => tab.id === activeTabId,
+      );
+      const overIndex = currentTabs.findIndex((tab) => tab.id === overTabId);
+      if (activeIndex === -1 || overIndex === -1) return currentTabs;
+      const nextTabs = [...currentTabs];
+      const [activeTab] = nextTabs.splice(activeIndex, 1);
+      if (activeTab === undefined) return currentTabs;
+      nextTabs.splice(overIndex, 0, activeTab);
+      writeTabs(nextTabs);
+      return nextTabs;
+    });
+  }, []);
+
   const updateTab = useCallback(
     (tabId: string, update: ProjectWorkspaceTabUpdate) => {
       setTabs((currentTabs) => {
@@ -427,10 +480,20 @@ export function ProjectWorkspaceTabsProvider({
       createTab,
       openTab,
       selectTab,
+      reorderTab,
       closeTab,
       updateTab,
     }),
-    [activeTabId, closeTab, createTab, openTab, selectTab, tabs, updateTab],
+    [
+      activeTabId,
+      closeTab,
+      createTab,
+      openTab,
+      reorderTab,
+      selectTab,
+      tabs,
+      updateTab,
+    ],
   );
 
   return (

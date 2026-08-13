@@ -23,14 +23,16 @@ const mocks = vi.hoisted(() => ({
   environment: vi.fn(),
   file: vi.fn(),
   diff: vi.fn(),
-  projectStatus: vi.fn((..._args: unknown[]): MockProjectStatus => ({
-    data: {
-      outcome: "available",
-      workspace: { branch: { currentBranch: "main", defaultBranch: "main" } },
-    },
-    isLoading: false,
-    isError: false,
-  })),
+  projectStatus: vi.fn(
+    (..._args: unknown[]): MockProjectStatus => ({
+      data: {
+        outcome: "available",
+        workspace: { branch: { currentBranch: "main", defaultBranch: "main" } },
+      },
+      isLoading: false,
+      isError: false,
+    }),
+  ),
 }));
 
 vi.mock("./ProjectWorkspacePaneFrame", () => ({
@@ -80,6 +82,9 @@ const TAB: ProjectWorkspaceTab = {
   inspectorEnvironmentId: "env_builder",
   inspectorEnvironmentPinned: false,
   inspectorFilePath: "src/demo.ts",
+  rowSplitPercent: 64,
+  topColumnSplitPercent: 50,
+  bottomColumnSplitPercent: 50,
   primaryTaskKey: "ONE-1",
   reviewTaskKey: "ONE-2",
   browserTab: {
@@ -128,6 +133,14 @@ describe("ProjectWorkspaceBrowserPane", () => {
     ).toContain("bg-workspace-canvas");
     expect(screen.getByTestId("file")).toBeTruthy();
     expect(screen.getByTestId("diff")).toBeTruthy();
+    expect(
+      document.querySelector("[data-project-workspace-files]")?.className,
+    ).toContain("flex");
+    expect(
+      document.querySelector("[data-project-workspace-file-preview-scroll]")
+        ?.className,
+    ).toContain("overflow-auto");
+    expect(screen.getByRole("button", { name: "Changes" })).toBeTruthy();
     expect(mocks.paths).toHaveBeenLastCalledWith(
       expect.objectContaining({
         projectId: "proj_one",

@@ -141,6 +141,12 @@ function delegatedThreadTitle(task: Task): string {
   );
 }
 
+function workspaceAgentDisplayName(
+  role: "builder" | "reviewer",
+): "Builder" | "Agent 2" {
+  return role === "builder" ? "Builder" : "Agent 2";
+}
+
 function workspaceAgentTitle(
   role: "builder" | "reviewer",
   input: readonly { type: string; text?: string }[],
@@ -151,7 +157,7 @@ function workspaceAgentTitle(
       typeof entry.text === "string" &&
       entry.text.trim().length > 0,
   );
-  const fallback = `${role === "builder" ? "Builder" : "Reviewer"} workspace task`;
+  const fallback = `${workspaceAgentDisplayName(role)} workspace task`;
   return (firstText?.text.trim() ?? fallback)
     .replace(/\s+/gu, " ")
     .slice(0, 120);
@@ -192,12 +198,18 @@ function workspaceAgentPrompt(
   task: Task,
   role: "builder" | "reviewer",
 ): string {
+  const roleInstruction =
+    role === "builder"
+      ? `You are the build agent for ${task.key}.`
+      : `You are the second workspace agent for ${task.key}. Follow the user's requested role; do not assume this is a review task.`;
   return [
     `# ${task.key} · ${task.title}`,
     "## Task",
     task.description.trim() || "No text prompt was supplied.",
+    "## User-facing behavior",
+    "Respond directly to the user's request. Do not mention or narrate this task record, its key, the Tasks workflow, bb tasks CLI commands, status changes, or other bookkeeping in user-visible messages. Keep bookkeeping in tool calls. For a casual or conversational prompt with no work requested, reply conversationally and do not inspect task files or run task commands.",
     "## Report-back contract",
-    `You are the ${role} agent for ${task.key}. Post meaningful progress milestones with \`bb tasks comment ${task.key} --body ...\`. When the work is ready for human review, run \`bb tasks update ${task.key} --status in_review\`. Do not mark the task Done automatically; explain any blockage in a task comment.`,
+    `${roleInstruction} Post meaningful progress milestones with \`bb tasks comment ${task.key} --body ...\`. When the work is ready for human review, run \`bb tasks update ${task.key} --status in_review\`. Do not mark the task Done automatically; explain any blockage in a task comment.`,
   ].join("\n\n");
 }
 
@@ -579,7 +591,7 @@ export function handlers(
         store.tasks.upsertTaskThread({
           taskId: task.id,
           threadId: thread.id,
-          presetName: input.role === "builder" ? "Builder" : "Reviewer",
+          presetName: workspaceAgentDisplayName(input.role),
           title: `${task.key} · ${task.title}`.slice(
             0,
             MAX_DELEGATED_THREAD_TITLE_LENGTH,
@@ -594,15 +606,15 @@ export function handlers(
         });
         createSystemComment(store.tasks, {
           taskId: task.id,
-          presetName: input.role === "builder" ? "Builder" : "Reviewer",
+          presetName: workspaceAgentDisplayName(input.role),
           threadId: thread.id,
-          body: `Status changed to In Progress · ${input.role} workspace agent dispatched`,
+          body: `Status changed to In Progress · ${workspaceAgentDisplayName(input.role)} workspace agent dispatched`,
         });
         createSystemComment(store.tasks, {
           taskId: task.id,
-          presetName: input.role === "builder" ? "Builder" : "Reviewer",
+          presetName: workspaceAgentDisplayName(input.role),
           threadId: thread.id,
-          body: `${input.role === "builder" ? "Builder" : "Reviewer"} workspace agent attached`,
+          body: `${workspaceAgentDisplayName(input.role)} workspace agent attached`,
         });
       });
       publishProjectsChanged(bb, project.id);

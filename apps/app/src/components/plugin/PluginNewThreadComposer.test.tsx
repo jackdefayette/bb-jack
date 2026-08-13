@@ -9,7 +9,14 @@
  * environment to project defaults.
  */
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +26,7 @@ import { PluginNewThreadComposer } from "./PluginNewThreadComposer";
 const mocks = vi.hoisted(() => ({
   hosts: [{ id: "host_1", name: "Machine" }],
   promptBoxProps: [] as Array<Record<string, any>>,
+  threads: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/components/promptbox/NewThreadPromptBox", () => ({
@@ -138,7 +146,7 @@ vi.mock("@/hooks/queries/system-queries", () => ({
 }));
 
 vi.mock("@/hooks/queries/thread-queries", () => ({
-  useThreads: () => ({ data: [], isLoading: false }),
+  useThreads: () => ({ data: mocks.threads, isLoading: false }),
 }));
 
 vi.mock("@/hooks/queries/project-queries", () => ({
@@ -268,6 +276,7 @@ describe("PluginNewThreadComposer seeding", () => {
   beforeEach(() => {
     mocks.hosts = [{ id: "host_1", name: "Machine" }];
     mocks.promptBoxProps.length = 0;
+    mocks.threads = [];
     window.localStorage.clear();
   });
 
@@ -472,12 +481,26 @@ describe("PluginNewThreadComposer seeding", () => {
       </MemoryRouter>,
     );
 
-    const picker = screen.getByRole("combobox", { name: "Agent workspace" }) as HTMLSelectElement;
-    expect(picker.value).toBe("host:host_1:worktree");
-    expect(screen.getByRole("option", { name: "New isolated worktree (Recommended)" })).toBeTruthy();
-    expect(screen.getByRole("option", { name: "Project checkout (shared)" })).toBeTruthy();
+    const picker = screen.getByRole("combobox", {
+      name: "Where should this agent edit files?",
+    });
+    expect(picker.textContent).toContain(
+      "New isolated working copy — Recommended",
+    );
+    fireEvent.click(picker);
+    expect(
+      screen.getByRole("option", {
+        name: /New isolated working copy — Recommended/u,
+      }),
+    ).toBeTruthy();
+    const currentProjectFolder = screen.getByRole("option", {
+      name: /This project folder — Shared/u,
+    });
+    expect(currentProjectFolder.textContent).toContain("Edits /repo directly");
     expect(latestPromptBoxProps().project).toBeUndefined();
-    expect(latestPromptBoxProps().modeConfig.environment.pickerHidden).toBe(true);
+    expect(latestPromptBoxProps().modeConfig.environment.pickerHidden).toBe(
+      true,
+    );
     expect(latestPromptBoxProps().modeConfig.branch.hidden).toBe(false);
     await waitFor(() => expect(latestPromptBoxProps().disabled).toBe(false));
     await submit();
@@ -490,8 +513,54 @@ describe("PluginNewThreadComposer seeding", () => {
       },
     });
 
-    fireEvent.change(picker, { target: { value: "host:host_1:local" } });
-    expect(picker.value).toBe("host:host_1:local");
+    fireEvent.click(currentProjectFolder);
+    expect(picker.textContent).toContain("This project folder — Shared");
+  });
+
+  it("identifies an existing working copy by task and sharing peer", () => {
+    mocks.threads = [
+      {
+        id: "thr_bbj_2",
+        title: "BBJ-2 · hi",
+        titleFallback: null,
+        environmentId: "env_bbj_2",
+        environmentWorkspaceDisplayKind: "managed-worktree",
+        environmentBranchName: "bb/bbj-2-hi",
+        environmentName: null,
+        environmentHostId: "host_1",
+        latestAttentionAt: 1,
+      },
+    ];
+    render(
+      <MemoryRouter>
+        <PluginNewThreadComposer
+          draftKey="workspace-agent-shared"
+          defaultProjectId="proj_1"
+          workspaceEnvironmentChoices
+          workspaceEnvironmentPeer={{
+            environmentId: "env_bbj_2",
+            label: "Build",
+            taskKey: "BBJ-2",
+          }}
+          onSubmit={() => undefined}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Where should this agent edit files?",
+      }),
+    );
+    const sharedWorkingCopy = screen.getByRole("option", {
+      name: /Join BBJ-2 working copy — Shared with Build/u,
+    });
+    expect(sharedWorkingCopy.textContent).toContain(
+      "Uses the same folder and branch as Build",
+    );
+    expect(sharedWorkingCopy.textContent).toContain(
+      "Both agents see uncommitted changes immediately",
+    );
   });
 
   it("keeps the generic environment picker available without a primary host", () => {
@@ -507,7 +576,13 @@ describe("PluginNewThreadComposer seeding", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.queryByRole("combobox", { name: "Agent workspace" })).toBeNull();
-    expect(latestPromptBoxProps().modeConfig.environment.pickerHidden).toBe(false);
+    expect(
+      screen.queryByRole("combobox", {
+        name: "Where should this agent edit files?",
+      }),
+    ).toBeNull();
+    expect(latestPromptBoxProps().modeConfig.environment.pickerHidden).toBe(
+      false,
+    );
   });
 });

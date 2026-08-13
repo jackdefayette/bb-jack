@@ -75,6 +75,40 @@ describe("ProjectWorkspaceTabsProvider", () => {
     expect(result.current.tabs.map((tab) => tab.id)).toEqual([firstId]);
   });
 
+  it("reorders tabs and persists the new order", () => {
+    const { result } = renderHook(() => useProjectWorkspaceTabs(), { wrapper });
+    let firstId = "";
+    let secondId = "";
+    let thirdId = "";
+    act(() => {
+      firstId = result.current.createTab({
+        projectId: "proj_one",
+        projectName: "One",
+      }).id;
+      secondId = result.current.createTab({
+        projectId: "proj_two",
+        projectName: "Two",
+      }).id;
+      thirdId = result.current.createTab({
+        projectId: "proj_three",
+        projectName: "Three",
+      }).id;
+    });
+
+    act(() => result.current.reorderTab(thirdId, firstId));
+
+    expect(result.current.tabs.map((tab) => tab.id)).toEqual([
+      thirdId,
+      firstId,
+      secondId,
+    ]);
+    expect(
+      parseProjectWorkspaceTabs(
+        window.localStorage.getItem(PROJECT_WORKSPACE_TABS_STORAGE_KEY),
+      ).map((tab) => tab.id),
+    ).toEqual([thirdId, firstId, secondId]);
+  });
+
   it("keeps each duplicate or multi-project tab's agent environment state when another tab closes", () => {
     const { result } = renderHook(() => useProjectWorkspaceTabs(), { wrapper });
     let builderTab = "";
@@ -170,6 +204,9 @@ describe("ProjectWorkspaceTabsProvider", () => {
         inspectorEnvironmentId: "env_review",
         inspectorEnvironmentPinned: true,
         inspectorFilePath: "src/review.ts",
+        rowSplitPercent: 64,
+        topColumnSplitPercent: 50,
+        bottomColumnSplitPercent: 50,
         browserTab: {
           id: "browser:env_review:restore",
           kind: "browser",
@@ -234,6 +271,9 @@ describe("ProjectWorkspaceTabsProvider", () => {
         inspectorEnvironmentId: "env_review",
         inspectorEnvironmentPinned: true,
         inspectorFilePath: "src/review.ts",
+        rowSplitPercent: 64,
+        topColumnSplitPercent: 50,
+        bottomColumnSplitPercent: 50,
         browserTab: {
           id: "browser:env_review:restore",
           kind: "browser",
@@ -301,6 +341,9 @@ describe("ProjectWorkspaceTabsProvider", () => {
       inspectorEnvironmentId: "env_remote_review",
       inspectorEnvironmentPinned: true,
       inspectorFilePath: "src/remote.ts",
+      rowSplitPercent: 64,
+      topColumnSplitPercent: 50,
+      bottomColumnSplitPercent: 50,
       primaryTaskKey: "REMOTE-1",
       reviewTaskKey: "REMOTE-2",
       browserTab: null,

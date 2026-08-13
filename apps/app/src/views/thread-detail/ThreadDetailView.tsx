@@ -457,8 +457,13 @@ export function ThreadDetailView(props: ThreadDetailViewProps) {
 
 function ThreadDetailViewInternal(props: ThreadDetailViewInternalProps) {
   const { projectId, threadId } = props;
-  const { isFocused, navigateInPane, onRequestClose, isBoundedPane } =
-    usePaneContext();
+  const {
+    isFocused,
+    navigateInPane,
+    onRequestClose,
+    isBoundedPane,
+    secondaryPanelDisabled,
+  } = usePaneContext();
   const navigate = useNavigate();
   useFixedPanelTabsStorageMaintenance(threadId);
   const systemConfigQuery = useSystemConfig();
@@ -482,9 +487,11 @@ function ThreadDetailViewInternal(props: ThreadDetailViewInternalProps) {
       isCompactViewport: renderSecondaryPanelAsDrawer,
       threadId,
     });
-  const isSecondaryPanelOpen = renderSecondaryPanelAsDrawer
-    ? secondaryPanelDrawerVisibility.isDrawerVisible
-    : isPersistedSecondaryPanelOpen;
+  const isSecondaryPanelOpen =
+    secondaryPanelDisabled !== true &&
+    (renderSecondaryPanelAsDrawer
+      ? secondaryPanelDrawerVisibility.isDrawerVisible
+      : isPersistedSecondaryPanelOpen);
   const touchFixedPanelTabsState = useTouchFixedPanelTabsState(
     threadId,
     threadId,
@@ -1315,7 +1322,7 @@ function ThreadDetailViewInternal(props: ThreadDetailViewInternalProps) {
     isSecondaryPanelOpen,
   ]);
   useAppCommandHandler("panel.toggle", () => {
-    if (!isFocused) return false;
+    if (!isFocused || secondaryPanelDisabled === true) return false;
     toggleSecondaryPanel();
     return true;
   });

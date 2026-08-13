@@ -32,6 +32,11 @@ export interface PaneContextValue {
    * and single-pane surfaces, which keep their existing inline/drawer layout.
    */
   secondaryPanelHost: PaneSecondaryPanelRegistration | null;
+  /**
+   * Suppresses the thread's compact secondary panel on surfaces that already
+   * provide dedicated browser, file, diff, terminal, and source-control panes.
+   */
+  secondaryPanelDisabled?: boolean;
   /** Whether this pane owns the window's top-right control footprint. */
   reservesWindowPanelToggle: boolean;
   /**

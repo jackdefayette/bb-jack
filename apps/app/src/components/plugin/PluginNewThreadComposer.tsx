@@ -1,9 +1,26 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
+import {
+  findLocalPathProjectSourceForHost,
+  PERSONAL_PROJECT_ID,
+} from "@bb/domain";
 import type { NewThreadComposerProps, NewThreadRequest } from "@bb/plugin-sdk";
 import type { CreateExecutionInputSources } from "@bb/server-contract";
 import { cn } from "@bb/shared-ui/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@bb/shared-ui/select";
 import { NewThreadPromptBox } from "@/components/promptbox/NewThreadPromptBox";
 import { withAutomationPromptAction } from "@/components/promptbox/PromptBoxActionsMenu";
 import { buildProviderPromptActionProps } from "@/components/promptbox/mentions/command-trigger";
@@ -78,6 +95,12 @@ import {
 interface PluginNewThreadComposerInternalProps extends NewThreadComposerProps {
   /** Host-owned project-workspace affordance; deliberately not public plugin API. */
   workspaceEnvironmentChoices?: boolean;
+  /** Identifies the other project-workspace agent when it already owns a worktree. */
+  workspaceEnvironmentPeer?: {
+    environmentId: string;
+    label: "Build" | "Agent 2";
+    taskKey: string | null;
+  } | null;
 }
 
 export function PluginNewThreadComposer({
@@ -96,6 +119,7 @@ export function PluginNewThreadComposer({
   draftKey,
   onSubmit,
   workspaceEnvironmentChoices = false,
+  workspaceEnvironmentPeer = null,
 }: PluginNewThreadComposerInternalProps) {
   // Null outside a plugin slot mount (host-internal usages, tests).
   const pluginId = useContext(PluginContext);
@@ -111,9 +135,8 @@ export function PluginNewThreadComposer({
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(
     defaultProjectId ?? null,
   );
-  const [seededDefaultProjectId, setSeededDefaultProjectId] = useState(
-    defaultProjectId,
-  );
+  const [seededDefaultProjectId, setSeededDefaultProjectId] =
+    useState(defaultProjectId);
   // Re-seed during render (not in an effect) so a new `defaultProjectId` never
   // paints one frame of the previous project's environment options.
   if (seededDefaultProjectId !== defaultProjectId) {
@@ -181,8 +204,10 @@ export function PluginNewThreadComposer({
   const hostsQuery = useHosts();
   const systemConfigQuery = useSystemConfig();
   const primaryHostId =
-    selectPrimaryHost(hostsQuery.data, systemConfigQuery.data?.primaryHostId ?? null)
-      ?.id ?? null;
+    selectPrimaryHost(
+      hostsQuery.data,
+      systemConfigQuery.data?.primaryHostId ?? null,
+    )?.id ?? null;
   const knownHostIds = useMemo(
     () => new Set((hostsQuery.data ?? []).map((host) => host.id)),
     [hostsQuery.data],
@@ -763,37 +788,127 @@ export function PluginNewThreadComposer({
 
   const hasWorkspaceEnvironmentPicker =
     workspaceEnvironmentChoices && primaryHostId !== null && !isProjectless;
+  const isolatedWorkspaceLabel = projectSourceWorktreeUnavailable
+    ? "New isolated working copy unavailable"
+    : "New isolated working copy — Recommended";
+  const reusedWorkspace =
+    parsedEnvironment?.type === "reuse"
+      ? reuseThreadOptions.find(
+          (option) => option.environmentId === parsedEnvironment.environmentId,
+        )
+      : undefined;
+  const currentProjectFolder =
+    primaryHostId === null
+      ? null
+      : (findLocalPathProjectSourceForHost(projectSources, primaryHostId)
+          ?.path ?? null);
+  const reusedWorkspaceIsPeer =
+    reusedWorkspace !== undefined &&
+    workspaceEnvironmentPeer?.environmentId === reusedWorkspace.environmentId;
+  const reusedWorkspaceTaskLabel =
+    reusedWorkspaceIsPeer && workspaceEnvironmentPeer?.taskKey
+      ? workspaceEnvironmentPeer.taskKey
+      : reusedWorkspace
+        ? (reusedWorkspace.threads[0]?.title ??
+          reusedWorkspace.name ??
+          reusedWorkspace.branchName ??
+          "previous task")
+        : "previous task";
+  const reusedWorkspaceShareLabel =
+    reusedWorkspaceIsPeer && workspaceEnvironmentPeer
+      ? ` — Shared with ${workspaceEnvironmentPeer.label}`
+      : " — Shared";
+  const workspaceSelectionLabel =
+    parsedEnvironment?.type === "reuse"
+      ? `Join ${reusedWorkspaceTaskLabel} working copy${reusedWorkspaceShareLabel}`
+      : parsedEnvironment?.type === "host" && parsedEnvironment.mode === "local"
+        ? "This project folder — Shared"
+        : isolatedWorkspaceLabel;
   const workspaceEnvironmentPicker = hasWorkspaceEnvironmentPicker ? (
-      <label className="flex items-center gap-2 border-b border-border/60 bg-sidebar/50 px-3 py-1.5 text-xs">
-        <span className="shrink-0 font-medium text-foreground">Workspace</span>
-        <select
-          aria-label="Agent workspace"
-          className="h-7 min-w-0 flex-1 rounded-md bg-canvas px-2 text-xs outline-none ring-ring focus-visible:ring-2"
-          value={effectiveEnvironmentValue}
-          onChange={(event) => setEnvironmentSelectionValue(event.target.value)}
+    <div className="flex items-center gap-2 border-b border-border/60 bg-sidebar/50 px-3 py-1.5 text-xs">
+      <span className="shrink-0 font-medium text-foreground">
+        Where should this agent edit files?
+      </span>
+      <Select
+        value={effectiveEnvironmentValue}
+        onValueChange={setEnvironmentSelectionValue}
+      >
+        <SelectTrigger
+          aria-label="Where should this agent edit files?"
+          className="h-8 min-w-0 flex-1 border-border bg-canvas px-2 text-xs"
         >
-          <option
+          <SelectValue>{workspaceSelectionLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent
+          position="item-aligned"
+          className="w-[min(30rem,calc(100vw-2rem))]"
+        >
+          <SelectItem
             value={encodeHostValue(primaryHostId, "worktree")}
             disabled={projectSourceWorktreeUnavailable}
+            className="items-start py-2.5"
           >
-            {projectSourceWorktreeUnavailable
-              ? "New isolated worktree (Not a Git repository)"
-              : "New isolated worktree (Recommended)"}
-          </option>
-          <option value={encodeHostValue(primaryHostId, "local")}>
-            Project checkout (shared)
-          </option>
-          {reuseThreadOptions.map((option) => (
-            <option
-              key={option.environmentId}
-              value={encodeReuseValue(option.environmentId)}
-            >
-              Reuse {option.name ?? option.branchName ?? option.environmentId}
-            </option>
-          ))}
-        </select>
-      </label>
-    ) : null;
+            <span className="flex flex-col gap-0.5 pr-2">
+              <span className="font-medium text-foreground">
+                {isolatedWorkspaceLabel}
+              </span>
+              <span className="text-2xs leading-4 text-muted-foreground">
+                Creates a new folder and branch. It won&apos;t affect this
+                project folder or include its uncommitted changes.
+              </span>
+            </span>
+          </SelectItem>
+          <SelectItem
+            value={encodeHostValue(primaryHostId, "local")}
+            className="items-start py-2.5"
+          >
+            <span className="flex flex-col gap-0.5 pr-2">
+              <span className="font-medium text-foreground">
+                This project folder — Shared
+              </span>
+              <span className="text-2xs leading-4 text-muted-foreground">
+                Edits {currentProjectFolder ?? "the project folder"} directly.
+                You and other agents using it share uncommitted changes.
+              </span>
+            </span>
+          </SelectItem>
+          {reuseThreadOptions.map((option) => {
+            const isPeer =
+              workspaceEnvironmentPeer?.environmentId === option.environmentId;
+            const taskLabel =
+              isPeer && workspaceEnvironmentPeer?.taskKey
+                ? workspaceEnvironmentPeer.taskKey
+                : (option.threads[0]?.title ??
+                  option.name ??
+                  option.branchName ??
+                  "previous task");
+            const peerLabel = isPeer
+              ? (workspaceEnvironmentPeer?.label ?? null)
+              : null;
+            return (
+              <SelectItem
+                key={option.environmentId}
+                value={encodeReuseValue(option.environmentId)}
+                className="items-start py-2.5"
+              >
+                <span className="flex flex-col gap-0.5 pr-2">
+                  <span className="font-medium text-foreground">
+                    Join {taskLabel} working copy
+                    {peerLabel ? ` — Shared with ${peerLabel}` : " — Shared"}
+                  </span>
+                  <span className="text-2xs leading-4 text-muted-foreground">
+                    {peerLabel
+                      ? `Uses the same folder and branch as ${peerLabel}. Both agents see uncommitted changes immediately.`
+                      : `Reuses ${taskLabel}'s folder and branch. Agents there see the same uncommitted changes immediately.`}
+                  </span>
+                </span>
+              </SelectItem>
+            );
+          })}
+        </SelectContent>
+      </Select>
+    </div>
+  ) : null;
 
   return (
     <div

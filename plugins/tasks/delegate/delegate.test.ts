@@ -129,6 +129,18 @@ describe("task delegation", () => {
         }),
       ],
     ]);
+    const workspacePrompt = harness.sdk
+      .callsTo("threads.spawn")[0]?.[0]
+      .input.find((entry) => entry.visibility === "agent-only");
+    expect(workspacePrompt?.text).toContain(
+      "Respond directly to the user's request.",
+    );
+    expect(workspacePrompt?.text).toContain(
+      "For a casual or conversational prompt with no work requested, reply conversationally and do not inspect task files or run task commands.",
+    );
+    expect(workspacePrompt?.text).toContain(
+      "Do not mention or narrate this task record",
+    );
     const task = store.tasks.getTask(first.taskId);
     expect(task).toMatchObject({
       status: "in_progress",
@@ -198,9 +210,20 @@ describe("task delegation", () => {
       "in_progress",
     ]);
     expect(store.tasks.listTaskThreads(tasks[1]?.id ?? "")[0]).toMatchObject({
-      presetName: "Reviewer",
+      presetName: "Agent 2",
       threadId: "thr_workspace_2",
     });
+    const secondAgentPrompt = harness.sdk
+      .callsTo("threads.spawn")[1]?.[0]
+      .input.find((entry) => entry.visibility === "agent-only");
+    expect(secondAgentPrompt?.text).toContain(
+      "Follow the user's requested role; do not assume this is a review task.",
+    );
+    expect(store.tasks.listComments(tasks[1]?.id ?? "")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ body: "Agent 2 workspace agent attached" }),
+      ]),
+    );
     expect(store.tasks.listComments(tasks[0]?.id ?? "")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

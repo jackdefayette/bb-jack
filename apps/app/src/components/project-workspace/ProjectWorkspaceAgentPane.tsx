@@ -36,7 +36,10 @@ export function parseWorkspaceAgentStartResult(
     !isNonEmptyString(candidate.taskId) ||
     !isNonEmptyString(candidate.taskKey) ||
     !isNonEmptyString(candidate.threadId) ||
-    !(candidate.environmentId === null || isNonEmptyString(candidate.environmentId))
+    !(
+      candidate.environmentId === null ||
+      isNonEmptyString(candidate.environmentId)
+    )
   ) {
     return null;
   }
@@ -52,7 +55,7 @@ interface ProjectWorkspaceAgentPaneProps {
   isExpanded?: boolean;
   isFocused: boolean;
   isTopRow: boolean;
-  label: "Build" | "Review";
+  label: "Build" | "Agent 2";
   onActivate: () => void;
   onNavigate: (thread: ThreadRoutePathArgs) => void;
   onToggleFocus?: () => void;
@@ -63,6 +66,11 @@ interface ProjectWorkspaceAgentPaneProps {
   environmentId: string | null;
   threadId: string | null;
   workspaceTabId: string;
+  workspaceEnvironmentPeer?: {
+    environmentId: string;
+    label: "Build" | "Agent 2";
+    taskKey: string | null;
+  } | null;
   onAgentStarted: (result: WorkspaceAgentStartResult) => void;
 }
 
@@ -81,6 +89,7 @@ export function ProjectWorkspaceAgentPane({
   environmentId,
   threadId,
   workspaceTabId,
+  workspaceEnvironmentPeer = null,
   onAgentStarted,
 }: ProjectWorkspaceAgentPaneProps) {
   const queryClient = useQueryClient();
@@ -95,6 +104,7 @@ export function ProjectWorkspaceAgentPane({
       isFocused,
       isSplitPane: true,
       secondaryPanelHost: null,
+      secondaryPanelDisabled: true,
       reservesWindowPanelToggle: false,
       onRequestClose: null,
       isMaximized: isExpanded,
@@ -110,7 +120,9 @@ export function ProjectWorkspaceAgentPane({
     async (request: NewThreadRequest) => {
       setStartError(null);
       if (request.projectId !== projectId) {
-        setStartError("This workspace is fixed to its project. Choose the project shown above.");
+        setStartError(
+          "This workspace is fixed to its project. Choose the project shown above.",
+        );
         throw new Error("Workspace project mismatch");
       }
       let rpcResult: unknown;
@@ -123,13 +135,16 @@ export function ProjectWorkspaceAgentPane({
           request,
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Unable to start this agent";
+        const message =
+          error instanceof Error ? error.message : "Unable to start this agent";
         setStartError(`${message}. Retry to keep this draft.`);
         throw error;
       }
       const result = parseWorkspaceAgentStartResult(rpcResult);
       if (result === null) {
-        setStartError("Tasks returned an invalid agent start result. Retry to keep this draft.");
+        setStartError(
+          "Tasks returned an invalid agent start result. Retry to keep this draft.",
+        );
         throw new Error("Invalid workspace agent start result");
       }
       // The grid resolves saved IDs against the sidebar projection to discard
@@ -142,7 +157,9 @@ export function ProjectWorkspaceAgentPane({
           error instanceof Error
             ? error.message
             : "Unable to refresh the new agent";
-        setStartError(`${message}. Retry to attach the existing task and keep this draft.`);
+        setStartError(
+          `${message}. Retry to attach the existing task and keep this draft.`,
+        );
         throw error;
       }
       onAgentStarted(result);
@@ -177,7 +194,10 @@ export function ProjectWorkspaceAgentPane({
     >
       {threadId ? (
         <PaneContext.Provider value={paneContext}>
-          <div className="flex min-h-0 flex-1 flex-col" data-workspace-chat-body={role}>
+          <div
+            className="flex min-h-0 flex-1 flex-col"
+            data-workspace-chat-body={role}
+          >
             <ThreadDetailView
               surface="pane"
               projectId={projectId}
@@ -201,10 +221,11 @@ export function ProjectWorkspaceAgentPane({
             placeholder={
               role === "builder"
                 ? "What should we build?"
-                : "What should we review?"
+                : "What should this agent do?"
             }
             layout="contained"
             workspaceEnvironmentChoices
+            workspaceEnvironmentPeer={workspaceEnvironmentPeer}
             onSubmit={startAgent}
           />
         </div>

@@ -75,6 +75,28 @@ describe("ThreadDetailHeader", () => {
     ).toBeNull();
   });
 
+  it("omits the secondary-panel control inside the project workspace", () => {
+    render(
+      <PaneContext.Provider
+        value={{ ...PANE_CONTEXT, secondaryPanelDisabled: true }}
+      >
+        <ThreadDetailHeader
+          actionsMenu={null}
+          childPillLabel={null}
+          isSecondaryPanelOpen={false}
+          onOpenThreadGitAction={vi.fn()}
+          onToggleSecondaryPanel={vi.fn()}
+          threadHeaderGitActions={[]}
+          threadTitle="Workspace chat"
+        />
+      </PaneContext.Provider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /Show right panel/u }),
+    ).toBeNull();
+  });
+
   it("keeps thread Full Screen in a split header while its panel is open", () => {
     render(
       <PaneContext.Provider

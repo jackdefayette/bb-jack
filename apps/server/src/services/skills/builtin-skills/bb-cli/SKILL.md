@@ -69,8 +69,8 @@ message agents, or inspect projects, providers, and environments.
   macOS-only "Caffeinate" toggle. For details, read
   `references/app-settings.md` (in this skill's directory).
 - The `showUnhandledProviderEvents` General preference defaults to false and
-  exposes raw provider events that bb does not yet understand in packaged
-  builds. Development builds always show those diagnostic rows. Update it with
+  exposes raw provider events that bb does not yet understand. Enable it only
+  when diagnosing a provider integration. Update it with
   `bb settings general showUnhandledProviderEvents <true|false>`.
 - The `steerActiveThreadOnEnter` General preference defaults to false. Outside
   an open composer typeahead menu, enable it to make Enter steer a running
@@ -260,8 +260,8 @@ status|install` to inspect or install provider CLIs on a selected machine.
   `--uncommitted` or `--merge-base-branch <branch>`; `--json` returns the typed
   file table plus bounded initial patches for agent-native review.
 - Use `bb project diff-file <project-id> <path> --target <target> --side
-  <old|new>` to read complete file sides and `bb project diff-patch <project-id>
-  <paths...> --target <target>` to fetch patches omitted from a large diff's
+<old|new>` to read complete file sides and `bb project diff-patch <project-id>
+<paths...> --target <target>` to fetch patches omitted from a large diff's
   initial response. Branch targets additionally require the resolved
   `--merge-base-ref` for diff-file or `--merge-base-branch` for diff-patch;
   commit targets require `--sha`.

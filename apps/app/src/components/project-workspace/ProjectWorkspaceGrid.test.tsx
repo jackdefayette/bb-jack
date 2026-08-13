@@ -110,6 +110,9 @@ const BASE_TAB: ProjectWorkspaceTab = {
   inspectorEnvironmentId: "environment-1",
   inspectorEnvironmentPinned: false,
   inspectorFilePath: null,
+  rowSplitPercent: 64,
+  topColumnSplitPercent: 50,
+  bottomColumnSplitPercent: 50,
   primaryTaskKey: null,
   reviewTaskKey: null,
   browserTab: {
@@ -146,7 +149,7 @@ afterEach(() => {
 describe("ProjectWorkspaceGrid", () => {
   it("deduplicates one environment shared by both workspace agents", () => {
     expect(buildWorkspaceEnvironments("env_shared", "env_shared")).toEqual([
-      { id: "env_shared", label: "Build & Review environment" },
+      { id: "env_shared", label: "Build & Agent 2 environment" },
     ]);
   });
   it("renders four quadrants and never falls back stale roles to unrelated threads", async () => {
@@ -161,24 +164,19 @@ describe("ProjectWorkspaceGrid", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Build" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Review" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Agent 2" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Inspector" })).toBeTruthy();
     expect(screen.getByTestId("tools-pane")).toBeTruthy();
     const workspace = screen.getByRole("main", {
       name: "Example project project workspace",
     });
-    expect(workspace.className).toContain(
-      "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
-    );
-    expect(workspace.className).toContain(
-      "grid-rows-[minmax(0,1fr)_minmax(0,1fr)]",
-    );
+    expect(workspace.dataset.rowSplitPercent).toBe("64");
     expect(workspace.className).toContain("bb-project-workspace-surface");
     expect(workspace.className).toContain("bg-workspace-border");
     expect(
-      Array.from(workspace.children).map((child) =>
-        child.getAttribute("data-workspace-quadrant"),
-      ),
+      Array.from(
+        workspace.querySelectorAll(":scope > [data-workspace-quadrant]"),
+      ).map((child) => child.getAttribute("data-workspace-quadrant")),
     ).toEqual(["primary", "review", "browser", "tools"]);
     await waitFor(() => {
       expect(
@@ -192,10 +190,41 @@ describe("ProjectWorkspaceGrid", () => {
     expect(screen.queryByTestId("thread-thread-b")).toBeNull();
   });
 
+  it("resizes each seam from the keyboard and persists the layout", () => {
+    render(<Harness />);
+    const workspace = screen.getByRole("main", {
+      name: "Example project project workspace",
+    });
+
+    fireEvent.keyDown(
+      screen.getByRole("separator", { name: "Resize chat and tools rows" }),
+      { key: "ArrowDown" },
+    );
+    fireEvent.keyDown(
+      screen.getByRole("separator", { name: "Resize top chat panes" }),
+      { key: "ArrowRight" },
+    );
+    fireEvent.keyDown(
+      screen.getByRole("separator", {
+        name: "Resize inspector and project tools",
+      }),
+      { key: "ArrowLeft" },
+    );
+
+    expect(workspace.dataset.rowSplitPercent).toBe("67");
+    expect(workspace.dataset.topColumnSplitPercent).toBe("53");
+    expect(workspace.dataset.bottomColumnSplitPercent).toBe("47");
+    expect(
+      screen
+        .getByRole("separator", { name: "Resize chat and tools rows" })
+        .getAttribute("aria-valuenow"),
+    ).toBe("67");
+  });
+
   it("focuses and restores the left column without remounting right panes", () => {
     render(<Harness />);
     const reviewPane = screen
-      .getByRole("heading", { name: "Review" })
+      .getByRole("heading", { name: "Agent 2" })
       .closest("[data-project-workspace-pane]");
     const toolsPane = screen.getByTestId("tools-pane");
 
@@ -207,7 +236,7 @@ describe("ProjectWorkspaceGrid", () => {
     ).toBe("browser");
     expect(
       screen
-        .getByRole("heading", { name: "Review" })
+        .getByRole("heading", { name: "Agent 2" })
         .closest("[data-project-workspace-pane]"),
     ).toBe(reviewPane);
     expect(screen.getByTestId("tools-pane")).toBe(toolsPane);
@@ -252,7 +281,7 @@ describe("ProjectWorkspaceGrid", () => {
       expect.objectContaining({ environmentId: null, hostId: null }),
     );
 
-    fireEvent.pointerDown(screen.getByRole("heading", { name: "Review" }));
+    fireEvent.pointerDown(screen.getByRole("heading", { name: "Agent 2" }));
     await waitFor(() =>
       expect(selector).toHaveProperty("value", "__project_checkout__"),
     );

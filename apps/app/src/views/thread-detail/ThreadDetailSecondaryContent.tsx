@@ -20,9 +20,7 @@ import { DETAIL_GRID_CLASS } from "@/components/ui/detail-card.js";
 import { useAtomValue } from "jotai";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { ThreadSecondaryPanel } from "@/components/secondary-panel/ThreadSecondaryPanel";
-import {
-  secondaryPanelWidthPercentAtom,
-} from "@/components/secondary-panel/threadSecondaryPanelAtoms";
+import { secondaryPanelWidthPercentAtom } from "@/components/secondary-panel/threadSecondaryPanelAtoms";
 import {
   ThreadMetadataCard,
   ThreadMetadataContent,
@@ -110,7 +108,8 @@ function ThreadDetailSecondaryContentBody({
   secondaryPanel,
   timeline,
 }: ThreadDetailSecondaryContentProps) {
-  const { isFocused, paneId, secondaryPanelHost } = usePaneContext();
+  const { isFocused, paneId, secondaryPanelDisabled, secondaryPanelHost } =
+    usePaneContext();
   const composerHost = usePluginComposerHost();
   const stableMetadata = metadata;
   const stableSecondaryPanel = secondaryPanel;
@@ -340,7 +339,19 @@ function ThreadDetailSecondaryContentBody({
       stableTimeline.threadId,
     ],
   );
-  usePaneSecondaryPanelRegistration(secondaryPanelHost, hostedPanelModel);
+  usePaneSecondaryPanelRegistration(
+    secondaryPanelDisabled === true ? null : secondaryPanelHost,
+    hostedPanelModel,
+  );
+
+  if (secondaryPanelDisabled === true) {
+    return (
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-clip">
+        {header}
+        <ThreadTimelinePane {...stableTimeline} footer={footer} />
+      </div>
+    );
+  }
 
   if (secondaryPanelHost !== null) {
     return (

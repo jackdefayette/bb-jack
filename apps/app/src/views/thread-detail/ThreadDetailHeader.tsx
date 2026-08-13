@@ -93,6 +93,7 @@ export function ThreadDetailHeader({
     isTopRow,
     ownsWindowTopLeft,
     reservesWindowPanelToggle,
+    secondaryPanelDisabled,
     secondaryPanelHost,
   } = usePaneContext();
   const isWindowPanelOpen =
@@ -138,7 +139,9 @@ export function ThreadDetailHeader({
   // toolbar owns collapse so pane actions (including Full Screen) keep their
   // stable positions in the thread header.
   const showRightPanelToggle =
-    secondaryPanelHost === null && !isSecondaryPanelOpen;
+    secondaryPanelDisabled !== true &&
+    secondaryPanelHost === null &&
+    !isSecondaryPanelOpen;
 
   const center = (
     <>

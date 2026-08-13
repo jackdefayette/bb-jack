@@ -59,7 +59,7 @@ export function ProjectWorkspaceEnvironmentRibbon({
   const workspace =
     status.data?.outcome === "available" ? status.data.workspace : null;
   const record = environment.data;
-  const agentLabel = role === "builder" ? "Build" : "Review";
+  const agentLabel = role === "builder" ? "Build" : "Agent 2";
   const environmentLabel =
     environmentId === null
       ? "No environment"

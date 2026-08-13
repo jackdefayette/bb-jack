@@ -605,7 +605,7 @@ export function UnhandledProviderEventsSettingsControl({
   return (
     <SettingsWithControl
       label={UNHANDLED_PROVIDER_EVENTS_SETTING_LABEL}
-      description="Show raw provider events bb does not recognize. Development builds always show these events."
+      description="Show raw provider events bb does not recognize. Enable this only when diagnosing a provider integration."
     >
       <Switch
         checked={enabled}

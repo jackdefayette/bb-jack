@@ -107,7 +107,7 @@ export function ProjectWorkspaceBrowserPane({
       ? "Focus browser"
       : tab.inspectorView === "files"
         ? "Focus files"
-        : "Focus diff review";
+        : "Focus changes";
 
   return (
     <ProjectWorkspacePaneFrame
@@ -236,7 +236,7 @@ function InspectorTabs({
             onClick={() => selectView(view)}
           >
             {view === "diff"
-              ? "Diff / Review"
+              ? "Changes"
               : view[0]?.toUpperCase() + view.slice(1)}
           </button>
         ))}
@@ -278,51 +278,57 @@ function InspectorTabs({
       <div
         className={cn(
           "min-h-0 flex-1 flex-col",
+          tab.inspectorView === "files" && "flex",
           tab.inspectorView !== "files" && "hidden",
         )}
+        data-project-workspace-files
       >
         <>
-            <label className="flex shrink-0 items-center gap-1 border-b border-border/60 px-2 py-1">
-              <Icon
-                name="Search"
-                className="size-3.5 text-muted-foreground"
-                aria-hidden
-              />
-              <input
-                value={fileQuery}
-                onChange={(event) => setFileQuery(event.target.value)}
-                className="min-w-0 flex-1 bg-transparent text-xs outline-none"
-                placeholder="Search repository files"
-              />
-            </label>
-            <div className="grid min-h-0 flex-1 grid-cols-[minmax(10rem,0.4fr)_minmax(0,1fr)]">
-              <div className="min-h-0 overflow-auto border-r border-border/60">
-                {files.isLoading ? (
-                  <InspectorEmpty message="Loading files…" />
-                ) : (files.data?.paths ?? []).length === 0 ? (
-                  <InspectorEmpty
-                    message={
-                      fileQuery.length === 0
-                        ? "No project files found."
-                        : "No matching files."
+          <label className="flex shrink-0 items-center gap-1 border-b border-border/60 px-2 py-1">
+            <Icon
+              name="Search"
+              className="size-3.5 text-muted-foreground"
+              aria-hidden
+            />
+            <input
+              value={fileQuery}
+              onChange={(event) => setFileQuery(event.target.value)}
+              className="min-w-0 flex-1 bg-transparent text-xs outline-none"
+              placeholder="Search repository files"
+            />
+          </label>
+          <div className="grid min-h-0 flex-1 grid-cols-[minmax(10rem,0.4fr)_minmax(0,1fr)]">
+            <div className="persistent-scrollbar min-h-0 overflow-auto border-r border-border/60">
+              {files.isLoading ? (
+                <InspectorEmpty message="Loading files…" />
+              ) : (files.data?.paths ?? []).length === 0 ? (
+                <InspectorEmpty
+                  message={
+                    fileQuery.length === 0
+                      ? "No project files found."
+                      : "No matching files."
+                  }
+                />
+              ) : (
+                (files.data?.paths ?? []).map((entry) => (
+                  <button
+                    key={entry.path}
+                    type="button"
+                    className="block w-full truncate px-2 py-1 text-left text-xs hover:bg-accent"
+                    onClick={() =>
+                      updateTab(tab.id, { inspectorFilePath: entry.path })
                     }
-                  />
-                ) : (
-                  (files.data?.paths ?? []).map((entry) => (
-                    <button
-                      key={entry.path}
-                      type="button"
-                      className="block w-full truncate px-2 py-1 text-left text-xs hover:bg-accent"
-                      onClick={() =>
-                        updateTab(tab.id, { inspectorFilePath: entry.path })
-                      }
-                    >
-                      {entry.path}
-                    </button>
-                  ))
-                )}
-              </div>
-              {tab.inspectorFilePath ? (
+                  >
+                    {entry.path}
+                  </button>
+                ))
+              )}
+            </div>
+            {tab.inspectorFilePath ? (
+              <div
+                className="persistent-scrollbar min-h-0 min-w-0 overflow-auto overscroll-contain"
+                data-project-workspace-file-preview-scroll
+              >
                 <ProjectFilePreviewTabContent
                   activePath={tab.inspectorFilePath}
                   environmentId={environmentId}
@@ -330,10 +336,11 @@ function InspectorTabs({
                   lineRange={null}
                   projectId={projectId}
                 />
-              ) : (
-                <InspectorEmpty message="Choose a file to preview." />
-              )}
-            </div>
+              </div>
+            ) : (
+              <InspectorEmpty message="Choose a file to preview." />
+            )}
+          </div>
         </>
       </div>
       <div

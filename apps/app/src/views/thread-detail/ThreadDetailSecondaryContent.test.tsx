@@ -183,6 +183,7 @@ interface RenderThreadDetailArgs {
   isCompactViewport: boolean;
   isSecondaryPanelOpen: boolean;
   renderBrowserDeck: RenderBrowserDeck;
+  secondaryPanelDisabled?: boolean;
   threadId: string;
 }
 
@@ -201,11 +202,13 @@ const hostedPaneRegistration = {
 function ThreadDetailTestPaneProvider({
   children,
   isFocusedHosted,
+  secondaryPanelDisabled,
 }: {
   children: ReactNode;
   isFocusedHosted: boolean | undefined;
+  secondaryPanelDisabled: boolean | undefined;
 }) {
-  if (isFocusedHosted === undefined) {
+  if (isFocusedHosted === undefined && secondaryPanelDisabled !== true) {
     return (
       <MemoryRouter>
         <DefaultPaneContextProvider>{children}</DefaultPaneContextProvider>
@@ -214,9 +217,11 @@ function ThreadDetailTestPaneProvider({
   }
   const value: PaneContextValue = {
     paneId: "pane-test",
-    isFocused: isFocusedHosted,
-    isSplitPane: true,
-    secondaryPanelHost: hostedPaneRegistration,
+    isFocused: isFocusedHosted ?? true,
+    isSplitPane: isFocusedHosted !== undefined,
+    secondaryPanelHost:
+      isFocusedHosted === undefined ? null : hostedPaneRegistration,
+    secondaryPanelDisabled,
     reservesWindowPanelToggle: false,
     onRequestClose: noop,
     isMaximized: false,
@@ -397,6 +402,7 @@ function renderThreadDetail(args: RenderThreadDetailArgs) {
     >
       <ThreadDetailTestPaneProvider
         isFocusedHosted={renderArgs.isFocusedHosted}
+        secondaryPanelDisabled={renderArgs.secondaryPanelDisabled}
       >
         <ThreadDetailSecondaryContent
           {...createProps({
@@ -419,6 +425,7 @@ function renderThreadDetail(args: RenderThreadDetailArgs) {
         >
           <ThreadDetailTestPaneProvider
             isFocusedHosted={renderArgs.isFocusedHosted}
+            secondaryPanelDisabled={renderArgs.secondaryPanelDisabled}
           >
             <ThreadDetailSecondaryContent
               {...createProps({
@@ -465,6 +472,20 @@ beforeEach(() => {
 });
 
 describe("ThreadDetailSecondaryContent compact drawer settling", () => {
+  it("removes the secondary-panel shell from project workspace chats", () => {
+    renderThreadDetail({
+      isCompactViewport: false,
+      isSecondaryPanelOpen: true,
+      renderBrowserDeck: createBrowserDeckRenderer(),
+      secondaryPanelDisabled: true,
+      threadId: "thread-1",
+    });
+
+    expect(screen.getByTestId("thread-timeline-pane")).toBeTruthy();
+    expect(screen.queryByTestId("panel-group")).toBeNull();
+    expect(screen.queryByTestId("inline-secondary-panel")).toBeNull();
+  });
+
   it("keeps the standalone panel hide control in the panel toolbar", () => {
     renderThreadDetail({
       isCompactViewport: false,
