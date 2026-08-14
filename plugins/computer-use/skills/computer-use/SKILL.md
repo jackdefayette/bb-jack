@@ -36,6 +36,11 @@ host snapshot. Bind it explicitly with `get_browser_state` using the exact
 native `pid`, `window_id`, and session. Then snapshot the returned exact
 `target_id`/`tab_id` with `snapshot_format:"semantic_v2"`; use only fresh page
 refs with the `browser_*` action tools and snapshot again after every action.
+If binding refuses with `browser_wrong_target_refused`, the multi-target
+`WebContentsView` boundary is not exact-bindable. Use the Browser chrome's
+**Open page in external browser for Computer Use** action only when launching
+an external browser is in scope, then bind that browser. Otherwise stop and
+report the limit; never guess a CDP target.
 
 ## Core argument shapes
 

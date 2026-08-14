@@ -530,6 +530,6 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
     tools: ["computer_use_inspect", "computer_use_act", "computer_use_verify"],
     skills: ["computer-use"],
     instructions:
-      "Computer Use is a bounded, provider-independent CUA Driver bridge. Use its inspect-act-inspect-verify loop only when the user asks to operate desktop UI. Always start with a non-empty stable session id and reuse it through end_session. Electron WebContentsView Browser pages are a separate native/compositor and accessibility boundary: bind and inspect them through get_browser_state, then use browser_* actions with exact target/tab ids and fresh page refs. Never claim the host window AX tree is exhaustive for embedded Browser contents.",
+      "Computer Use is a bounded, provider-independent CUA Driver bridge. Use its inspect-act-inspect-verify loop only when the user asks to operate desktop UI. Always start with a non-empty stable session id and reuse it through end_session. Electron WebContentsView Browser pages are a separate native/compositor and accessibility boundary: attempt an exact get_browser_state bind, then use browser_* actions only with returned target/tab ids and fresh page refs. If CUA Driver refuses a multi-target bind, use the Browser chrome's Open page in external browser for Computer Use affordance only when that launch is in scope; otherwise report the limit. Never claim the host window AX tree is exhaustive for embedded Browser contents.",
   }));
 }

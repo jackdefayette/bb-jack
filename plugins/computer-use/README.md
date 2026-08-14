@@ -53,13 +53,15 @@ calls, and rejects non-JSON results.
 
 Electron's embedded `WebContentsView` Browser is a separate compositor and
 accessibility surface from the host window. The canonical development launcher
-starts Electron with a loopback-only ephemeral DevTools endpoint so
-`get_browser_state` can bind the exact window and expose its tabs. Use the
-returned opaque target/tab ids and fresh page refs with `browser_click`,
-`browser_type`, `browser_pointer`, and `browser_navigate`. This endpoint is not
-enabled automatically in packaged builds; those builds truthfully remain
-limited to native AX/pixel operation until launched with an owned debugging
-endpoint.
+starts Electron with a loopback-only ephemeral DevTools endpoint so an exact
+`get_browser_state` binding can expose page controls when CUA Driver can
+correlate one native window and target without guessing. A multi-target
+`WebContentsView` can still return `browser_wrong_target_refused`; do not treat
+the endpoint itself as proof of an exact bind. The Browser chrome exposes a
+first-class **Open page in external browser for Computer Use** action for that
+case. Use it only when opening an external browser is within the user's scope,
+then bind that browser exactly. Otherwise report the embedded-boundary limit.
+The endpoint is not enabled automatically in packaged builds.
 
 V1 excludes force-kill, clipboard read, unrestricted filesystem access,
 downloads, and setting up or attaching to an arbitrary existing browser

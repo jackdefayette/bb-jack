@@ -148,8 +148,13 @@ describe("BrowserTabContent persistent navigation", () => {
 
     act(() => harness.emitState(browserState()));
     expect(screen.getByRole("status").textContent).toBe(
-      "Browser page loaded: Example docs, https://example.com/docs",
+      "Browser page loaded: Example docs, https://example.com/docs. Embedded page controls are outside desktop accessibility; use Open page in external browser for Computer Use when an exact browser binding is unavailable.",
     );
+    expect(
+      screen.getByRole("button", {
+        name: "Open page in external browser for Computer Use",
+      }),
+    ).not.toBeNull();
   });
 
   it("preserves browser navigation actions", () => {

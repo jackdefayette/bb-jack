@@ -343,7 +343,7 @@ function BrowserChrome({
         </form>
         <NavButton
           icon="ExternalLink"
-          label="Open in external browser"
+          label="Open page in external browser for Computer Use"
           disabled={currentUrl.length === 0}
           onClick={onOpenExternal}
         />
@@ -499,7 +499,7 @@ export function BrowserTabContent({
         ? `Loading browser page: ${currentUrl}`
         : state === null
           ? `Opening browser page: ${currentUrl}`
-          : `Browser page loaded: ${state.title || getBrowserUrlHost(currentUrl) || currentUrl}, ${currentUrl}`;
+          : `Browser page loaded: ${state.title || getBrowserUrlHost(currentUrl) || currentUrl}, ${currentUrl}. Embedded page controls are outside desktop accessibility; use Open page in external browser for Computer Use when an exact browser binding is unavailable.`;
   // A blocking modal (e.g. the git-action dialog) dims the panel with a DOM
   // backdrop the native browser overlay cannot sit behind. While one is open,
   // hide the view and fall back to the DOM new-tab screen so the backdrop dims
