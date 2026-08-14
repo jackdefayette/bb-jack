@@ -107,6 +107,13 @@ Making your repo work with bb:
 
   bb environment archive-threads <id>     Archive all threads in an environment
 
+  bb environment cleanup-status <id>      Preflight safe working-copy cleanup
+
+  bb environment cleanup <id>             Detach a task or remove a managed working copy
+    --action <action>                     detach-thread, safe-delete, keep-branch, or discard
+    --thread <thread-id>                  Task to detach or abandon
+    --confirm <environment-id>            Required before destructive discard
+
   bb environment pull-request show <id>   Inspect a pull request
   bb environment pull-request ready <id>  Mark a pull request ready
   bb environment pull-request draft <id>  Convert a pull request to draft

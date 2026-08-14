@@ -65,6 +65,11 @@ export interface TasksApiStore {
   projectTaskCount(projectId: string): number;
   projectPrefixExists(prefix: string, excludingProjectId: string): boolean;
   sidebarSummary(): SidebarProjectSummary[];
+  workingCopyThreadStates(threadIds: readonly string[]): Array<{
+    threadId: string;
+    taskKey: string;
+    status: TaskStatus;
+  }>;
 }
 
 export function createStore(bb: BbPluginApi): TasksApiStore {
@@ -98,6 +103,26 @@ export function createStore(bb: BbPluginApi): TasksApiStore {
           labelsByTask.get(row.task_id)?.push(row.label_id);
       }
       return labelsByTask;
+    },
+    workingCopyThreadStates(threadIds) {
+      if (threadIds.length === 0) return [];
+      const placeholders = threadIds.map(() => "?").join(", ");
+      return database
+        .prepare<
+          string[],
+          { threadId: string; taskKey: string; status: TaskStatus }
+        >(
+          `
+            SELECT tt.thread_id AS threadId,
+                   p.prefix || '-' || t.number AS taskKey,
+                   t.status AS status
+            FROM task_threads tt
+            JOIN tasks t ON t.id = tt.task_id
+            JOIN projects p ON p.id = t.project_id
+            WHERE tt.thread_id IN (${placeholders})
+          `,
+        )
+        .all(...threadIds);
     },
     projectTaskCount(projectId: string): number {
       return (
@@ -758,6 +783,9 @@ export function registerHandlers(
     getTaskByKey(input) {
       const task = store.tasks.getTaskByKey(input.taskKey);
       return { task: task ? apiTask(store, task) : null };
+    },
+    getWorkingCopyThreadStates(input) {
+      return { states: store.workingCopyThreadStates(input.threadIds) };
     },
     updateTask(input) {
       try {

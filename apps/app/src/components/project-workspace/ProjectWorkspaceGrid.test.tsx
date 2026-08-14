@@ -73,8 +73,13 @@ vi.mock("@/hooks/queries/sidebar-navigation-query", () => ({
 }));
 
 vi.mock("@/hooks/queries/environment-queries", () => ({
+  useEnvironments: () => ({ data: [] }),
   useEnvironment: () => ({ data: { isGitRepo: true, baseBranch: "main" } }),
   useEnvironmentWorkStatus: () => ({ data: undefined }),
+}));
+
+vi.mock("@/components/dialogs/WorkingCopyManagerDialog", () => ({
+  WorkingCopyManagerDialog: () => null,
 }));
 
 vi.mock("@/hooks/queries/project-queries", () => ({

@@ -404,7 +404,17 @@ const commandHandlers: CommandHandlerMap = {
       environmentId: command.environmentId,
       reason: "environment-destroyed",
     });
-    await options.runtimeManager.destroyEnvironment(command.environmentId);
+    await options.runtimeManager.destroyEnvironment(command.environmentId, {
+      force: command.force,
+      deleteBranch: command.deleteBranch,
+      // Manual safe/keep/discard modes either avoid force or explicitly
+      // manage the branch. Legacy retiring-environment cleanup remains able
+      // to remove already-orphaned folders whose .git metadata is gone.
+      requireManagedWorktree:
+        command.workspaceContext.workspaceProvisionType ===
+          "managed-worktree" &&
+        (command.deleteBranch || !command.force),
+    });
     return {};
   },
   "workspace.commit": async (command, options) => {

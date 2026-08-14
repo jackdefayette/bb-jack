@@ -29,6 +29,8 @@ import {
   environmentPullRequestQueryKey,
   environmentPathsQueryKey,
   environmentQueryKey,
+  environmentsQueryKey,
+  environmentCleanupPreflightQueryKey,
   environmentWorkStatusQueryKey,
 } from "./query-keys";
 import {
@@ -97,6 +99,32 @@ export function useEnvironment(
       }),
     enabled,
     staleTime: options?.staleTime,
+  });
+}
+
+export function useEnvironments(projectId: string, options?: QueryOptions) {
+  return useQuery<Environment[]>({
+    queryKey: environmentsQueryKey(projectId),
+    queryFn: ({ signal }) => sdk.environments.list({ projectId, signal }),
+    enabled: (options?.enabled ?? true) && Boolean(projectId),
+  });
+}
+
+export function useEnvironmentCleanupPreflight(
+  environmentId: string | null,
+  options?: QueryOptions,
+) {
+  return useQuery({
+    queryKey: environmentCleanupPreflightQueryKey(environmentId),
+    queryFn: ({ signal }) =>
+      sdk.environments.cleanupPreflight({
+        environmentId: requireEnvironmentId(
+          environmentId,
+          "useEnvironmentCleanupPreflight",
+        ),
+        signal,
+      }),
+    enabled: (options?.enabled ?? true) && Boolean(environmentId),
   });
 }
 

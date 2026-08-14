@@ -16,6 +16,7 @@ import {
 } from "@bb/domain/thread-child-origin";
 import { threadVisibilityValues } from "@bb/domain/thread-visibility";
 import type {
+  EnvironmentCleanupMode,
   EnvironmentStatus,
   FaviconColorPreference,
   HostType,
@@ -439,6 +440,8 @@ export const environments = sqliteTable(
     baseBranch: text("base_branch"),
     defaultBranch: text("default_branch"),
     mergeBaseBranch: text("merge_base_branch"),
+    workingCopyCleanupMode:
+      text("working_copy_cleanup_mode").$type<EnvironmentCleanupMode>(),
     destroyAttemptId: text("destroy_attempt_id"),
     workspaceProvisionType: text("workspace_provision_type")
       .$type<WorkspaceProvisionType>()

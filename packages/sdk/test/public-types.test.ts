@@ -250,6 +250,8 @@ type ExpectedTasksKey = "startAgent";
 
 type ExpectedEnvironmentsKey =
   | "archiveThreads"
+  | "cleanup"
+  | "cleanupPreflight"
   | "commit"
   | "diff"
   | "diffBranches"
@@ -257,6 +259,7 @@ type ExpectedEnvironmentsKey =
   | "diffFiles"
   | "diffPatch"
   | "get"
+  | "list"
   | "markPullRequestDraft"
   | "markPullRequestReady"
   | "mergePullRequest"

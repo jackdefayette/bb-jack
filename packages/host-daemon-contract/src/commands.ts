@@ -36,7 +36,7 @@ import {
   providerCliStatusResponseSchema,
 } from "./local.js";
 
-export const HOST_DAEMON_PROTOCOL_VERSION = 99 as const;
+export const HOST_DAEMON_PROTOCOL_VERSION = 100 as const;
 
 export {
   BRANCH_LIST_LIMIT_MAX,
@@ -1029,6 +1029,8 @@ export type EnvironmentProvisionCancelCommand = z.infer<
 const environmentDestroyCommandSchema = hostDaemonWorkspaceTargetSchema
   .extend({
     type: z.literal("environment.destroy"),
+    force: z.boolean(),
+    deleteBranch: z.boolean(),
   })
   .strict();
 

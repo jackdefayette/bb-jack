@@ -181,6 +181,8 @@ function textPromptInput(text: string): TextPromptInput {
 function createEnvironmentDestroyCommand(): EnvironmentDestroyCommand {
   return {
     type: "environment.destroy",
+    force: true,
+    deleteBranch: false,
     environmentId: "env-router",
     workspaceContext: {
       workspacePath: "/tmp/env-router",

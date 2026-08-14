@@ -71,9 +71,11 @@ export interface RunSetupScriptArgs {
 }
 
 export interface RemoveWorktreeArgs {
+  deleteBranch?: boolean;
   path: string;
   force?: boolean;
   pruneEmptyParent?: boolean;
+  requireManagedWorktree?: boolean;
 }
 
 interface SetupScriptCommand {
@@ -710,6 +712,25 @@ export async function removeWorktree(args: RemoveWorktreeArgs): Promise<void> {
   });
 
   if (commonDirResult.exitCode === 0) {
+    const gitDirResult = await runGit(["rev-parse", "--git-dir"], {
+      cwd: workspacePath,
+      allowFailure: true,
+    });
+    if (
+      args.requireManagedWorktree &&
+      (gitDirResult.exitCode !== 0 ||
+        !gitDirResult.stdout.replaceAll("\\", "/").includes("/worktrees/"))
+    ) {
+      throw new Error(
+        `Refusing to remove canonical or unmanaged checkout: ${workspacePath}`,
+      );
+    }
+    const branchResult = await runGit(
+      ["symbolic-ref", "--quiet", "--short", "HEAD"],
+      { cwd: workspacePath, allowFailure: true },
+    );
+    const branchName =
+      branchResult.exitCode === 0 ? branchResult.stdout.trim() : null;
     const commonDir = path.resolve(
       workspacePath,
       commonDirResult.stdout.trim(),
@@ -717,7 +738,7 @@ export async function removeWorktree(args: RemoveWorktreeArgs): Promise<void> {
     // Lock order is checkout mutation first, worktree metadata second. Keep
     // every path that needs both locks in this order so two callers cannot each
     // hold one git lock domain while waiting for the other.
-    await tryWithCheckoutMutationLock(workspacePath, () =>
+    const removeResult = await tryWithCheckoutMutationLock(workspacePath, () =>
       withWorktreeMetadataLock(commonDir, () =>
         runGit(
           [
@@ -735,6 +756,19 @@ export async function removeWorktree(args: RemoveWorktreeArgs): Promise<void> {
         ),
       ),
     );
+    if (
+      args.requireManagedWorktree &&
+      (removeResult === null || removeResult.exitCode !== 0)
+    ) {
+      throw new Error(
+        `Git refused to remove working copy ${workspacePath}: ${removeResult?.stderr.trim() ?? "checkout is busy"}`,
+      );
+    }
+    if (args.deleteBranch && branchName) {
+      await runGit(["--git-dir", commonDir, "branch", "-D", branchName], {
+        cwd: path.dirname(workspacePath),
+      });
+    }
   }
 
   // Git metadata cleanup is best-effort because broken teardown states often

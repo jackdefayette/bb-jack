@@ -1,5 +1,5 @@
 import path from "node:path";
-import { updateEnvironmentMetadata } from "@bb/db";
+import { listEnvironments, updateEnvironmentMetadata } from "@bb/db";
 import {
   type GitBranchRefClassification,
   resolveEnvironmentWorkspaceDisplayKind,
@@ -38,6 +38,10 @@ import { parseFileListLimit } from "./file-list-query.js";
 import { parsePathKindInclusion } from "./path-list-inclusion.js";
 import { requireWorkspaceCommandTarget } from "../services/environments/workspace-command-target.js";
 import { callEnvironmentWorkspaceStatus } from "../services/environments/workspace-status.js";
+import {
+  buildEnvironmentCleanupPreflight,
+  runEnvironmentCleanupAction,
+} from "../services/environments/environment-manual-cleanup.js";
 import { assembleThreadPullRequest } from "../services/environments/pull-request.js";
 import {
   requireAvailableWorkspaceDiff,
@@ -157,14 +161,14 @@ function assertCanMarkPullRequestReady(
   pullRequest: ThreadPullRequest | null,
 ): void {
   if (!pullRequest) {
-    throw new ApiError(409, "pull_request_unavailable", "No pull request found");
-  }
-  if (pullRequest.state !== "draft") {
     throw new ApiError(
       409,
-      "invalid_request",
-      "Pull request is not a draft",
+      "pull_request_unavailable",
+      "No pull request found",
     );
+  }
+  if (pullRequest.state !== "draft") {
+    throw new ApiError(409, "invalid_request", "Pull request is not a draft");
   }
 }
 
@@ -172,14 +176,14 @@ function assertCanConvertPullRequestToDraft(
   pullRequest: ThreadPullRequest | null,
 ): void {
   if (!pullRequest) {
-    throw new ApiError(409, "pull_request_unavailable", "No pull request found");
-  }
-  if (pullRequest.state !== "open") {
     throw new ApiError(
       409,
-      "invalid_request",
-      "Pull request is not open",
+      "pull_request_unavailable",
+      "No pull request found",
     );
+  }
+  if (pullRequest.state !== "open") {
+    throw new ApiError(409, "invalid_request", "Pull request is not open");
   }
 }
 
@@ -187,7 +191,11 @@ function assertCanMergePullRequest(
   pullRequest: ThreadPullRequest | null,
 ): void {
   if (!pullRequest) {
-    throw new ApiError(409, "pull_request_unavailable", "No pull request found");
+    throw new ApiError(
+      409,
+      "pull_request_unavailable",
+      "No pull request found",
+    );
   }
   if (
     pullRequest.state !== "open" ||
@@ -241,6 +249,10 @@ export function registerEnvironmentRoutes(app: Hono, deps: AppDeps): void {
   });
   const routes = publicApiRoutes.environments;
 
+  get(routes.list, (context, query) =>
+    context.json(listEnvironments(deps.db, query.projectId)),
+  );
+
   get(routes.get, (context) =>
     context.json(requireEnvironment(deps.db, context.req.param("id"))),
   );
@@ -275,6 +287,18 @@ export function registerEnvironmentRoutes(app: Hono, deps: AppDeps): void {
       archivedThreadIds,
     });
   });
+
+  get(routes.cleanupPreflight, async (context) =>
+    context.json(
+      await buildEnvironmentCleanupPreflight(deps, context.req.param("id")),
+    ),
+  );
+
+  post(routes.cleanup, async (context, payload) =>
+    context.json(
+      await runEnvironmentCleanupAction(deps, context.req.param("id"), payload),
+    ),
+  );
 
   get(routes.status, async (context, query) => {
     const environment = requireReadyEnvironment(
@@ -377,10 +401,7 @@ export function registerEnvironmentRoutes(app: Hono, deps: AppDeps): void {
   });
 
   get(routes.diffFiles, async (context, query) => {
-    const target = resolveGitDiffWorkspaceTarget(
-      deps,
-      context.req.param("id"),
-    );
+    const target = resolveGitDiffWorkspaceTarget(deps, context.req.param("id"));
     if (target === null) {
       return context.json(NON_GIT_DIFF_NOT_APPLICABLE);
     }
@@ -441,10 +462,7 @@ export function registerEnvironmentRoutes(app: Hono, deps: AppDeps): void {
   });
 
   post(routes.diffPatch, async (context, payload) => {
-    const target = resolveGitDiffWorkspaceTarget(
-      deps,
-      context.req.param("id"),
-    );
+    const target = resolveGitDiffWorkspaceTarget(deps, context.req.param("id"));
     if (target === null) {
       return context.json(NON_GIT_DIFF_NOT_APPLICABLE);
     }

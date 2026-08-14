@@ -502,6 +502,22 @@ export const tasksRpcContract = defineRpcContract({
     input: z.object({ taskKey: nonBlankStringSchema }).strict(),
     output: z.object({ task: taskSchema.nullable() }).strict(),
   },
+  getWorkingCopyThreadStates: {
+    input: z
+      .object({
+        threadIds: z.array(z.string().startsWith("thr_")).max(200),
+      })
+      .strict(),
+    output: z.object({
+      states: z.array(
+        z.object({
+          threadId: z.string().startsWith("thr_"),
+          taskKey: nonBlankStringSchema,
+          status: taskStatusSchema,
+        }),
+      ),
+    }),
+  },
   updateTask: {
     input: updateTaskInputSchema,
     output: taskMutationResultSchema,

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@bb/shared-ui/button";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
@@ -6,6 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
 import { Icon } from "@bb/shared-ui/icon";
@@ -16,6 +17,7 @@ import {
   COARSE_POINTER_ICON_SIZE_CLASS,
 } from "@bb/shared-ui/coarse-pointer-sizing";
 import { getEnvironmentWorkspaceLabelIconName } from "@/lib/environment-workspace-display";
+import { WorkingCopyManagerDialog } from "@/components/dialogs/WorkingCopyManagerDialog";
 import {
   OPTION_BASE_CLASS_NAME,
   OPTION_INTERACTIVE_CLASS_NAME,
@@ -41,6 +43,7 @@ export interface ReuseThreadOption {
 }
 
 export interface WorktreePickerProps {
+  projectId?: string;
   options: readonly ReuseThreadOption[];
   /** Currently-selected env id, or null when reuse mode is active but no
    * worktree has been chosen yet. */
@@ -62,6 +65,7 @@ export interface WorktreePickerProps {
  * existing worktree" in the env picker, this picker picks which worktree.
  */
 export function WorktreePicker({
+  projectId,
   options,
   value,
   onChange,
@@ -70,6 +74,7 @@ export function WorktreePicker({
   defaultOpen,
   modal,
 }: WorktreePickerProps) {
+  const [managerOpen, setManagerOpen] = useState(false);
   const branchIcon = getEnvironmentWorkspaceLabelIconName("managed-worktree");
   const activeOption = useMemo(
     () => options.find((option) => option.environmentId === value) ?? null,
@@ -78,65 +83,87 @@ export function WorktreePicker({
   const triggerLabel =
     activeOption?.name ?? activeOption?.branchName ?? "Pick a worktree";
   return (
-    <DropdownMenu defaultOpen={defaultOpen} modal={modal}>
-      <DropdownMenuTrigger asChild disabled={disabled}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label="Worktree"
-          disabled={disabled}
-          data-promptbox-icon-only-control=""
-          className={cn(
-            OPTION_BASE_CLASS_NAME,
-            !disabled && OPTION_INTERACTIVE_CLASS_NAME,
-            !disabled && LIST_HOVER_TRANSITION,
-            muted && OPTION_MUTED_CLASS_NAME,
-            disabled && "cursor-default disabled:opacity-100",
-          )}
-        >
-          <span className={OPTION_TRIGGER_CONTENT_CLASS_NAME}>
-            <Icon
-              name={branchIcon}
-              className={COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS}
-            />
-            <span className="min-w-0 truncate" data-promptbox-full-label="">
-              {triggerLabel}
+    <>
+      <DropdownMenu defaultOpen={defaultOpen} modal={modal}>
+        <DropdownMenuTrigger asChild disabled={disabled}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="Worktree"
+            disabled={disabled}
+            data-promptbox-icon-only-control=""
+            className={cn(
+              OPTION_BASE_CLASS_NAME,
+              !disabled && OPTION_INTERACTIVE_CLASS_NAME,
+              !disabled && LIST_HOVER_TRANSITION,
+              muted && OPTION_MUTED_CLASS_NAME,
+              disabled && "cursor-default disabled:opacity-100",
+            )}
+          >
+            <span className={OPTION_TRIGGER_CONTENT_CLASS_NAME}>
+              <Icon
+                name={branchIcon}
+                className={COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS}
+              />
+              <span className="min-w-0 truncate" data-promptbox-full-label="">
+                {triggerLabel}
+              </span>
             </span>
-          </span>
-          {disabled ? null : (
-            <Icon
-              name="ChevronDown"
-              className={cn(
-                "shrink-0 text-muted-foreground",
-                COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
-              )}
-            />
+            {disabled ? null : (
+              <Icon
+                name="ChevronDown"
+                className={cn(
+                  "shrink-0 text-muted-foreground",
+                  COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
+                )}
+              />
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className={cn(OPTION_MENU_CONTENT_CLASS_NAME, "max-w-80")}
+          mobileTitle="Worktree"
+        >
+          <DropdownMenuLabel>Reuse existing worktree</DropdownMenuLabel>
+          {options.length === 0 ? (
+            <div className="px-2 py-2 text-xs text-muted-foreground">
+              No worktrees in this project yet.
+            </div>
+          ) : (
+            options.map((option) => (
+              <WorktreeMenuItem
+                key={option.environmentId}
+                option={option}
+                isSelected={option.environmentId === value}
+                onSelect={onChange}
+              />
+            ))
           )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className={cn(OPTION_MENU_CONTENT_CLASS_NAME, "max-w-80")}
-        mobileTitle="Worktree"
-      >
-        <DropdownMenuLabel>Reuse existing worktree</DropdownMenuLabel>
-        {options.length === 0 ? (
-          <div className="px-2 py-2 text-xs text-muted-foreground">
-            No worktrees in this project yet.
-          </div>
-        ) : (
-          options.map((option) => (
-            <WorktreeMenuItem
-              key={option.environmentId}
-              option={option}
-              isSelected={option.environmentId === value}
-              onSelect={onChange}
-            />
-          ))
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          {projectId ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setManagerOpen(true)}>
+                <Icon
+                  name="Settings"
+                  className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
+                />
+                Manage working copies…
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {projectId ? (
+        <WorkingCopyManagerDialog
+          open={managerOpen}
+          onOpenChange={setManagerOpen}
+          projectId={projectId}
+          initialEnvironmentId={value}
+        />
+      ) : null}
+    </>
   );
 }
 

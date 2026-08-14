@@ -1,13 +1,17 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Environment } from "@bb/domain";
 import type {
+  EnvironmentCleanupAction,
   EnvironmentArchiveThreadsResponse,
   EnvironmentActionResponse,
   UpdateEnvironmentRequest,
 } from "@bb/server-contract";
 import { sdk } from "@/lib/sdk";
 import type { RequestEnvironmentActionMutationRequest } from "./mutation-request-types";
-import { invalidateEnvironmentActionQueries } from "../cache-owners/environment-cache-effects";
+import {
+  invalidateEnvironmentActionQueries,
+  invalidateEnvironmentCleanupQueries,
+} from "../cache-owners/environment-cache-effects";
 import { applyEnvironmentUpdateResult } from "../cache-owners/environment-workspace-cache-owner";
 import {
   beginArchiveEnvironmentThreadsTransaction,
@@ -21,6 +25,28 @@ type UpdateEnvironmentMutationRequest = {
 
 interface ArchiveEnvironmentThreadsMutationRequest {
   id: string;
+}
+
+interface CleanupEnvironmentMutationRequest {
+  id: string;
+  action: EnvironmentCleanupAction;
+  threadId?: string;
+  confirmation?: string;
+}
+
+export function useCleanupEnvironment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    meta: { errorMessage: "Failed to clean up working copy." },
+    mutationFn: ({ id, ...request }: CleanupEnvironmentMutationRequest) =>
+      sdk.environments.cleanup({ environmentId: id, ...request }),
+    onSuccess: (_data, variables) => {
+      invalidateEnvironmentCleanupQueries({
+        environmentId: variables.id,
+        queryClient,
+      });
+    },
+  });
 }
 
 export function useRequestEnvironmentAction() {

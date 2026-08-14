@@ -42,6 +42,9 @@ export const THREAD_STORAGE_PATHS_QUERY_KEY = "threadStoragePaths";
 export const THREAD_STORAGE_FILE_PREVIEW_QUERY_KEY = "threadStorageFilePreview";
 export const THREAD_HOST_FILE_PREVIEW_QUERY_KEY = "threadHostFilePreview";
 export const ENVIRONMENT_QUERY_KEY = "environment";
+export const ENVIRONMENTS_QUERY_KEY = "environments";
+export const ENVIRONMENT_CLEANUP_PREFLIGHT_QUERY_KEY =
+  "environmentCleanupPreflight";
 export const ENVIRONMENT_WORK_STATUS_QUERY_KEY = "environmentWorkStatus";
 export const ENVIRONMENT_PULL_REQUEST_QUERY_KEY = "environmentPullRequest";
 export const ENVIRONMENT_MERGE_BASE_BRANCHES_QUERY_KEY =
@@ -304,6 +307,17 @@ export type EnvironmentQueryKeyPrefix = readonly [typeof ENVIRONMENT_QUERY_KEY];
 export type EnvironmentQueryKey = readonly [
   typeof ENVIRONMENT_QUERY_KEY,
   string | null | undefined,
+];
+export type EnvironmentsQueryKey = readonly [
+  typeof ENVIRONMENTS_QUERY_KEY,
+  string,
+];
+export type EnvironmentsQueryKeyPrefix = readonly [
+  typeof ENVIRONMENTS_QUERY_KEY,
+];
+export type EnvironmentCleanupPreflightQueryKey = readonly [
+  typeof ENVIRONMENT_CLEANUP_PREFLIGHT_QUERY_KEY,
+  string | null,
 ];
 export type EnvironmentWorkStatusQueryKeyRootPrefix = readonly [
   typeof ENVIRONMENT_WORK_STATUS_QUERY_KEY,
@@ -858,6 +872,20 @@ export function environmentQueryKey(
   environmentId: string | null | undefined,
 ): EnvironmentQueryKey {
   return [ENVIRONMENT_QUERY_KEY, environmentId];
+}
+
+export function environmentsQueryKey(projectId: string): EnvironmentsQueryKey {
+  return [ENVIRONMENTS_QUERY_KEY, projectId];
+}
+
+export function allEnvironmentsQueryKeyPrefix(): EnvironmentsQueryKeyPrefix {
+  return [ENVIRONMENTS_QUERY_KEY];
+}
+
+export function environmentCleanupPreflightQueryKey(
+  environmentId: string | null,
+): EnvironmentCleanupPreflightQueryKey {
+  return [ENVIRONMENT_CLEANUP_PREFLIGHT_QUERY_KEY, environmentId];
 }
 
 export function environmentWorkStatusQueryKey(

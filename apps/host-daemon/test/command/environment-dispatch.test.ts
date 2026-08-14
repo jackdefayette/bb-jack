@@ -682,6 +682,8 @@ describe("environment command dispatch", () => {
     const result = await dispatchCommand(
       {
         type: "environment.destroy",
+        force: false,
+        deleteBranch: true,
         environmentId: "env-1",
         workspaceContext: {
           workspacePath: "/tmp/env-1",
@@ -701,6 +703,11 @@ describe("environment command dispatch", () => {
     });
     expect(harness.runtimeState.shutdownCount).toBe(1);
     expect(harness.workspaceState.destroyed).toBe(true);
+    expect(harness.workspaceState.destroyOptions).toEqual({
+      deleteBranch: true,
+      force: false,
+      requireManagedWorktree: true,
+    });
   });
 
   it("waits for terminal closes before destroying an environment", async () => {
@@ -716,6 +723,8 @@ describe("environment command dispatch", () => {
     const destroyPromise = dispatchCommand(
       {
         type: "environment.destroy",
+        force: true,
+        deleteBranch: false,
         environmentId: "env-1",
         workspaceContext: {
           workspacePath: "/tmp/env-1",
@@ -787,6 +796,8 @@ describe("environment command dispatch", () => {
     const destroyPromise = dispatchCommand(
       {
         type: "environment.destroy",
+        force: true,
+        deleteBranch: false,
         environmentId: "env-1",
         workspaceContext: {
           workspacePath: "/tmp/env-1",
@@ -825,6 +836,8 @@ describe("environment command dispatch", () => {
     const result = await dispatchCommand(
       {
         type: "environment.destroy",
+        force: true,
+        deleteBranch: false,
         environmentId: "env-restart",
         workspaceContext: {
           workspacePath: "/tmp/env-1",
@@ -870,6 +883,8 @@ describe("environment command dispatch", () => {
     await dispatchCommand(
       {
         type: "environment.destroy",
+        force: true,
+        deleteBranch: false,
         environmentId: "env-retry",
         workspaceContext: {
           workspacePath: "/tmp/env-retry",
@@ -883,6 +898,8 @@ describe("environment command dispatch", () => {
     const retryResult = await dispatchCommand(
       {
         type: "environment.destroy",
+        force: true,
+        deleteBranch: false,
         environmentId: "env-retry",
         workspaceContext: {
           workspacePath: "/tmp/env-retry",

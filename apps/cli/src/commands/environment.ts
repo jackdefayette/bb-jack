@@ -21,6 +21,13 @@ interface EnvironmentCommitCommandOptions {
   json?: boolean;
 }
 
+interface EnvironmentCleanupCommandOptions {
+  action: string;
+  confirm?: string;
+  json?: boolean;
+  thread?: string;
+}
+
 interface EnvironmentShowCommandOptions {
   json?: boolean;
 }
@@ -691,6 +698,60 @@ export function registerEnvironmentCommands(
         if (outputJson(opts, result)) return;
         console.log(
           `Archived ${result.archivedThreadIds.length} thread(s) in environment ${id}`,
+        );
+      }),
+    );
+
+  environment
+    .command("cleanup-status <id>")
+    .description("Preflight safe working-copy cleanup")
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(async (id: string, opts: EnvironmentShowCommandOptions) => {
+        const result = await createCliBbSdk(
+          getUrl(),
+        ).environments.cleanupPreflight({ environmentId: id });
+        if (outputJson(opts, result)) return;
+        console.log(result.summary);
+        console.log(`Allowed: ${result.allowedActions.join(", ") || "none"}`);
+        console.log(`Path: ${result.environment.path ?? "not available"}`);
+        console.log(`Branch: ${result.environment.branchName ?? "detached"}`);
+        console.log(`Active tasks: ${result.liveThreads.length}`);
+      }),
+    );
+
+  environment
+    .command("cleanup <id>")
+    .description("Detach a task or safely remove a managed working copy")
+    .requiredOption(
+      "--action <action>",
+      "detach-thread, safe-delete, keep-branch, or discard",
+    )
+    .option("--thread <thread-id>", "Task thread being detached or abandoned")
+    .option("--confirm <environment-id>", "Required for destructive discard")
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(async (id: string, opts: EnvironmentCleanupCommandOptions) => {
+        const actionName = opts.action.replaceAll("-", "_");
+        if (
+          actionName !== "detach_thread" &&
+          actionName !== "safe_delete" &&
+          actionName !== "keep_branch" &&
+          actionName !== "discard"
+        ) {
+          throw new Error(`Unknown cleanup action: ${opts.action}`);
+        }
+        const result = await createCliBbSdk(getUrl()).environments.cleanup({
+          environmentId: id,
+          action: actionName,
+          ...(opts.thread ? { threadId: opts.thread } : {}),
+          ...(opts.confirm ? { confirmation: opts.confirm } : {}),
+        });
+        if (outputJson(opts, result)) return;
+        console.log(
+          result.action === "detach_thread"
+            ? `Detached ${result.archivedThreadIds.length} task conversation(s); shared files were preserved.`
+            : `Cleanup requested; archived ${result.archivedThreadIds.length} task conversation(s).`,
         );
       }),
     );

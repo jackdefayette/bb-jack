@@ -49,6 +49,13 @@ type FakeWorkspaceDiffTarget =
 
 interface FakeWorkspaceState {
   destroyed: boolean;
+  destroyOptions:
+    | {
+        deleteBranch?: boolean;
+        force?: boolean;
+        requireManagedWorktree?: boolean;
+      }
+    | undefined;
   lastCommitMessage: string | undefined;
   lastDiffTarget: FakeWorkspaceDiffTarget | undefined;
   lastPullRequestAction: PullRequestActionOptions | undefined;
@@ -130,6 +137,7 @@ export function createFakeWorkspace(pathname: string) {
     lastCommitMessage: undefined,
     resetCount: 0,
     destroyed: false,
+    destroyOptions: undefined,
     listedModelsProviderId: undefined,
     listedModelsAcpLaunchSpec: undefined,
     lastPullRequestAction: undefined,
@@ -251,8 +259,9 @@ export function createFakeWorkspace(pathname: string) {
         targetBranch: options.targetBranch,
       };
     },
-    async destroy() {
+    async destroy(options) {
       state.destroyed = true;
+      state.destroyOptions = options;
     },
   };
 

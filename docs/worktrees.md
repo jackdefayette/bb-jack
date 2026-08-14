@@ -21,8 +21,9 @@ branch. Under the hood it's `git worktree add` plus some bookkeeping:
 - It gets its own branch so multiple threads can run in parallel.
 - It lives at `<BB_DATA_DIR>/worktrees/<environment-id>/<repo-name>` — for
   example, `~/.bb/worktrees/env_abc.../myrepo`.
-- Once every thread using the environment is archived or deleted, bb cleans the
-  worktree up (`git worktree remove --force`) along with the branch.
+- Archived task conversations remain available even after their disposable
+  working-copy folder is removed. Use **Manage working copies** to inspect and
+  clean up a managed worktree explicitly.
 
 ## Start a thread in a worktree
 
@@ -105,11 +106,31 @@ Contract:
 
 ## Cleanup
 
-You don't need to clean up worktrees by hand — bb removes them once every
-thread using the environment is archived or deleted, and the branch goes with
-it. If you
-want to keep work the agent did, commit and push (or open a PR) from inside
-the worktree before letting the thread go.
+Use **Manage working copies** in the task chooser, or **Finish or abandon
+task** in a workspace agent's environment menu. The Git preflight reports
+tracked changes, untracked files, committed-unmerged work, and merge status.
+
+- Clean, merged, inactive work can be removed in one click.
+- Committed but unmerged work can remove the folder while keeping its branch.
+- Dirty or untracked work requires an explicit destructive confirmation.
+- A task can detach and archive its conversation without removing a shared
+  folder.
+- Removal is blocked while another active task uses the same environment.
+- A project's canonical checkout is never a removable managed worktree.
+
+From the CLI, inspect first and then choose an action:
+
+```bash
+bb environment cleanup-status <environment-id>
+bb environment cleanup <environment-id> --action detach-thread --thread <thread-id>
+bb environment cleanup <environment-id> --action safe-delete
+bb environment cleanup <environment-id> --action keep-branch
+bb environment cleanup <environment-id> --action discard --confirm <environment-id>
+```
+
+Task history is archived independently of the folder. Committed-unmerged work
+should normally use `keep-branch`; `discard` is reserved for work you have
+explicitly decided to lose.
 
 ## If something isn't working
 

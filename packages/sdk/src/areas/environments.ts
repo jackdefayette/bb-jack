@@ -1,6 +1,7 @@
 import { environmentSchema, type Environment } from "@bb/domain";
 import {
   commitActionResponseSchema,
+  environmentCleanupResponseSchema,
   pullRequestDraftActionResponseSchema,
   pullRequestMergeActionResponseSchema,
   pullRequestReadyActionResponseSchema,
@@ -10,6 +11,9 @@ import {
 import type {
   CommitActionResponse,
   EnvironmentArchiveThreadsResponse,
+  EnvironmentCleanupAction,
+  EnvironmentCleanupPreflight,
+  EnvironmentCleanupResponse,
   EnvironmentDiffBranchesQuery,
   EnvironmentDiffBranchesResponse,
   EnvironmentDiffFileQuery,
@@ -37,7 +41,18 @@ export interface EnvironmentActionArgs {
   environmentId: string;
 }
 
+export interface EnvironmentCleanupArgs extends EnvironmentActionArgs {
+  action: EnvironmentCleanupAction;
+  threadId?: string;
+  confirmation?: string;
+}
+
 export interface EnvironmentGetArgs extends EnvironmentActionArgs {
+  signal?: AbortSignal;
+}
+
+export interface EnvironmentListArgs {
+  projectId: string;
   signal?: AbortSignal;
 }
 
@@ -114,6 +129,8 @@ export interface EnvironmentPathsArgs extends EnvironmentPathsQuery {
 }
 
 export type EnvironmentArchiveThreadsResult = EnvironmentArchiveThreadsResponse;
+export type EnvironmentCleanupPreflightResult = EnvironmentCleanupPreflight;
+export type EnvironmentCleanupResult = EnvironmentCleanupResponse;
 export type EnvironmentCommitResult = CommitActionResponse;
 export type EnvironmentDiffResult = EnvironmentDiffResponse;
 export type EnvironmentDiffBranchesResult = EnvironmentDiffBranchesResponse;
@@ -121,6 +138,7 @@ export type EnvironmentDiffFileResult = EnvironmentDiffFileResponse;
 export type EnvironmentDiffFilesResult = EnvironmentDiffFilesResponse;
 export type EnvironmentDiffPatchResult = EnvironmentDiffPatchResponse;
 export type EnvironmentGetResult = Environment;
+export type EnvironmentListResult = Environment[];
 export type EnvironmentMarkPullRequestDraftResult =
   PullRequestDraftActionResponse;
 export type EnvironmentMarkPullRequestReadyResult =
@@ -136,6 +154,10 @@ export interface EnvironmentsArea {
   archiveThreads(
     args: EnvironmentActionArgs,
   ): Promise<EnvironmentArchiveThreadsResult>;
+  cleanup(args: EnvironmentCleanupArgs): Promise<EnvironmentCleanupResult>;
+  cleanupPreflight(
+    args: EnvironmentGetArgs,
+  ): Promise<EnvironmentCleanupPreflightResult>;
   commit(args: EnvironmentCommitArgs): Promise<EnvironmentCommitResult>;
   diff(args: EnvironmentDiffArgs): Promise<EnvironmentDiffResult>;
   diffBranches(
@@ -147,6 +169,7 @@ export interface EnvironmentsArea {
     args: EnvironmentDiffPatchArgs,
   ): Promise<EnvironmentDiffPatchResult>;
   get(args: EnvironmentGetArgs): Promise<EnvironmentGetResult>;
+  list(args: EnvironmentListArgs): Promise<EnvironmentListResult>;
   pullRequest(args: EnvironmentGetArgs): Promise<EnvironmentPullRequestResult>;
   markPullRequestDraft(
     args: EnvironmentActionArgs,
@@ -261,6 +284,31 @@ export function createEnvironmentsArea(
         }),
       );
     },
+    async cleanup(input) {
+      const body = await transport.readJson(
+        transport.api.v1.environments[":id"].cleanup.$post({
+          param: { id: input.environmentId },
+          json: {
+            action: input.action,
+            ...(input.threadId !== undefined
+              ? { threadId: input.threadId }
+              : {}),
+            ...(input.confirmation !== undefined
+              ? { confirmation: input.confirmation }
+              : {}),
+          },
+        }),
+      );
+      return environmentCleanupResponseSchema.parse(body);
+    },
+    async cleanupPreflight(input) {
+      return transport.readJson(
+        transport.api.v1.environments[":id"].cleanup.$get(
+          { param: { id: input.environmentId } },
+          ...signalRequestArgs(input.signal),
+        ),
+      );
+    },
     async commit(input) {
       const body = await transport.readJson(
         transport.api.v1.environments[":id"].actions.$post({
@@ -340,6 +388,15 @@ export function createEnvironmentsArea(
         ),
       );
       return environmentSchema.parse(body);
+    },
+    async list(input) {
+      const body = await transport.readJson(
+        transport.api.v1.environments.$get(
+          { query: { projectId: input.projectId } },
+          ...signalRequestArgs(input.signal),
+        ),
+      );
+      return body.map((environment) => environmentSchema.parse(environment));
     },
     async pullRequest(input) {
       return transport.readJson(

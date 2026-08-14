@@ -26,7 +26,16 @@ import { PluginNewThreadComposer } from "./PluginNewThreadComposer";
 const mocks = vi.hoisted(() => ({
   hosts: [{ id: "host_1", name: "Machine" }],
   promptBoxProps: [] as Array<Record<string, any>>,
+  taskStates: [] as Array<Record<string, unknown>>,
   threads: [] as Array<Record<string, unknown>>,
+}));
+
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => ({ data: { states: mocks.taskStates } }),
+}));
+
+vi.mock("@/components/dialogs/WorkingCopyManagerDialog", () => ({
+  WorkingCopyManagerDialog: () => null,
 }));
 
 vi.mock("@/components/promptbox/NewThreadPromptBox", () => ({
@@ -147,6 +156,16 @@ vi.mock("@/hooks/queries/system-queries", () => ({
 
 vi.mock("@/hooks/queries/thread-queries", () => ({
   useThreads: () => ({ data: mocks.threads, isLoading: false }),
+}));
+
+vi.mock("@/hooks/queries/environment-queries", () => ({
+  useEnvironments: () => ({
+    data: mocks.threads.flatMap((thread) =>
+      typeof thread.environmentId === "string"
+        ? [{ id: thread.environmentId, status: "ready" }]
+        : [],
+    ),
+  }),
 }));
 
 vi.mock("@/hooks/queries/project-queries", () => ({
@@ -276,6 +295,7 @@ describe("PluginNewThreadComposer seeding", () => {
   beforeEach(() => {
     mocks.hosts = [{ id: "host_1", name: "Machine" }];
     mocks.promptBoxProps.length = 0;
+    mocks.taskStates = [];
     mocks.threads = [];
     window.localStorage.clear();
   });
@@ -553,7 +573,7 @@ describe("PluginNewThreadComposer seeding", () => {
       }),
     );
     const sharedWorkingCopy = screen.getByRole("option", {
-      name: /Join BBJ-2 working copy — Shared with Build/u,
+      name: /Share files with BBJ-2 — Shared with Build/u,
     });
     expect(sharedWorkingCopy.textContent).toContain(
       "Uses the same folder and branch as Build",
@@ -562,6 +582,44 @@ describe("PluginNewThreadComposer seeding", () => {
       "Both agents see uncommitted changes immediately",
     );
   });
+
+  it.each(["done", "canceled"])(
+    "hides a %s task's working copy from normal selection",
+    (taskStatus) => {
+      mocks.threads = [
+        {
+          id: "thr_finished",
+          title: "BBJ-3 · finished",
+          titleFallback: null,
+          environmentId: "env_finished",
+          environmentWorkspaceDisplayKind: "managed-worktree",
+          environmentBranchName: "bb/bbj-3-finished",
+          environmentName: null,
+          environmentHostId: "host_1",
+          latestAttentionAt: 1,
+        },
+      ];
+      mocks.taskStates = [
+        { threadId: "thr_finished", taskKey: "BBJ-3", status: taskStatus },
+      ];
+      render(
+        <MemoryRouter>
+          <PluginNewThreadComposer
+            draftKey={`workspace-agent-${taskStatus}`}
+            defaultProjectId="proj_1"
+            workspaceEnvironmentChoices
+            onSubmit={() => undefined}
+          />
+        </MemoryRouter>,
+      );
+      fireEvent.click(
+        screen.getByRole("combobox", {
+          name: "Where should this agent edit files?",
+        }),
+      );
+      expect(screen.queryByText(/Share files with BBJ-3/u)).toBeNull();
+    },
+  );
 
   it("keeps the generic environment picker available without a primary host", () => {
     mocks.hosts = [];

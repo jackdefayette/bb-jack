@@ -92,6 +92,79 @@ describe("bb environment command output", () => {
     expect(help).toContain("diff-file [options] <id>");
     expect(help).toContain("diff-patch [options] <id>");
     expect(help).toContain("pull-request");
+    expect(help).toContain("cleanup-status [options] <id>");
+    expect(help).toContain("cleanup [options] <id>");
+  });
+
+  it("bb environment cleanup-status explains the safe action", async () => {
+    const get = vi.fn(async () => ({
+      environment: {
+        id: "env-cleanup",
+        name: "Feature",
+        branchName: "codex/feature",
+        path: "/tmp/feature",
+        status: "ready" as const,
+        updatedAt: 1,
+      },
+      protectedCanonicalFolder: false,
+      liveThreads: [],
+      workspace: null,
+      workspaceUnavailableReason: null,
+      allowedActions: ["safe_delete" as const],
+      recommendedAction: "safe_delete" as const,
+      summary: "Clean, merged, and inactive.",
+    }));
+    stubServerApi({ "v1.environments.:id.cleanup.$get": get });
+
+    await runCommand(
+      ["environment", "cleanup-status", "env-cleanup"],
+      register,
+    );
+
+    expect(get).toHaveBeenCalledWith({ param: { id: "env-cleanup" } });
+    expect(collectLogLines(vi.mocked(console.log))).toEqual([
+      "Clean, merged, and inactive.",
+      "Allowed: safe_delete",
+      "Path: /tmp/feature",
+      "Branch: codex/feature",
+      "Active tasks: 0",
+    ]);
+  });
+
+  it("bb environment cleanup forwards detach and destructive confirmation", async () => {
+    const post = vi.fn(async () => ({
+      ok: true as const,
+      action: "discard" as const,
+      archivedThreadIds: ["thr_cleanup"],
+    }));
+    stubServerApi({ "v1.environments.:id.cleanup.$post": post });
+
+    await runCommand(
+      [
+        "environment",
+        "cleanup",
+        "env-cleanup",
+        "--action",
+        "discard",
+        "--thread",
+        "thr_cleanup",
+        "--confirm",
+        "env-cleanup",
+      ],
+      register,
+    );
+
+    expect(post).toHaveBeenCalledWith({
+      param: { id: "env-cleanup" },
+      json: {
+        action: "discard",
+        threadId: "thr_cleanup",
+        confirmation: "env-cleanup",
+      },
+    });
+    expect(collectLogLines(vi.mocked(console.log))).toEqual([
+      "Cleanup requested; archived 1 task conversation(s).",
+    ]);
   });
 
   it("bb environment status inspects an arbitrary environment id", async () => {

@@ -68,6 +68,10 @@ import type {
   EnvironmentActionRequest,
   EnvironmentActionResponse,
   EnvironmentArchiveThreadsResponse,
+  EnvironmentCleanupPreflight,
+  EnvironmentCleanupRequest,
+  EnvironmentCleanupResponse,
+  EnvironmentListQuery,
   EnvironmentDiffBranchesQuery,
   EnvironmentDiffBranchesResponse,
   EnvironmentDiffFileQuery,
@@ -245,6 +249,8 @@ import {
   forkThreadRequestSchema,
   deleteThreadRequestSchema,
   environmentActionRequestSchema,
+  environmentCleanupRequestSchema,
+  environmentListQuerySchema,
   environmentDiffBranchesQuerySchema,
   environmentDiffFileQuerySchema,
   environmentDiffPatchRequestSchema,
@@ -804,6 +810,14 @@ export const publicApiRoutes = {
   },
 
   environments: {
+    list: defineRoute({
+      path: "/environments",
+      method: "get",
+      request: queryRequest<EmptyInput, EnvironmentListQuery>(
+        environmentListQuerySchema,
+      ),
+      response: jsonResponse<Environment[]>(),
+    }),
     get: defineRoute({
       path: "/environments/:id",
       method: "get",
@@ -904,6 +918,23 @@ export const publicApiRoutes = {
       method: "post",
       request: noRequest<PathId>(),
       response: jsonResponse<EnvironmentArchiveThreadsResponse>(),
+    }),
+    cleanupPreflight: defineRoute({
+      path: "/environments/:id/cleanup",
+      method: "get",
+      request: noRequest<PathId>(),
+      response: jsonResponse<EnvironmentCleanupPreflight>(),
+    }),
+    cleanup: defineRoute({
+      path: "/environments/:id/cleanup",
+      method: "post",
+      request: jsonRequest<PathId, EnvironmentCleanupRequest>(
+        environmentCleanupRequestSchema,
+      ),
+      response: [
+        jsonResponse<EnvironmentCleanupResponse>(),
+        jsonResponse<ApiError>({ status: 409 }),
+      ],
     }),
   },
 

@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   findLocalPathProjectSourceForHost,
@@ -13,6 +14,7 @@ import {
 } from "@bb/domain";
 import type { NewThreadComposerProps, NewThreadRequest } from "@bb/plugin-sdk";
 import type { CreateExecutionInputSources } from "@bb/server-contract";
+import { Button } from "@bb/shared-ui/button";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
   Select,
@@ -33,6 +35,7 @@ import {
 } from "@/components/pickers/environment-picker-value";
 import type { ProjectSelectorOption } from "@/components/pickers/ProjectSelector";
 import { PluginContext } from "@/components/plugin/plugin-context";
+import { WorkingCopyManagerDialog } from "@/components/dialogs/WorkingCopyManagerDialog";
 import { newThreadEnvironmentArgsToSeed } from "@/components/plugin/new-thread-environment-seed";
 import { useUploadPromptAttachment } from "@/hooks/mutations/project-mutations";
 import {
@@ -45,6 +48,7 @@ import { selectPrimaryHost, useHosts } from "@/hooks/queries/host-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useThreads } from "@/hooks/queries/thread-queries";
+import { useEnvironments } from "@/hooks/queries/environment-queries";
 import { useCommandSuggestions } from "@/hooks/useCommandSuggestions";
 import { usePromptDraftStorage } from "@/hooks/usePromptDraftStorage";
 import { usePromptMentions } from "@/hooks/usePromptMentions";
@@ -61,6 +65,7 @@ import {
   isProjectlessProjectId,
 } from "@/lib/route-paths";
 import { sdk } from "@/lib/sdk";
+import { callPluginRpc } from "@/lib/plugin-sdk-hooks";
 import { buildRootComposeBranchUiState } from "@/views/root-compose-branch-ui";
 import type { RootComposeBranchEnvironmentMode } from "@/views/root-compose-branch-ui";
 import { useScopedBranchSelection } from "@/views/root-compose-branch-selection";
@@ -103,6 +108,24 @@ interface PluginNewThreadComposerInternalProps extends NewThreadComposerProps {
   } | null;
 }
 
+function terminalTaskThreadIds(value: unknown): Set<string> {
+  if (typeof value !== "object" || value === null || !("states" in value)) {
+    return new Set();
+  }
+  const states = (value as { states?: unknown }).states;
+  if (!Array.isArray(states)) return new Set();
+  return new Set(
+    states.flatMap((state) => {
+      if (typeof state !== "object" || state === null) return [];
+      const row = state as { status?: unknown; threadId?: unknown };
+      return (row.status === "done" || row.status === "canceled") &&
+        typeof row.threadId === "string"
+        ? [row.threadId]
+        : [];
+    }),
+  );
+}
+
 export function PluginNewThreadComposer({
   defaultProjectId,
   defaultProviderId,
@@ -125,6 +148,7 @@ export function PluginNewThreadComposer({
   const pluginId = useContext(PluginContext);
   const navigate = useNavigate();
   const promptBoxRef = useRef<PromptBoxHandle>(null);
+  const [workingCopyManagerOpen, setWorkingCopyManagerOpen] = useState(false);
 
   // --- Project selection -------------------------------------------------
   const sidebarNavigationQuery = useSidebarNavigation();
@@ -221,11 +245,57 @@ export function PluginNewThreadComposer({
     { projectId, archived: false },
     { enabled: Boolean(projectId) },
   );
-  const reuseThreadOptions = useMemo(
+  const environmentsQuery = useEnvironments(projectId, {
+    enabled: Boolean(projectId),
+  });
+  const rawReuseThreadOptions = useMemo(
     () =>
-      buildReuseThreadOptions(threadsQuery.data ?? [], worktreeHostNameById),
-    [threadsQuery.data, worktreeHostNameById],
+      buildReuseThreadOptions(
+        threadsQuery.data ?? [],
+        worktreeHostNameById,
+      ).filter((option) =>
+        (environmentsQuery.data ?? []).some(
+          (environment) =>
+            environment.id === option.environmentId &&
+            environment.status === "ready",
+        ),
+      ),
+    [environmentsQuery.data, threadsQuery.data, worktreeHostNameById],
   );
+  const reusableThreadIds = useMemo(
+    () =>
+      rawReuseThreadOptions.flatMap((option) =>
+        option.threads.map((thread) => thread.id),
+      ),
+    [rawReuseThreadOptions],
+  );
+  const taskWorkingCopyStates = useQuery({
+    queryKey: ["tasksWorkingCopyThreadStates", reusableThreadIds],
+    queryFn: () =>
+      callPluginRpc(fetch, "tasks", "getWorkingCopyThreadStates", {
+        threadIds: reusableThreadIds,
+      }),
+    enabled: reusableThreadIds.length > 0,
+    retry: false,
+  });
+  const reuseThreadOptions = useMemo(() => {
+    if (
+      reusableThreadIds.length > 0 &&
+      taskWorkingCopyStates.data === undefined
+    ) {
+      return [];
+    }
+    const terminalIds = terminalTaskThreadIds(taskWorkingCopyStates.data);
+    return rawReuseThreadOptions.filter(
+      (option) =>
+        option.threads.length === 0 ||
+        !option.threads.every((thread) => terminalIds.has(thread.id)),
+    );
+  }, [
+    rawReuseThreadOptions,
+    reusableThreadIds.length,
+    taskWorkingCopyStates.data,
+  ]);
 
   // --- Execution options --------------------------------------------------
   const resolveProviderRouting = useCallback(
@@ -820,94 +890,114 @@ export function PluginNewThreadComposer({
       : " — Shared";
   const workspaceSelectionLabel =
     parsedEnvironment?.type === "reuse"
-      ? `Join ${reusedWorkspaceTaskLabel} working copy${reusedWorkspaceShareLabel}`
+      ? `Share files with ${reusedWorkspaceTaskLabel}${reusedWorkspaceShareLabel}`
       : parsedEnvironment?.type === "host" && parsedEnvironment.mode === "local"
         ? "This project folder — Shared"
         : isolatedWorkspaceLabel;
   const workspaceEnvironmentPicker = hasWorkspaceEnvironmentPicker ? (
-    <div className="flex items-center gap-2 border-b border-border/60 bg-sidebar/50 px-3 py-1.5 text-xs">
-      <span className="shrink-0 font-medium text-foreground">
-        Where should this agent edit files?
-      </span>
-      <Select
-        value={effectiveEnvironmentValue}
-        onValueChange={setEnvironmentSelectionValue}
-      >
-        <SelectTrigger
-          aria-label="Where should this agent edit files?"
-          className="h-8 min-w-0 flex-1 border-border bg-canvas px-2 text-xs"
+    <>
+      <div className="flex items-center gap-2 border-b border-border/60 bg-sidebar/50 px-3 py-1.5 text-xs">
+        <span className="shrink-0 font-medium text-foreground">
+          Where should this agent edit files?
+        </span>
+        <Select
+          value={effectiveEnvironmentValue}
+          onValueChange={setEnvironmentSelectionValue}
         >
-          <SelectValue>{workspaceSelectionLabel}</SelectValue>
-        </SelectTrigger>
-        <SelectContent
-          position="item-aligned"
-          className="w-[min(30rem,calc(100vw-2rem))]"
-        >
-          <SelectItem
-            value={encodeHostValue(primaryHostId, "worktree")}
-            disabled={projectSourceWorktreeUnavailable}
-            className="items-start py-2.5"
+          <SelectTrigger
+            aria-label="Where should this agent edit files?"
+            className="h-8 min-w-0 flex-1 border-border bg-canvas px-2 text-xs"
           >
-            <span className="flex flex-col gap-0.5 pr-2">
-              <span className="font-medium text-foreground">
-                {isolatedWorkspaceLabel}
-              </span>
-              <span className="text-2xs leading-4 text-muted-foreground">
-                Creates a new folder and branch. It won&apos;t affect this
-                project folder or include its uncommitted changes.
-              </span>
-            </span>
-          </SelectItem>
-          <SelectItem
-            value={encodeHostValue(primaryHostId, "local")}
-            className="items-start py-2.5"
+            <SelectValue>{workspaceSelectionLabel}</SelectValue>
+          </SelectTrigger>
+          <SelectContent
+            position="item-aligned"
+            className="w-[min(30rem,calc(100vw-2rem))]"
           >
-            <span className="flex flex-col gap-0.5 pr-2">
-              <span className="font-medium text-foreground">
-                This project folder — Shared
-              </span>
-              <span className="text-2xs leading-4 text-muted-foreground">
-                Edits {currentProjectFolder ?? "the project folder"} directly.
-                You and other agents using it share uncommitted changes.
-              </span>
-            </span>
-          </SelectItem>
-          {reuseThreadOptions.map((option) => {
-            const isPeer =
-              workspaceEnvironmentPeer?.environmentId === option.environmentId;
-            const taskLabel =
-              isPeer && workspaceEnvironmentPeer?.taskKey
-                ? workspaceEnvironmentPeer.taskKey
-                : (option.threads[0]?.title ??
-                  option.name ??
-                  option.branchName ??
-                  "previous task");
-            const peerLabel = isPeer
-              ? (workspaceEnvironmentPeer?.label ?? null)
-              : null;
-            return (
-              <SelectItem
-                key={option.environmentId}
-                value={encodeReuseValue(option.environmentId)}
-                className="items-start py-2.5"
-              >
-                <span className="flex flex-col gap-0.5 pr-2">
-                  <span className="font-medium text-foreground">
-                    Join {taskLabel} working copy
-                    {peerLabel ? ` — Shared with ${peerLabel}` : " — Shared"}
-                  </span>
-                  <span className="text-2xs leading-4 text-muted-foreground">
-                    {peerLabel
-                      ? `Uses the same folder and branch as ${peerLabel}. Both agents see uncommitted changes immediately.`
-                      : `Reuses ${taskLabel}'s folder and branch. Agents there see the same uncommitted changes immediately.`}
-                  </span>
+            <SelectItem
+              value={encodeHostValue(primaryHostId, "worktree")}
+              disabled={projectSourceWorktreeUnavailable}
+              className="items-start py-2.5"
+            >
+              <span className="flex flex-col gap-0.5 pr-2">
+                <span className="font-medium text-foreground">
+                  {isolatedWorkspaceLabel}
                 </span>
-              </SelectItem>
-            );
-          })}
-        </SelectContent>
-      </Select>
-    </div>
+                <span className="text-2xs leading-4 text-muted-foreground">
+                  Creates a new folder and branch. It won&apos;t affect this
+                  project folder or include its uncommitted changes.
+                </span>
+              </span>
+            </SelectItem>
+            <SelectItem
+              value={encodeHostValue(primaryHostId, "local")}
+              className="items-start py-2.5"
+            >
+              <span className="flex flex-col gap-0.5 pr-2">
+                <span className="font-medium text-foreground">
+                  This project folder — Shared
+                </span>
+                <span className="text-2xs leading-4 text-muted-foreground">
+                  Edits {currentProjectFolder ?? "the project folder"} directly.
+                  You and other agents using it share uncommitted changes.
+                </span>
+              </span>
+            </SelectItem>
+            {reuseThreadOptions.map((option) => {
+              const isPeer =
+                workspaceEnvironmentPeer?.environmentId ===
+                option.environmentId;
+              const taskLabel =
+                isPeer && workspaceEnvironmentPeer?.taskKey
+                  ? workspaceEnvironmentPeer.taskKey
+                  : (option.threads[0]?.title ??
+                    option.name ??
+                    option.branchName ??
+                    "previous task");
+              const peerLabel = isPeer
+                ? (workspaceEnvironmentPeer?.label ?? null)
+                : null;
+              return (
+                <SelectItem
+                  key={option.environmentId}
+                  value={encodeReuseValue(option.environmentId)}
+                  className="items-start py-2.5"
+                >
+                  <span className="flex flex-col gap-0.5 pr-2">
+                    <span className="font-medium text-foreground">
+                      Share files with {taskLabel}
+                      {peerLabel ? ` — Shared with ${peerLabel}` : " — Shared"}
+                    </span>
+                    <span className="text-2xs leading-4 text-muted-foreground">
+                      {option.branchName
+                        ? `Branch ${option.branchName}. `
+                        : ""}
+                      {peerLabel
+                        ? `Uses the same folder and branch as ${peerLabel}. Both agents see uncommitted changes immediately.`
+                        : `Reuses ${taskLabel}'s folder and branch. Agents there see the same uncommitted changes immediately.`}
+                    </span>
+                  </span>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => setWorkingCopyManagerOpen(true)}
+        >
+          Manage working copies
+        </Button>
+      </div>
+      <WorkingCopyManagerDialog
+        open={workingCopyManagerOpen}
+        onOpenChange={setWorkingCopyManagerOpen}
+        projectId={projectId}
+        initialEnvironmentId={reuseEnvironmentId}
+      />
+    </>
   ) : null;
 
   return (
@@ -1013,6 +1103,7 @@ export function PluginNewThreadComposer({
             onSearchQueryChange: setBranchSearchQuery,
           },
           worktree: {
+            projectId,
             options: reuseThreadOptions,
             value: reuseEnvironmentId,
             onChange: handleWorktreeChange,

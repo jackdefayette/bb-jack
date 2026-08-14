@@ -294,6 +294,7 @@ function dropRewindAddedTables(db: DbConnection): void {
   db.$client.prepare("DROP TABLE IF EXISTS plugin_kv").run();
   db.$client.prepare("DROP TABLE IF EXISTS plugin_settings").run();
   db.$client.prepare("DROP TABLE IF EXISTS plugin_schedules").run();
+  dropWorkingCopyCleanupModeColumn(db);
   db.$client
     .prepare("ALTER TABLE hosts DROP COLUMN last_rejected_protocol_version")
     .run();
@@ -592,6 +593,21 @@ function dropEnvironmentDestroyAttemptIdColumn(db: DbConnection): void {
     .run();
 }
 
+function dropWorkingCopyCleanupModeColumn(db: DbConnection): void {
+  const columns = db.$client
+    .prepare<[], TableInfoRow>("PRAGMA table_info(environments)")
+    .all();
+  if (
+    columns.some((column) => column.name === "working_copy_cleanup_mode")
+  ) {
+    db.$client
+      .prepare(
+        "ALTER TABLE environments DROP COLUMN working_copy_cleanup_mode",
+      )
+      .run();
+  }
+}
+
 /**
  * cleanup_mode existed since the baseline and is dropped by 0033, so a forward
  * replay from before 0033 must first restore it for 0033's DROP COLUMN to apply
@@ -647,6 +663,7 @@ function dropQueuedMessageSenderThreadIdColumn(db: DbConnection): void {
 
 /** Tables created by migrations after 0023, dropped so migrate() re-applies. */
 function dropPost0023Tables(db: DbConnection): void {
+  dropWorkingCopyCleanupModeColumn(db);
   dropProjectGitRemoteUrlColumn(db);
   db.$client.prepare("DROP TABLE IF EXISTS thread_tabs").run();
   db.$client.exec(`
@@ -1314,6 +1331,7 @@ describe("migrate", () => {
         [number]
       >("DELETE FROM __drizzle_migrations WHERE created_at >= ?")
       .run(onboardingMigrationWhen);
+    dropWorkingCopyCleanupModeColumn(db);
     db.$client
       .prepare(
         "INSERT INTO projects (id, name, created_at, updated_at, sort_key, kind) VALUES ('proj_a','app',1,1,'V','standard')",
@@ -1588,6 +1606,7 @@ describe("migrate", () => {
           "DELETE FROM __drizzle_migrations WHERE created_at >= ?",
         )
         .run(permissionModesMigrationWhen);
+      dropWorkingCopyCleanupModeColumn(db);
       dropSideChatPluginExperimentColumn(db);
       dropToolsHubExperimentColumn(db);
       restorePluginsExperimentColumn(db);
@@ -1986,6 +2005,7 @@ describe("migrate", () => {
           "DELETE FROM __drizzle_migrations WHERE created_at >= ?",
         )
         .run(threadSectionsRepairMigrationWhen);
+      dropWorkingCopyCleanupModeColumn(db);
       dropSideChatPluginExperimentColumn(db);
       dropToolsHubExperimentColumn(db);
       restorePluginsExperimentColumn(db);
@@ -2081,6 +2101,7 @@ describe("migrate", () => {
           "DELETE FROM __drizzle_migrations WHERE created_at >= ?",
         )
         .run(threadSectionsRepairMigrationWhen);
+      dropWorkingCopyCleanupModeColumn(db);
       dropSideChatPluginExperimentColumn(db);
       dropToolsHubExperimentColumn(db);
       restorePluginsExperimentColumn(db);

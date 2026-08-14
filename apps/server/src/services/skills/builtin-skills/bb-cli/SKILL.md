@@ -282,6 +282,13 @@ environment pull-request show <id>`. Diff commands require an explicit target
   and the matching merge-base or commit flags; all support `--json`.
 - `bb environment pull-request ready|draft|merge` manages pull-request state;
   `bb environment archive-threads` bulk-archives an environment's threads.
+- Before disposing of a managed working copy, run `bb environment
+cleanup-status <id>`. Use `cleanup --action detach-thread --thread <id>` to
+  archive only one task while preserving shared files, `safe-delete` only for
+  clean merged inactive work, `keep-branch` for committed-unmerged work, and
+  `discard --confirm <environment-id>` only after explicit destructive review.
+  Cleanup blocks canonical project folders and working copies used by another
+  active task.
 - Spawned child threads inherit permission from explicit flags, then the
   parent thread's last execution, then project defaults.
 - Public permission modes are `accept-edits`, `auto`, and `full`.

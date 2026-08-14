@@ -554,6 +554,91 @@ describe("workspace provisioning", () => {
     await expect(fs.stat(directoryPath)).rejects.toThrow();
   });
 
+  it("refuses to treat the canonical checkout as a removable worktree", async () => {
+    const sourceRepo = await initRepoWithOptionalSetup();
+
+    await expect(
+      removeWorktree({
+        path: sourceRepo,
+        force: true,
+        requireManagedWorktree: true,
+      }),
+    ).rejects.toThrow(/Refusing to remove canonical or unmanaged checkout/u);
+    await expect(fs.stat(sourceRepo)).resolves.toBeDefined();
+  });
+
+  it("keeps or deletes the branch according to the explicit cleanup mode", async () => {
+    const sourceRepo = await initRepoWithOptionalSetup();
+    const parentDir = await makeTempDir("bb-remove-branch-mode-");
+    const keptPath = path.join(parentDir, "kept");
+    const deletedPath = path.join(parentDir, "deleted");
+
+    await createWorktree({
+      sourcePath: sourceRepo,
+      targetPath: keptPath,
+      branchName: "keep-after-cleanup",
+      baseBranch: "main",
+      timeoutMs: 900000,
+    });
+    await removeWorktree({
+      path: keptPath,
+      force: false,
+      deleteBranch: false,
+      requireManagedWorktree: true,
+    });
+    const keptBranch = await runGit(
+      ["branch", "--list", "keep-after-cleanup"],
+      {
+        cwd: sourceRepo,
+      },
+    );
+    expect(keptBranch.stdout).toContain("keep-after-cleanup");
+
+    await createWorktree({
+      sourcePath: sourceRepo,
+      targetPath: deletedPath,
+      branchName: "delete-after-cleanup",
+      baseBranch: "main",
+      timeoutMs: 900000,
+    });
+    await removeWorktree({
+      path: deletedPath,
+      force: false,
+      deleteBranch: true,
+      requireManagedWorktree: true,
+    });
+    const deletedBranch = await runGit(
+      ["branch", "--list", "delete-after-cleanup"],
+      { cwd: sourceRepo },
+    );
+    expect(deletedBranch.stdout).toBe("");
+  });
+
+  it("refuses safe cleanup when untracked files are present", async () => {
+    const sourceRepo = await initRepoWithOptionalSetup();
+    const parentDir = await makeTempDir("bb-remove-dirty-safe-");
+    const targetPath = path.join(parentDir, "dirty");
+    await createWorktree({
+      sourcePath: sourceRepo,
+      targetPath,
+      branchName: "dirty-safe-cleanup",
+      baseBranch: "main",
+      timeoutMs: 900000,
+    });
+    await fs.writeFile(path.join(targetPath, "untracked.txt"), "valuable\n");
+
+    await expect(
+      removeWorktree({
+        path: targetPath,
+        force: false,
+        requireManagedWorktree: true,
+      }),
+    ).rejects.toThrow(/Git refused to remove working copy/u);
+    await expect(
+      fs.stat(path.join(targetPath, "untracked.txt")),
+    ).resolves.toBeDefined();
+  });
+
   it("removes orphaned worktree directories after the .git file is gone", async () => {
     const sourceRepo = await initRepoWithOptionalSetup();
     const parentDir = await makeTempDir("bb-remove-orphan-gitfile-");

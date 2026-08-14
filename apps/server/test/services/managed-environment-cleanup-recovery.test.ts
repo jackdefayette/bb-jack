@@ -15,9 +15,7 @@ import {
   runManagedEnvironmentArchiveCleanupRecoverySweep,
   runStartupRecoverySweep,
 } from "../../src/services/system/periodic-sweeps.js";
-import {
-  listQueuedEnvironmentCommands,
-} from "../helpers/commands.js";
+import { listQueuedEnvironmentCommands } from "../helpers/commands.js";
 import { seedHostSession, seedProjectWithSource } from "../helpers/seed.js";
 import { withTestHarness } from "../helpers/test-app.js";
 
@@ -94,6 +92,8 @@ describe("managed environment cleanup recovery sweep", () => {
         const sideEffects = settleEnvironmentDestroyCommandResult({
           command: {
             type: "environment.destroy",
+            force: true,
+            deleteBranch: false,
             environmentId: environment.id,
             workspaceContext: {
               workspacePath,
@@ -170,6 +170,8 @@ describe("managed environment cleanup recovery sweep", () => {
         const sideEffects = settleEnvironmentDestroyCommandResult({
           command: {
             type: "environment.destroy",
+            force: true,
+            deleteBranch: false,
             environmentId: environment.id,
             workspaceContext: {
               workspacePath,

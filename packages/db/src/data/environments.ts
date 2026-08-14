@@ -1,6 +1,7 @@
 import { and, eq, inArray, ne, sql, lt } from "drizzle-orm";
 import type {
   DiscoveredWorkspaceProperties,
+  EnvironmentCleanupMode,
   EnvironmentChangeKind,
   EnvironmentLifecycleEvent,
   EnvironmentLifecycleNoopReason,
@@ -150,6 +151,22 @@ export function listEnvironmentsByIds(
     .from(environments)
     .where(inArray(environments.id, [...environmentIds]))
     .all();
+}
+
+export function setEnvironmentCleanupMode(
+  db: EnvironmentWriteConnection,
+  notifier: DbNotifier,
+  environmentId: string,
+  cleanupMode: EnvironmentCleanupMode | null,
+) {
+  const updated = db
+    .update(environments)
+    .set({ workingCopyCleanupMode: cleanupMode, updatedAt: Date.now() })
+    .where(eq(environments.id, environmentId))
+    .returning()
+    .get();
+  if (updated) notifier.notifyEnvironment(environmentId, ["metadata-changed"]);
+  return updated ?? null;
 }
 
 interface EnvironmentMetadataUpdateColumns {

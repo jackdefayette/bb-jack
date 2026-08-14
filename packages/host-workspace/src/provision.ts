@@ -1,9 +1,6 @@
 import { mkdir, realpath, rm } from "node:fs/promises";
 import path from "node:path";
-import type {
-  ProvisioningTranscriptEntry,
-  WorkspaceStatus,
-} from "@bb/domain";
+import type { ProvisioningTranscriptEntry, WorkspaceStatus } from "@bb/domain";
 import type {
   CommitOptions,
   CommitResult,
@@ -168,7 +165,11 @@ export interface HostWorkspace {
   squashMerge(options: SquashMergeOptions): Promise<SquashMergeResult>;
 
   // Lifecycle
-  destroy(): Promise<void>;
+  destroy(options?: {
+    deleteBranch?: boolean;
+    force?: boolean;
+    requireManagedWorktree?: boolean;
+  }): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -199,14 +200,22 @@ class ProvisionedHostWorkspace implements HostWorkspace {
   readonly isWorktree: boolean;
 
   private readonly ws: Workspace;
-  private readonly destroyFn: () => Promise<void>;
+  private readonly destroyFn: (options?: {
+    deleteBranch?: boolean;
+    force?: boolean;
+    requireManagedWorktree?: boolean;
+  }) => Promise<void>;
 
   constructor(opts: {
     path: string;
     managed: boolean;
     isGitRepo: boolean;
     isWorktree: boolean;
-    destroyFn: () => Promise<void>;
+    destroyFn: (options?: {
+      deleteBranch?: boolean;
+      force?: boolean;
+      requireManagedWorktree?: boolean;
+    }) => Promise<void>;
   }) {
     this.path = opts.path;
     this.managed = opts.managed;
@@ -298,8 +307,12 @@ class ProvisionedHostWorkspace implements HostWorkspace {
     return this.ws.squashMergeInto(options);
   }
 
-  destroy(): Promise<void> {
-    return this.destroyFn();
+  destroy(options?: {
+    deleteBranch?: boolean;
+    force?: boolean;
+    requireManagedWorktree?: boolean;
+  }): Promise<void> {
+    return this.destroyFn(options);
   }
 }
 
@@ -725,8 +738,14 @@ async function provisionWorktree(
     managed: true,
     isGitRepo: true,
     isWorktree: true,
-    destroyFn: () =>
-      removeWorktree({ path: wsPath, force: true, pruneEmptyParent: true }),
+    destroyFn: (options) =>
+      removeWorktree({
+        path: wsPath,
+        force: options?.force ?? true,
+        deleteBranch: options?.deleteBranch,
+        requireManagedWorktree: options?.requireManagedWorktree,
+        pruneEmptyParent: true,
+      }),
   });
 }
 
@@ -765,7 +784,11 @@ async function provisionPersonalWorkspace(
 
 async function reconnectManaged(
   wsPath: string,
-  destroyFn: () => Promise<void>,
+  destroyFn: (options?: {
+    deleteBranch?: boolean;
+    force?: boolean;
+    requireManagedWorktree?: boolean;
+  }) => Promise<void>,
   signal: AbortSignal | undefined,
 ): Promise<HostWorkspace> {
   throwIfProvisionAborted(signal);
@@ -793,8 +816,14 @@ async function reconnectManagedWorktree(
 ): Promise<HostWorkspace> {
   return reconnectManaged(
     opts.path,
-    () =>
-      removeWorktree({ path: opts.path, force: true, pruneEmptyParent: true }),
+    (options) =>
+      removeWorktree({
+        path: opts.path,
+        force: options?.force ?? true,
+        deleteBranch: options?.deleteBranch,
+        requireManagedWorktree: options?.requireManagedWorktree,
+        pruneEmptyParent: true,
+      }),
     opts.signal,
   );
 }

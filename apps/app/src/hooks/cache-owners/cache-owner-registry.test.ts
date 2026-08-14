@@ -92,12 +92,15 @@ const CACHE_OWNER_QUERY_KEY_IMPORTS: CacheOwnerQueryKeyImportRegistry = {
     "threadsQueryKey",
   ],
   "hooks/cache-owners/environment-cache-effects.ts": [
+    "allEnvironmentsQueryKeyPrefix",
+    "environmentCleanupPreflightQueryKey",
     "environmentDiffFilesQueryKeyPrefix",
     "environmentFilePreviewQueryKeyPrefix",
     "environmentMergeBaseBranchesQueryKeyPrefix",
     "environmentPathsQueryKeyPrefix",
     "environmentWorkStatusQueryKeyPrefix",
     "systemExecutionOptionsEnvironmentQueryKeyPrefix",
+    "threadsQueryKey",
   ],
   "hooks/cache-owners/environment-diff-patch-cache-owner.ts": [
     "environmentDiffPatchQueryKey",

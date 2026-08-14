@@ -14,7 +14,11 @@ vi.mock("@/views/thread-detail/ThreadDetailView", () => ({
 vi.mock("@/components/plugin/PluginNewThreadComposer", () => ({
   PluginNewThreadComposer: () => <div data-testid="composer" />,
 }));
+vi.mock("@/components/dialogs/WorkingCopyManagerDialog", () => ({
+  WorkingCopyManagerDialog: () => null,
+}));
 vi.mock("@/hooks/queries/environment-queries", () => ({
+  useEnvironments: () => ({ data: [] }),
   useEnvironment: () => ({
     data: {
       name: "build-worktree",

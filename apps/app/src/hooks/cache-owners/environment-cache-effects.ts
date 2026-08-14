@@ -9,6 +9,9 @@ import {
   environmentMergeBaseBranchesQueryKeyPrefix,
   environmentPathsQueryKeyPrefix,
   environmentWorkStatusQueryKeyPrefix,
+  allEnvironmentsQueryKeyPrefix,
+  environmentCleanupPreflightQueryKey,
+  threadsQueryKey,
   systemExecutionOptionsEnvironmentQueryKeyPrefix,
 } from "../queries/query-keys";
 import type {
@@ -73,4 +76,18 @@ export function invalidateEnvironmentWorkspaceStateQueries({
     }),
   });
   removeEnvironmentDiffPatchQueries({ environmentId, queryClient });
+}
+
+export function invalidateEnvironmentCleanupQueries({
+  environmentId,
+  queryClient,
+}: EnvironmentArg): void {
+  invalidateQueryKeys({
+    queryClient,
+    queryKeys: [
+      environmentCleanupPreflightQueryKey(environmentId),
+      allEnvironmentsQueryKeyPrefix(),
+      threadsQueryKey(),
+    ],
+  });
 }

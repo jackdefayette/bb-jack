@@ -1150,6 +1150,59 @@ describe("Tasks RPC domain API", () => {
     }
   });
 
+  it("returns task lifecycle state only for requested working-copy threads", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "tasks" });
+    const store = createStore(bb);
+    registerTasksApi(bb, store);
+    const project = store.tasks.createProject({
+      name: "Working copies",
+      prefix: "WC",
+      color: "blue",
+    });
+    const activeTask = store.tasks.createTask({
+      projectId: project.id,
+      title: "Active work",
+      status: "in_progress",
+    });
+    const finishedTask = store.tasks.createTask({
+      projectId: project.id,
+      title: "Finished work",
+      status: "done",
+    });
+    const activeThreadId = "thr_active";
+    const finishedThreadId = "thr_finished";
+    const missingThreadId = "thr_missing";
+    store.tasks.upsertTaskThread({
+      taskId: activeTask.id,
+      threadId: activeThreadId,
+      presetName: "Default",
+      title: "Active",
+      liveStatus: "working",
+    });
+    store.tasks.upsertTaskThread({
+      taskId: finishedTask.id,
+      threadId: finishedThreadId,
+      presetName: "Default",
+      title: "Finished",
+      liveStatus: "completed",
+    });
+
+    const result = tasksRpcContract.getWorkingCopyThreadStates.output.parse(
+      await harness.callRpc("getWorkingCopyThreadStates", {
+        threadIds: [finishedThreadId, missingThreadId],
+      }),
+    );
+
+    expect(result.states).toEqual([
+      {
+        threadId: finishedThreadId,
+        taskKey: finishedTask.key,
+        status: "done",
+      },
+    ]);
+    await harness.dispose();
+  });
+
   it("returns a typed error when a task would exceed one sub-task level", async () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "tasks" });
     registerTasksApi(bb, createStore(bb));

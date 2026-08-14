@@ -89,7 +89,10 @@ import {
   useProjectSourceBranches,
   stripProjectThreads,
 } from "@/hooks/queries/project-queries";
-import { useEnvironment } from "@/hooks/queries/environment-queries";
+import {
+  useEnvironment,
+  useEnvironments,
+} from "@/hooks/queries/environment-queries";
 import { useProjectDefaultExecutionOptions } from "@/hooks/queries/project-default-execution-options-query";
 import {
   useHostProviderCliStatus,
@@ -986,11 +989,20 @@ export function RootComposeView() {
     { projectId, archived: false },
     { enabled: Boolean(projectId) },
   );
-  const reuseThreadOptions = useMemo(
-    () =>
-      buildReuseThreadOptions(threadsQuery.data ?? [], worktreeHostNameById),
-    [threadsQuery.data, worktreeHostNameById],
-  );
+  const environmentsQuery = useEnvironments(projectId, {
+    enabled: Boolean(projectId),
+  });
+  const reuseThreadOptions = useMemo(() => {
+    const readyEnvironmentIds = new Set(
+      (environmentsQuery.data ?? [])
+        .filter((environment) => environment.status === "ready")
+        .map((environment) => environment.id),
+    );
+    return buildReuseThreadOptions(
+      threadsQuery.data ?? [],
+      worktreeHostNameById,
+    ).filter((option) => readyEnvironmentIds.has(option.environmentId));
+  }, [environmentsQuery.data, threadsQuery.data, worktreeHostNameById]);
   const resolveProviderRouting = useCallback(
     (environmentSelectionValue: string) =>
       resolveRootComposeProviderRouting({
@@ -3276,6 +3288,7 @@ export function RootComposeView() {
       handleEnvironmentSelectionValueChange(encodeReuseValue(environmentId));
     };
     return {
+      projectId,
       options: reuseThreadOptions,
       value:
         parsedEnvironment?.type === "reuse"
@@ -3285,6 +3298,7 @@ export function RootComposeView() {
       disabled: isForkDraft,
     };
   }, [
+    projectId,
     isForkDraft,
     handleEnvironmentSelectionValueChange,
     parsedEnvironment,

@@ -10,6 +10,18 @@ export const environmentStatusValues = [
 export const environmentStatusSchema = z.enum(environmentStatusValues);
 export type EnvironmentStatus = z.infer<typeof environmentStatusSchema>;
 
+export const environmentCleanupModeValues = [
+  "safe_delete",
+  "keep_branch",
+  "discard",
+] as const;
+export const environmentCleanupModeSchema = z.enum(
+  environmentCleanupModeValues,
+);
+export type EnvironmentCleanupMode = z.infer<
+  typeof environmentCleanupModeSchema
+>;
+
 export const WORKSPACE_PROVISION_TYPES = [
   "unmanaged",
   "managed-worktree",

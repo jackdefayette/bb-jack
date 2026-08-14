@@ -17,6 +17,11 @@ import {
 
 export const environmentNameSchema = z.string().trim().min(1).max(80);
 
+export const environmentListQuerySchema = z.object({
+  projectId: z.string().min(1),
+});
+export type EnvironmentListQuery = z.infer<typeof environmentListQuerySchema>;
+
 export const updateEnvironmentRequestSchema = z
   .object({
     // Omitted fields are left unchanged. `null` clears the configured value.
@@ -30,6 +35,70 @@ export const updateEnvironmentRequestSchema = z
   );
 export type UpdateEnvironmentRequest = z.infer<
   typeof updateEnvironmentRequestSchema
+>;
+
+export const environmentCleanupActionSchema = z.enum([
+  "detach_thread",
+  "safe_delete",
+  "keep_branch",
+  "discard",
+]);
+export type EnvironmentCleanupAction = z.infer<
+  typeof environmentCleanupActionSchema
+>;
+
+export const environmentCleanupRequestSchema = z
+  .object({
+    action: environmentCleanupActionSchema,
+    threadId: z.string().min(1).optional(),
+    confirmation: z.string().min(1).optional(),
+  })
+  .strict();
+export type EnvironmentCleanupRequest = z.infer<
+  typeof environmentCleanupRequestSchema
+>;
+
+const environmentCleanupThreadSchema = z.object({
+  id: z.string(),
+  title: z.string().nullable(),
+  status: z.enum(["idle", "starting", "active", "stopping", "error"]),
+});
+
+export const environmentCleanupPreflightSchema = z.object({
+  environment: z.object({
+    id: z.string(),
+    name: z.string().nullable(),
+    branchName: z.string().nullable(),
+    path: z.string().nullable(),
+    status: z.enum([
+      "provisioning",
+      "ready",
+      "retiring",
+      "error",
+      "destroying",
+      "destroyed",
+    ]),
+    updatedAt: z.number(),
+  }),
+  protectedCanonicalFolder: z.boolean(),
+  liveThreads: z.array(environmentCleanupThreadSchema),
+  workspace: workspaceStatusSchema.nullable(),
+  workspaceUnavailableReason: z.string().nullable(),
+  allowedActions: z.array(environmentCleanupActionSchema),
+  recommendedAction: environmentCleanupActionSchema.nullable(),
+  summary: z.string(),
+});
+export type EnvironmentCleanupPreflight = z.infer<
+  typeof environmentCleanupPreflightSchema
+>;
+
+export const environmentCleanupResponseSchema = z.object({
+  ok: z.literal(true),
+  action: environmentCleanupActionSchema,
+  archivedThreadIds: z.array(z.string()),
+});
+export type EnvironmentCleanupResponse = z.infer<
+  typeof environmentCleanupResponseSchema
 >;
 
 /**

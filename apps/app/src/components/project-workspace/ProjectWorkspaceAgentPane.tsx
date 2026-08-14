@@ -175,6 +175,7 @@ export function ProjectWorkspaceAgentPane({
       headerAccessory={
         threadId ? (
           <ProjectWorkspaceEnvironmentRibbon
+            projectId={projectId}
             projectName={projectName}
             environmentId={environmentId}
             role={role}

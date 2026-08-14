@@ -14,6 +14,10 @@ vi.mock("@/hooks/queries/environment-queries", () => ({
   useEnvironmentWorkStatus: (...args: unknown[]) => mocks.status(...args),
 }));
 
+vi.mock("@/components/dialogs/WorkingCopyManagerDialog", () => ({
+  WorkingCopyManagerDialog: () => null,
+}));
+
 afterEach(() => {
   cleanup();
   mocks.environment.mockReset();
@@ -50,6 +54,7 @@ describe("ProjectWorkspaceEnvironmentRibbon", () => {
 
     render(
       <ProjectWorkspaceEnvironmentRibbon
+        projectId="proj_1"
         environmentId="env_build"
         projectName="Safe repository"
         role="builder"
@@ -86,6 +91,7 @@ describe("ProjectWorkspaceEnvironmentRibbon", () => {
 
     render(
       <ProjectWorkspaceEnvironmentRibbon
+        projectId="proj_1"
         environmentId={null}
         projectName="Project checkout"
         role="reviewer"
@@ -125,6 +131,7 @@ describe("ProjectWorkspaceEnvironmentRibbon", () => {
 
     render(
       <ProjectWorkspaceEnvironmentRibbon
+        projectId="proj_1"
         environmentId="env_checkout"
         projectName="Safe repository"
         role="builder"

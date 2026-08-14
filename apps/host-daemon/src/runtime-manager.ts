@@ -1076,7 +1076,14 @@ export class RuntimeManager {
     });
   }
 
-  async destroyEnvironment(environmentId: string): Promise<void> {
+  async destroyEnvironment(
+    environmentId: string,
+    options?: {
+      deleteBranch?: boolean;
+      force?: boolean;
+      requireManagedWorktree?: boolean;
+    },
+  ): Promise<void> {
     const existing = this.entries.get(environmentId);
     const pending = this.pendingEntries.get(environmentId);
     const entry = existing ?? (pending ? await pending : undefined);
@@ -1088,7 +1095,7 @@ export class RuntimeManager {
     this.entries.delete(environmentId);
     await this.stopWatchingStatus(entry);
     await entry.runtime.shutdown();
-    await entry.workspace.destroy();
+    await entry.workspace.destroy(options);
     await this.cleanupUnusedInjectedSkillStagingDirs([]);
   }
 

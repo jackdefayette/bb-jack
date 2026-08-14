@@ -2562,8 +2562,8 @@ declare const projectDiffFileResponseSchema: z$1.ZodObject<{
     path: z$1.ZodString;
     content: z$1.ZodString;
     contentEncoding: z$1.ZodEnum<{
-        utf8: "utf8";
         base64: "base64";
+        utf8: "utf8";
     }>;
     mimeType: z$1.ZodOptional<z$1.ZodString>;
     sizeBytes: z$1.ZodNumber;
@@ -2685,9 +2685,9 @@ declare const projectBranchesResponseSchema: z$1.ZodObject<{
     selectedBranch: z$1.ZodNullable<z$1.ZodObject<{
         name: z$1.ZodString;
         kind: z$1.ZodEnum<{
-            missing: "missing";
             local: "local";
             remote: "remote";
+            missing: "missing";
         }>;
     }, z$1.core.$strip>>;
     defaultWorktreeBaseBranch: z$1.ZodNullable<z$1.ZodString>;
@@ -2824,8 +2824,8 @@ declare const skillListResponseSchema: z$1.ZodObject<{
         name: z$1.ZodString;
         description: z$1.ZodNullable<z$1.ZodString>;
         provider: z$1.ZodNullable<z$1.ZodEnum<{
-            codex: "codex";
             "claude-code": "claude-code";
+            codex: "codex";
             "acp-cursor": "acp-cursor";
         }>>;
         scope: z$1.ZodEnum<{
@@ -3069,6 +3069,146 @@ declare const updateEnvironmentRequestSchema: z$1.ZodObject<{
     name: z$1.ZodOptional<z$1.ZodNullable<z$1.ZodString>>;
 }, z$1.core.$strip>;
 type UpdateEnvironmentRequest = z$1.infer<typeof updateEnvironmentRequestSchema>;
+declare const environmentCleanupActionSchema: z$1.ZodEnum<{
+    detach_thread: "detach_thread";
+    safe_delete: "safe_delete";
+    keep_branch: "keep_branch";
+    discard: "discard";
+}>;
+type EnvironmentCleanupAction = z$1.infer<typeof environmentCleanupActionSchema>;
+declare const environmentCleanupPreflightSchema: z$1.ZodObject<{
+    environment: z$1.ZodObject<{
+        id: z$1.ZodString;
+        name: z$1.ZodNullable<z$1.ZodString>;
+        branchName: z$1.ZodNullable<z$1.ZodString>;
+        path: z$1.ZodNullable<z$1.ZodString>;
+        status: z$1.ZodEnum<{
+            error: "error";
+            provisioning: "provisioning";
+            ready: "ready";
+            retiring: "retiring";
+            destroying: "destroying";
+            destroyed: "destroyed";
+        }>;
+        updatedAt: z$1.ZodNumber;
+    }, z$1.core.$strip>;
+    protectedCanonicalFolder: z$1.ZodBoolean;
+    liveThreads: z$1.ZodArray<z$1.ZodObject<{
+        id: z$1.ZodString;
+        title: z$1.ZodNullable<z$1.ZodString>;
+        status: z$1.ZodEnum<{
+            error: "error";
+            stopping: "stopping";
+            idle: "idle";
+            starting: "starting";
+            active: "active";
+        }>;
+    }, z$1.core.$strip>>;
+    workspace: z$1.ZodNullable<z$1.ZodObject<{
+        workingTree: z$1.ZodObject<{
+            insertions: z$1.ZodNumber;
+            deletions: z$1.ZodNumber;
+            files: z$1.ZodArray<z$1.ZodObject<{
+                path: z$1.ZodString;
+                status: z$1.ZodEnum<{
+                    M: "M";
+                    A: "A";
+                    D: "D";
+                    R: "R";
+                    C: "C";
+                    U: "U";
+                    "??": "??";
+                    "?": "?";
+                }>;
+                insertions: z$1.ZodNullable<z$1.ZodNumber>;
+                deletions: z$1.ZodNullable<z$1.ZodNumber>;
+            }, z$1.core.$strip>>;
+            hasUncommittedChanges: z$1.ZodBoolean;
+            state: z$1.ZodEnum<{
+                clean: "clean";
+                untracked: "untracked";
+                dirty_uncommitted: "dirty_uncommitted";
+                committed_unmerged: "committed_unmerged";
+                dirty_and_committed_unmerged: "dirty_and_committed_unmerged";
+            }>;
+        }, z$1.core.$strip>;
+        checkout: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
+            kind: z$1.ZodLiteral<"branch">;
+            branchName: z$1.ZodString;
+            headSha: z$1.ZodNullable<z$1.ZodString>;
+        }, z$1.core.$strip>, z$1.ZodObject<{
+            kind: z$1.ZodLiteral<"detached">;
+            headSha: z$1.ZodNullable<z$1.ZodString>;
+        }, z$1.core.$strip>, z$1.ZodObject<{
+            kind: z$1.ZodLiteral<"unborn">;
+            branchName: z$1.ZodNullable<z$1.ZodString>;
+        }, z$1.core.$strip>, z$1.ZodObject<{
+            kind: z$1.ZodLiteral<"unknown">;
+            reason: z$1.ZodString;
+        }, z$1.core.$strip>], "kind">;
+        branch: z$1.ZodObject<{
+            currentBranch: z$1.ZodNullable<z$1.ZodString>;
+            defaultBranch: z$1.ZodString;
+        }, z$1.core.$strip>;
+        mergeBase: z$1.ZodNullable<z$1.ZodObject<{
+            insertions: z$1.ZodNumber;
+            deletions: z$1.ZodNumber;
+            files: z$1.ZodArray<z$1.ZodObject<{
+                path: z$1.ZodString;
+                status: z$1.ZodEnum<{
+                    M: "M";
+                    A: "A";
+                    D: "D";
+                    R: "R";
+                    C: "C";
+                    U: "U";
+                    "??": "??";
+                    "?": "?";
+                }>;
+                insertions: z$1.ZodNullable<z$1.ZodNumber>;
+                deletions: z$1.ZodNullable<z$1.ZodNumber>;
+            }, z$1.core.$strip>>;
+            mergeBaseBranch: z$1.ZodString;
+            baseRef: z$1.ZodNullable<z$1.ZodString>;
+            aheadCount: z$1.ZodNumber;
+            behindCount: z$1.ZodNumber;
+            hasCommittedUnmergedChanges: z$1.ZodBoolean;
+            commits: z$1.ZodArray<z$1.ZodObject<{
+                sha: z$1.ZodString;
+                shortSha: z$1.ZodString;
+                subject: z$1.ZodString;
+                authorName: z$1.ZodString;
+                authoredAt: z$1.ZodNumber;
+            }, z$1.core.$strip>>;
+        }, z$1.core.$strip>>;
+    }, z$1.core.$strip>>;
+    workspaceUnavailableReason: z$1.ZodNullable<z$1.ZodString>;
+    allowedActions: z$1.ZodArray<z$1.ZodEnum<{
+        detach_thread: "detach_thread";
+        safe_delete: "safe_delete";
+        keep_branch: "keep_branch";
+        discard: "discard";
+    }>>;
+    recommendedAction: z$1.ZodNullable<z$1.ZodEnum<{
+        detach_thread: "detach_thread";
+        safe_delete: "safe_delete";
+        keep_branch: "keep_branch";
+        discard: "discard";
+    }>>;
+    summary: z$1.ZodString;
+}, z$1.core.$strip>;
+type EnvironmentCleanupPreflight = z$1.infer<typeof environmentCleanupPreflightSchema>;
+declare const environmentCleanupResponseSchema: z$1.ZodObject<{
+    ok: z$1.ZodLiteral<true>;
+    action: z$1.ZodEnum<{
+        detach_thread: "detach_thread";
+        safe_delete: "safe_delete";
+        keep_branch: "keep_branch";
+        discard: "discard";
+    }>;
+    archivedThreadIds: z$1.ZodArray<z$1.ZodString>;
+}, z$1.core.$strip>;
+type EnvironmentCleanupResponse = z$1.infer<typeof environmentCleanupResponseSchema>;
 /**
  * Query for searching paths in an environment's workspace. Unlike the
  * project-scoped variant this needs no `environmentId` — the environment is
@@ -3102,9 +3242,9 @@ declare const environmentDiffBranchesResponseSchema: z$1.ZodObject<{
     selectedBranch: z$1.ZodNullable<z$1.ZodObject<{
         name: z$1.ZodString;
         kind: z$1.ZodEnum<{
-            missing: "missing";
             local: "local";
             remote: "remote";
+            missing: "missing";
         }>;
     }, z$1.core.$strip>>;
 }, z$1.core.$strip>;
@@ -3175,8 +3315,8 @@ declare const environmentDiffFileResponseSchema: z$1.ZodObject<{
     path: z$1.ZodString;
     content: z$1.ZodString;
     contentEncoding: z$1.ZodEnum<{
-        utf8: "utf8";
         base64: "base64";
+        utf8: "utf8";
     }>;
     mimeType: z$1.ZodOptional<z$1.ZodString>;
     sizeBytes: z$1.ZodNumber;
@@ -3189,8 +3329,8 @@ declare const environmentArchiveThreadsResponseSchema: z$1.ZodObject<{
 type EnvironmentArchiveThreadsResponse = z$1.infer<typeof environmentArchiveThreadsResponseSchema>;
 declare const pullRequestMergeMethodSchema: z$1.ZodEnum<{
     merge: "merge";
-    squash: "squash";
     rebase: "rebase";
+    squash: "squash";
 }>;
 type PullRequestMergeMethod = z$1.infer<typeof pullRequestMergeMethodSchema>;
 declare const commitActionResponseSchema: z$1.ZodObject<{
@@ -3221,8 +3361,8 @@ declare const pullRequestMergeActionResponseSchema: z$1.ZodObject<{
     action: z$1.ZodLiteral<"pull_request_merge">;
     method: z$1.ZodEnum<{
         merge: "merge";
-        squash: "squash";
         rebase: "rebase";
+        squash: "squash";
     }>;
     message: z$1.ZodString;
 }, z$1.core.$strip>;
@@ -4999,6 +5139,8 @@ declare const hostDaemonCommandRegistry: {
             }>;
         }, z$1.core.$strip>;
         type: z$1.ZodLiteral<"environment.destroy">;
+        force: z$1.ZodBoolean;
+        deleteBranch: z$1.ZodBoolean;
     }, z$1.core.$strict>, z$1.ZodObject<{}, z$1.core.$strip>, "settled", false>;
     "workspace.commit": HostDaemonCommandDescriptor<"workspace.commit", z$1.ZodObject<{
         environmentId: z$1.ZodString;
@@ -6480,8 +6622,8 @@ declare const installedPluginSchema: z$1.ZodObject<{
     status: z$1.ZodEnum<{
         error: "error";
         running: "running";
-        incompatible: "incompatible";
         missing: "missing";
+        incompatible: "incompatible";
         disabled: "disabled";
         degraded: "degraded";
         "needs-configuration": "needs-configuration";
@@ -6584,8 +6726,8 @@ declare const pluginListResponseSchema: z$1.ZodObject<{
         status: z$1.ZodEnum<{
             error: "error";
             running: "running";
-            incompatible: "incompatible";
             missing: "missing";
+            incompatible: "incompatible";
             disabled: "disabled";
             degraded: "degraded";
             "needs-configuration": "needs-configuration";
@@ -6690,8 +6832,8 @@ declare const pluginReloadResponseSchema: z$1.ZodObject<{
         status: z$1.ZodEnum<{
             error: "error";
             running: "running";
-            incompatible: "incompatible";
             missing: "missing";
+            incompatible: "incompatible";
             disabled: "disabled";
             degraded: "degraded";
             "needs-configuration": "needs-configuration";
@@ -7383,8 +7525,8 @@ declare const systemCliSkillsStatusResponseSchema: z$1.ZodObject<{
         hostName: z$1.ZodString;
         status: z$1.ZodEnum<{
             unknown: "unknown";
-            installed: "installed";
             missing: "missing";
+            installed: "installed";
             outdated: "outdated";
         }>;
     }, z$1.core.$strip>>;
@@ -9974,8 +10116,8 @@ declare const threadTimelineResponseSchema: z$1.ZodObject<{
     activePromptMode: z$1.ZodNullable<z$1.ZodObject<{
         mode: z$1.ZodLiteral<"plan">;
         providerId: z$1.ZodEnum<{
-            codex: "codex";
             "claude-code": "claude-code";
+            codex: "codex";
         }>;
         prompt: z$1.ZodString;
     }, z$1.core.$strict>>;
@@ -11827,7 +11969,16 @@ interface PluginSdkApp {
 interface EnvironmentActionArgs {
     environmentId: string;
 }
+interface EnvironmentCleanupArgs extends EnvironmentActionArgs {
+    action: EnvironmentCleanupAction;
+    threadId?: string;
+    confirmation?: string;
+}
 interface EnvironmentGetArgs extends EnvironmentActionArgs {
+    signal?: AbortSignal;
+}
+interface EnvironmentListArgs {
+    projectId: string;
     signal?: AbortSignal;
 }
 type EnvironmentMergeBaseBranchUpdateValue = Exclude<UpdateEnvironmentRequest["mergeBaseBranch"], undefined>;
@@ -11880,6 +12031,8 @@ interface EnvironmentPathsArgs extends EnvironmentPathsQuery {
     signal?: AbortSignal;
 }
 type EnvironmentArchiveThreadsResult = EnvironmentArchiveThreadsResponse;
+type EnvironmentCleanupPreflightResult = EnvironmentCleanupPreflight;
+type EnvironmentCleanupResult = EnvironmentCleanupResponse;
 type EnvironmentCommitResult = CommitActionResponse;
 type EnvironmentDiffResult = EnvironmentDiffResponse;
 type EnvironmentDiffBranchesResult = EnvironmentDiffBranchesResponse;
@@ -11887,6 +12040,7 @@ type EnvironmentDiffFileResult = EnvironmentDiffFileResponse;
 type EnvironmentDiffFilesResult = EnvironmentDiffFilesResponse;
 type EnvironmentDiffPatchResult = EnvironmentDiffPatchResponse;
 type EnvironmentGetResult = Environment;
+type EnvironmentListResult = Environment[];
 type EnvironmentMarkPullRequestDraftResult = PullRequestDraftActionResponse;
 type EnvironmentMarkPullRequestReadyResult = PullRequestReadyActionResponse;
 type EnvironmentMergePullRequestResult = PullRequestMergeActionResponse;
@@ -11897,6 +12051,8 @@ type EnvironmentStatusResult = EnvironmentStatusResponse;
 type EnvironmentUpdateResult = Environment;
 interface EnvironmentsArea {
     archiveThreads(args: EnvironmentActionArgs): Promise<EnvironmentArchiveThreadsResult>;
+    cleanup(args: EnvironmentCleanupArgs): Promise<EnvironmentCleanupResult>;
+    cleanupPreflight(args: EnvironmentGetArgs): Promise<EnvironmentCleanupPreflightResult>;
     commit(args: EnvironmentCommitArgs): Promise<EnvironmentCommitResult>;
     diff(args: EnvironmentDiffArgs): Promise<EnvironmentDiffResult>;
     diffBranches(args: EnvironmentDiffBranchesArgs): Promise<EnvironmentDiffBranchesResult>;
@@ -11904,6 +12060,7 @@ interface EnvironmentsArea {
     diffFiles(args: EnvironmentDiffArgs): Promise<EnvironmentDiffFilesResult>;
     diffPatch(args: EnvironmentDiffPatchArgs): Promise<EnvironmentDiffPatchResult>;
     get(args: EnvironmentGetArgs): Promise<EnvironmentGetResult>;
+    list(args: EnvironmentListArgs): Promise<EnvironmentListResult>;
     pullRequest(args: EnvironmentGetArgs): Promise<EnvironmentPullRequestResult>;
     markPullRequestDraft(args: EnvironmentActionArgs): Promise<EnvironmentMarkPullRequestDraftResult>;
     markPullRequestReady(args: EnvironmentActionArgs): Promise<EnvironmentMarkPullRequestReadyResult>;

@@ -269,6 +269,7 @@ export {
   findForeignManagedEnvironmentAtHostPath,
   listEnvironmentsByIds,
   listRetiredLoadedEnvironmentIdsOnHost,
+  setEnvironmentCleanupMode,
   updateEnvironmentMetadata,
 } from "./environments.js";
 export type {

@@ -1,0 +1,1 @@
+ALTER TABLE `environments` ADD `working_copy_cleanup_mode` text;

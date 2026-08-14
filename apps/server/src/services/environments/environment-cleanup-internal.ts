@@ -34,6 +34,7 @@ import {
 import { workspaceContextFromPath } from "./workspace-command-target.js";
 
 interface EnvironmentDestroyTarget {
+  workingCopyCleanupMode: "safe_delete" | "keep_branch" | "discard" | null;
   hostId: string;
   id: string;
   path: string;
@@ -266,6 +267,14 @@ function dispatchEnvironmentDestroy(
       type: "environment.destroy",
       environmentId: environment.id,
       workspaceContext: workspaceContextFromPath(environment),
+      force:
+        environment.workingCopyCleanupMode === "safe_delete" ||
+        environment.workingCopyCleanupMode === "keep_branch"
+          ? false
+          : true,
+      deleteBranch:
+        environment.workingCopyCleanupMode === "safe_delete" ||
+        environment.workingCopyCleanupMode === "discard",
     },
     execution,
     hostId: environment.hostId,
@@ -430,6 +439,7 @@ async function advanceEnvironmentCleanup(
     {
       hostId: claimedEnvironment.hostId,
       id: claimedEnvironment.id,
+      workingCopyCleanupMode: claimedEnvironment.workingCopyCleanupMode,
       path: claimedEnvironment.path,
       workspaceProvisionType: claimedEnvironment.workspaceProvisionType,
     },

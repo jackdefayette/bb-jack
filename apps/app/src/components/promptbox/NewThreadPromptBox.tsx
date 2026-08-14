@@ -129,6 +129,7 @@ export interface NewThreadBranchConfig {
 }
 
 export interface NewThreadWorktreeConfig {
+  projectId?: string;
   options: readonly ReuseThreadOption[];
   /** Currently-selected env id, or null when reuse mode is active but no
    * worktree has been chosen yet. */
@@ -459,6 +460,7 @@ export function ThreadEnvSlot({
       ) : null}
       {showWorktreePicker && !environment.pickerHidden ? (
         <WorktreePicker
+          projectId={worktree.projectId}
           muted
           options={worktree.options}
           value={worktree.value}
