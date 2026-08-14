@@ -11,6 +11,9 @@ importers:
 
   .:
     devDependencies:
+      '@bb/cli':
+        specifier: workspace:*
+        version: link:apps/cli
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0

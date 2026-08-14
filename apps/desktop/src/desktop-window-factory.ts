@@ -67,8 +67,13 @@ export interface DesktopBrowserWindow extends StatefulBrowserWindow {
     eventName: "close" | "closed" | "enter-full-screen" | "leave-full-screen",
     listener: () => void,
   ): void;
+  on(
+    eventName: "page-title-updated",
+    listener: (event: { preventDefault(): void }) => void,
+  ): void;
   once(eventName: "ready-to-show", listener: () => void): void;
   restore(): void;
+  setTitle(title: string): void;
   setFullScreen(isFullScreen: boolean): void;
   show(): void;
   webContents: DesktopWindowWebContents;
@@ -91,6 +96,7 @@ export interface CreateDesktopWindowFactoryArgs {
   openExternalUrl(args: OpenExternalUrlArgs): void;
   preloadPath: string;
   userDataPath: string;
+  windowIdentity?: string;
 }
 
 export interface CreateDesktopWindowArgs {
@@ -137,6 +143,7 @@ interface CreateWindowOptionsArgs {
   bounds: WindowBounds;
   icon: DesktopWindowIcon;
   preloadPath: string;
+  title: string;
 }
 
 function resolveWindowStateKey(
@@ -172,7 +179,7 @@ function createWindowOptions(
     minHeight: MIN_WINDOW_HEIGHT,
     minWidth: MIN_WINDOW_WIDTH,
     show: false,
-    title: "bb",
+    title: args.title,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: MACOS_TRAFFIC_LIGHT_POSITION,
     webPreferences: {
@@ -232,8 +239,21 @@ export function createDesktopWindowFactory(
           bounds: restoredState.bounds,
           icon: args.icon,
           preloadPath: args.preloadPath,
+          title:
+            args.windowIdentity === undefined
+              ? "bb"
+              : `bb [instance:${args.windowIdentity}] [window:${stateKey}]`,
         }),
       );
+      const stableWindowTitle =
+        args.windowIdentity === undefined
+          ? "bb"
+          : `bb [instance:${args.windowIdentity}] [window:${stateKey}]`;
+      browserWindow.setTitle(stableWindowTitle);
+      browserWindow.on("page-title-updated", (event) => {
+        event.preventDefault();
+        browserWindow.setTitle(stableWindowTitle);
+      });
       browserWindow.webContents.session.setSpellCheckerEnabled(true);
 
       activeWindows.set(stateKey, browserWindow);

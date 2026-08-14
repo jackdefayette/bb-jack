@@ -288,7 +288,10 @@ function createAgentRuntimeInternal(
           sourceThreadId: threadId,
         });
       }
-      threadIdentityRegistry.clearThread(threadId);
+      threadIdentityRegistry.forgetThread({
+        providerState: providerProcess.identity,
+        threadId,
+      });
       clearThreadRuntimeConfig(threadId);
       turnState.clearThread(threadId);
       backgroundWorkState.clearThread(threadId);

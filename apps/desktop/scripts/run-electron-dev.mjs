@@ -53,6 +53,7 @@ async function isViteDevServerReachable(appUrl) {
 
 const devConfig = resolveCurrentDevInstanceConfig(repoRoot);
 const childEnv = createElectronAppEnv(process.env, devConfig);
+childEnv.BB_DESKTOP_INSTANCE_ID = devConfig.instanceId;
 const dataDir = devConfig.dataDir;
 const desktopUserDataDir = resolveDesktopUserDataDir(childEnv, dataDir);
 
@@ -83,10 +84,20 @@ const extraElectronArgs = (process.env.BB_DESKTOP_ELECTRON_ARGS ?? "")
   .split(" ")
   .map((arg) => arg.trim())
   .filter((arg) => arg.length > 0);
+const browserBridgeArgs = extraElectronArgs.some((arg) =>
+  arg.startsWith("--remote-debugging-"),
+)
+  ? []
+  : ["--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0"];
 
 const child = spawn(
   electronBinary,
-  [`--user-data-dir=${desktopUserDataDir}`, ...extraElectronArgs, "."],
+  [
+    `--user-data-dir=${desktopUserDataDir}`,
+    ...browserBridgeArgs,
+    ...extraElectronArgs,
+    ".",
+  ],
   {
     cwd: process.cwd(),
     env: childEnv,

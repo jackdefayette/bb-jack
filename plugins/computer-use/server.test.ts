@@ -30,7 +30,19 @@ function createHarness() {
       result:
         tool === "check_permissions"
           ? { accessibility: true, screen_recording: true }
-          : { args: { ...args }, ok: true },
+          : tool === "get_window_state"
+            ? {
+                snapshot_id: "s00000001",
+                elements: [
+                  {
+                    element_index: 17,
+                    element_token: "s00000001:17",
+                    label: "Focus build chat",
+                    role: "AXButton",
+                  },
+                ],
+              }
+            : { args: { ...args }, ok: true },
     }),
   );
   const fake = createFakePluginHost({
@@ -126,6 +138,97 @@ describe("computer-use plugin", () => {
       "computer_use_act",
       "computer_use_verify",
     ]);
+  });
+
+  it("re-resolves a stable native target to a fresh token immediately before acting", async () => {
+    const { bb, harness, computerUseCall } = createHarness();
+    await computerUsePlugin(bb);
+
+    await harness.callAgentTool("computer_use_act", {
+      tool: "click",
+      arguments: { session: "acceptance" },
+      target: {
+        pid: 90338,
+        window_id: 50929,
+        label: "Focus build chat",
+        role: "AXButton",
+      },
+    });
+
+    expect(computerUseCall).toHaveBeenNthCalledWith(
+      1,
+      "host-1",
+      "get_window_state",
+      {
+        pid: 90338,
+        window_id: 50929,
+        query: "Focus build chat",
+        include_screenshot: false,
+      },
+    );
+    expect(computerUseCall).toHaveBeenNthCalledWith(2, "host-1", "click", {
+      session: "acceptance",
+      pid: 90338,
+      window_id: 50929,
+      element_token: "s00000001:17",
+    });
+  });
+
+  it("refuses stale or ambiguous addressing when a stable target is requested", async () => {
+    const { bb, harness, computerUseCall } = createHarness();
+    await computerUsePlugin(bb);
+
+    await expect(
+      harness.callAgentTool("computer_use_act", {
+        tool: "click",
+        arguments: { element_token: "sdeadbeef:2" },
+        target: {
+          pid: 90338,
+          window_id: 50929,
+          label: "Focus build chat",
+        },
+      }),
+    ).rejects.toThrow(
+      "Do not combine target with element_token; the bridge resolves a fresh element token.",
+    );
+    expect(computerUseCall).not.toHaveBeenCalled();
+  });
+
+  it("exposes exact-tab Browser inspection and action tools", async () => {
+    const { bb, harness, computerUseCall } = createHarness();
+    await computerUsePlugin(bb);
+
+    await harness.callAgentTool("computer_use_inspect", {
+      tool: "get_browser_state",
+      arguments: { pid: 90338, window_id: 50929, session: "acceptance" },
+    });
+    await harness.callAgentTool("computer_use_act", {
+      tool: "browser_click",
+      arguments: {
+        target_id: "target-1",
+        tab_id: "tab-1",
+        session: "acceptance",
+        ref: "p1:4",
+      },
+    });
+
+    expect(computerUseCall).toHaveBeenNthCalledWith(
+      1,
+      "host-1",
+      "get_browser_state",
+      { pid: 90338, window_id: 50929, session: "acceptance" },
+    );
+    expect(computerUseCall).toHaveBeenNthCalledWith(
+      2,
+      "host-1",
+      "browser_click",
+      {
+        target_id: "target-1",
+        tab_id: "tab-1",
+        session: "acceptance",
+        ref: "p1:4",
+      },
+    );
   });
 
   it("registers status and call CLI commands", async () => {

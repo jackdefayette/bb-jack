@@ -7,6 +7,7 @@ interface PendingIdentityWaiter {
 }
 
 export interface RuntimeProviderIdentityState {
+  bbThreadIdsByProviderThreadId: Map<string, string>;
   identityWaiters: Map<string, PendingIdentityWaiter>;
   pendingIdentityThreadIds: string[];
   providerId: string;
@@ -66,6 +67,7 @@ export class RuntimeThreadIdentityRegistry {
     args: CreateRuntimeProviderIdentityStateArgs,
   ): RuntimeProviderIdentityState {
     return {
+      bbThreadIdsByProviderThreadId: new Map(),
       identityWaiters: new Map(),
       pendingIdentityThreadIds: [],
       providerId: args.providerId,
@@ -103,7 +105,27 @@ export class RuntimeThreadIdentityRegistry {
   }
 
   recordProviderThreadIdentity(args: RecordProviderThreadIdentityArgs): void {
+    const existingOwner = args.providerState.bbThreadIdsByProviderThreadId.get(
+      args.providerThreadId,
+    );
+    if (existingOwner !== undefined && existingOwner !== args.threadId) {
+      throw new Error(
+        `Provider thread "${args.providerThreadId}" is already owned by BB thread "${existingOwner}" and cannot be assigned to "${args.threadId}"`,
+      );
+    }
+    const previousProviderThreadId = this.threadToProviderThread.get(
+      args.threadId,
+    );
+    if (previousProviderThreadId !== undefined) {
+      args.providerState.bbThreadIdsByProviderThreadId.delete(
+        previousProviderThreadId,
+      );
+    }
     this.threadToProviderThread.set(args.threadId, args.providerThreadId);
+    args.providerState.bbThreadIdsByProviderThreadId.set(
+      args.providerThreadId,
+      args.threadId,
+    );
     const waiter = args.providerState.identityWaiters.get(args.threadId);
     if (!waiter) {
       return;
@@ -140,17 +162,9 @@ export class RuntimeThreadIdentityRegistry {
       return undefined;
     }
 
-    for (const [bbThreadId, mappedProviderThreadId] of this
-      .threadToProviderThread) {
-      if (
-        mappedProviderThreadId === args.providerThreadId &&
-        args.providerState.threadIds.has(bbThreadId)
-      ) {
-        return bbThreadId;
-      }
-    }
-
-    return undefined;
+    return args.providerState.bbThreadIdsByProviderThreadId.get(
+      args.providerThreadId,
+    );
   }
 
   resolveProviderEventThreadId(
@@ -172,14 +186,10 @@ export class RuntimeThreadIdentityRegistry {
 
     const lookupId = args.sourceThreadId || args.eventThreadId;
     if (lookupId) {
-      for (const [bbThreadId, providerThreadId] of this
-        .threadToProviderThread) {
-        if (
-          providerThreadId === lookupId &&
-          args.providerState.threadIds.has(bbThreadId)
-        ) {
-          return bbThreadId;
-        }
+      const mappedThreadId =
+        args.providerState.bbThreadIdsByProviderThreadId.get(lookupId);
+      if (mappedThreadId !== undefined) {
+        return mappedThreadId;
       }
     }
 
@@ -220,6 +230,10 @@ export class RuntimeThreadIdentityRegistry {
       args.providerState.identityWaiters.delete(args.threadId);
       waiter.resolve(null);
     }
+    const providerThreadId = this.threadToProviderThread.get(args.threadId);
+    if (providerThreadId !== undefined) {
+      args.providerState.bbThreadIdsByProviderThreadId.delete(providerThreadId);
+    }
     this.clearThread(args.threadId);
   }
 
@@ -228,6 +242,7 @@ export class RuntimeThreadIdentityRegistry {
     for (const threadId of providerState.threadIds) {
       this.clearThread(threadId);
     }
+    providerState.bbThreadIdsByProviderThreadId.clear();
     this.resolvePendingIdentityWaiters(providerState);
   }
 

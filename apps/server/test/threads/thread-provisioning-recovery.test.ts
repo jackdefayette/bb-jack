@@ -7,6 +7,7 @@ import {
 } from "@bb/domain";
 import { describe, expect, it } from "vitest";
 import { runThreadLifecycleSweep } from "../../src/services/system/periodic-sweeps.js";
+import { createThreadFromRequest } from "../../src/services/threads/thread-create.js";
 import {
   appendThreadProvisioningEvent,
   buildCwdBranchEntries,
@@ -20,6 +21,7 @@ import {
 } from "../../src/services/threads/thread-provisioning-context.js";
 import { advanceThreadProvisioning } from "../../src/services/threads/thread-provisioning.js";
 import {
+  listQueuedEnvironmentCommands,
   listQueuedThreadCommands,
   reportQueuedCommandError,
   reportQueuedCommandSuccess,
@@ -480,6 +482,100 @@ describe("thread provisioning recovery", () => {
           });
         }
       }
+    });
+  });
+
+  it("retries failed managed provisioning on the same thread and environment", async () => {
+    await withTestHarness(async (harness) => {
+      const { host } = seedHostSession(harness.deps, {
+        id: "host-same-thread-provision-retry",
+      });
+      const { project } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+        path: "/tmp/Jack's CRM",
+      });
+      const thread = await createThreadFromRequest(harness.deps, {
+        childOrigin: null,
+        startedOnBehalfOf: null,
+        environment: {
+          type: "host",
+          hostId: host.id,
+          workspace: {
+            type: "managed-worktree",
+            baseBranch: { kind: "default" },
+          },
+        },
+        input: textInput("initial provisioning attempt"),
+        origin: "cli",
+        projectId: project.id,
+        providerId: "codex",
+      });
+      const environmentId = getThread(harness.db, thread.id)?.environmentId;
+      if (!environmentId) {
+        throw new Error("Expected managed environment");
+      }
+      const failedProvision = await waitForQueuedCommand(
+        harness,
+        ({ command }) =>
+          command.type === "environment.provision" &&
+          command.environmentId === environmentId,
+      );
+
+      await reportQueuedCommandError(harness, failedProvision, {
+        errorCode: "workspace_setup_failed",
+        errorMessage: "Setup hook failed",
+      });
+
+      expect(getThread(harness.db, thread.id)).toMatchObject({
+        id: thread.id,
+        environmentId,
+        status: "error",
+      });
+      expect(getEnvironment(harness.db, environmentId)).toMatchObject({
+        id: environmentId,
+        status: "error",
+      });
+      expect(
+        listQueuedEnvironmentCommands(
+          harness,
+          "environment.destroy",
+          environmentId,
+        ),
+      ).toEqual([]);
+
+      const response = await harness.app.request(
+        `/api/v1/threads/${thread.id}/send`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            input: [{ type: "text", text: "Retry provisioning" }],
+            mode: "auto",
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(getThread(harness.db, thread.id)).toMatchObject({
+        id: thread.id,
+        environmentId,
+        status: "starting",
+      });
+      expect(getEnvironment(harness.db, environmentId)).toMatchObject({
+        id: environmentId,
+        status: "provisioning",
+      });
+      const retryProvision = await waitForQueuedCommandAfter(
+        harness,
+        failedProvision.row.cursor,
+        ({ command }) =>
+          command.type === "environment.provision" &&
+          command.environmentId === environmentId,
+      );
+      expect(retryProvision.command).toMatchObject({
+        type: "environment.provision",
+        initiator: { threadId: thread.id },
+      });
     });
   });
 });

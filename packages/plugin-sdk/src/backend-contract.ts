@@ -636,6 +636,7 @@ export type PluginComputerUseToolName =
   | "get_desktop_state"
   | "get_screen_size"
   | "get_cursor_position"
+  | "get_browser_state"
   | "bring_to_front"
   | "launch_app"
   | "click"
@@ -650,7 +651,11 @@ export type PluginComputerUseToolName =
   | "invoke_menu"
   | "verify_state"
   | "start_session"
-  | "end_session";
+  | "end_session"
+  | "browser_click"
+  | "browser_type"
+  | "browser_pointer"
+  | "browser_navigate";
 
 export interface PluginComputerUseResult {
   tool: PluginComputerUseToolName;

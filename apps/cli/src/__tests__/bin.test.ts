@@ -99,7 +99,7 @@ NODE
     );
   });
 
-  it("uses the built CLI directly when dist exists", async () => {
+  it("uses the built CLI directly and preserves every argument byte", async () => {
     const fakeRepoRoot = await createFakeRepo();
     const fakeDistDir = join(fakeRepoRoot, "apps", "cli", "dist");
     const pnpmCalledPath = join(tempRoot, "pnpm-called.txt");
@@ -115,7 +115,7 @@ exit 42
 
     const result = await execFileAsync(
       join(fakeRepoRoot, "apps", "cli", "bin", "bb"),
-      ["--help"],
+      ["path with spaces", "O'Brien", "Café 東京"],
       {
         cwd: fakeRepoRoot,
         env: {
@@ -125,9 +125,24 @@ exit 42
       },
     );
 
-    expect(result.stdout).toBe("--help");
+    expect(result.stdout).toBe("path with spaces O'Brien Café 東京");
     await expect(readFile(pnpmCalledPath, "utf8")).rejects.toMatchObject({
       code: "ENOENT",
+    });
+  });
+
+  it("preserves spaces, apostrophes, and Unicode through pnpm bb", async () => {
+    const specialArgument = "missing O'Brien Café 東京 guide";
+
+    await expect(
+      execFileAsync("pnpm", ["bb", "guide", specialArgument], {
+        cwd: repoRoot,
+        env: process.env,
+      }),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining(
+        `Unknown guide chapter '${specialArgument}'.`,
+      ),
     });
   });
 });

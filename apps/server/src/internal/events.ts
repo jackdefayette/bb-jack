@@ -831,6 +831,17 @@ function resolvePostableEventBatchEntries(
   const entries: PostableEventBatchEntry[] = [];
   const rejectedEvents: HostDaemonRejectedEvent[] = [];
   for (const [eventIndex, entry] of args.events.entries()) {
+    // The group id is transport routing metadata while the nested id comes
+    // from the provider event. Never let a disagreement silently re-home one
+    // thread's output in another thread's timeline.
+    if (entry.event.threadId !== entry.threadId) {
+      rejectedEvents.push({
+        eventIndex,
+        reason: "event_thread_mismatch",
+        threadId: entry.threadId,
+      });
+      continue;
+    }
     if (!canonicalEnvironmentIdByThreadId.has(entry.threadId)) {
       rejectedEvents.push({
         eventIndex,

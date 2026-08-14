@@ -19,6 +19,7 @@ const TOOL_NAMES = [
   "get_desktop_state",
   "get_screen_size",
   "get_cursor_position",
+  "get_browser_state",
   "bring_to_front",
   "launch_app",
   "click",
@@ -34,6 +35,10 @@ const TOOL_NAMES = [
   "verify_state",
   "start_session",
   "end_session",
+  "browser_click",
+  "browser_type",
+  "browser_pointer",
+  "browser_navigate",
 ] as const satisfies readonly PluginComputerUseToolName[];
 
 const INSPECT_TOOLS = [
@@ -45,6 +50,7 @@ const INSPECT_TOOLS = [
   "get_desktop_state",
   "get_screen_size",
   "get_cursor_position",
+  "get_browser_state",
 ] as const;
 
 const ACTION_TOOLS = [
@@ -62,7 +68,30 @@ const ACTION_TOOLS = [
   "invoke_menu",
   "start_session",
   "end_session",
+  "browser_click",
+  "browser_type",
+  "browser_pointer",
+  "browser_navigate",
 ] as const;
+
+const NATIVE_STABLE_TARGET_TOOLS = new Set<PluginComputerUseToolName>([
+  "click",
+  "double_click",
+  "right_click",
+  "scroll",
+  "type_text",
+  "press_key",
+  "set_value",
+]);
+
+const stableTargetSchema = z
+  .object({
+    pid: z.number().int().positive(),
+    window_id: z.number().int(),
+    label: z.string().min(1),
+    role: z.string().min(1).optional(),
+  })
+  .strict();
 
 const toolNameSchema = z.enum(TOOL_NAMES);
 const jsonObjectSchema = z.record(z.string(), z.json());
@@ -137,6 +166,91 @@ async function callForThread(
 ): Promise<PluginComputerUseResult> {
   const hostId = await threadHostId(bb, threadId);
   return bb.hosts.experimental_callComputerUse(hostId, tool, args);
+}
+
+interface StableTarget {
+  pid: number;
+  window_id: number;
+  label: string;
+  role?: string;
+}
+
+interface DriverElement {
+  element_token: string;
+  label: string;
+  role: string;
+}
+
+function driverElements(result: PluginComputerUseResult): DriverElement[] {
+  if (!isRecord(result.result) || !Array.isArray(result.result.elements)) {
+    throw new Error(
+      "CUA Driver did not return structured accessibility elements for the fresh target snapshot.",
+    );
+  }
+  return result.result.elements.flatMap((candidate) => {
+    if (
+      !isRecord(candidate) ||
+      typeof candidate.element_token !== "string" ||
+      typeof candidate.label !== "string" ||
+      typeof candidate.role !== "string"
+    ) {
+      return [];
+    }
+    return [
+      {
+        element_token: candidate.element_token,
+        label: candidate.label,
+        role: candidate.role,
+      },
+    ];
+  });
+}
+
+async function callWithFreshStableTarget(
+  bb: BbPluginApi,
+  threadId: string,
+  tool: PluginComputerUseToolName,
+  args: Readonly<Record<string, JsonValue>>,
+  target: StableTarget,
+): Promise<PluginComputerUseResult> {
+  if (!NATIVE_STABLE_TARGET_TOOLS.has(tool)) {
+    throw new Error(`${tool} does not support a native stable target.`);
+  }
+  for (const staleAddressKey of [
+    "element_index",
+    "element_token",
+    "snapshot_id",
+  ]) {
+    if (staleAddressKey in args) {
+      throw new Error(
+        `Do not combine target with ${staleAddressKey}; the bridge resolves a fresh element token.`,
+      );
+    }
+  }
+  const snapshot = await callForThread(bb, threadId, "get_window_state", {
+    pid: target.pid,
+    window_id: target.window_id,
+    query: target.label,
+    include_screenshot: false,
+  });
+  const matches = driverElements(snapshot).filter(
+    (element) =>
+      element.label === target.label &&
+      (target.role === undefined || element.role === target.role),
+  );
+  if (matches.length !== 1) {
+    const roleSuffix =
+      target.role === undefined ? "" : ` with role ${target.role}`;
+    throw new Error(
+      `Fresh stable target ${JSON.stringify(target.label)}${roleSuffix} matched ${matches.length} elements; expected exactly one. Inspect again with a more specific label and role.`,
+    );
+  }
+  return callForThread(bb, threadId, tool, {
+    ...args,
+    pid: target.pid,
+    window_id: target.window_id,
+    element_token: matches[0]?.element_token ?? "",
+  });
 }
 
 function isRecord(value: JsonValue): value is Record<string, JsonValue> {
@@ -350,7 +464,7 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
   bb.agents.registerTool({
     name: "computer_use_inspect",
     description:
-      "Inspect desktop UI. list_apps/list_windows/check_permissions/get_accessibility_tree/get_screen_size/get_cursor_position use {}. get_window_state requires {pid,window_id} and accepts {session,query,include_screenshot}. Resolve pid/window_id from fresh list results.",
+      "Inspect desktop UI or an exact embedded Browser tab. Native list/check tools use {}; get_window_state requires {pid,window_id}. get_browser_state binds with {pid,window_id,session} or snapshots with {target_id,tab_id,session,snapshot_format:'semantic_v2'}. Resolve native identity from fresh list results.",
     instructions:
       "Inspect fresh state before acting. Use fresh list_windows results to confirm the intended titled window is on_current_space and is_on_screen. If it is not, bring it to front and list windows again before inspecting it; treat a partial or unverified fronting result as a limitation. Call get_window_state again before every element-indexed action; never reuse stale element indices, snapshot ids, or tokens.",
     experimental_statusLabels: {
@@ -367,7 +481,7 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
   bb.agents.registerTool({
     name: "computer_use_act",
     description:
-      "Perform one bounded CUA action. First start_session with {session:<non-empty id>,capture_scope:'window'}; reuse session and end_session with {session}. bring_to_front requires {pid} and optional window_id. hotkey requires {keys} plus pid/window_id/session. press_key requires {key}. type_text requires {text}. Element-index actions also require their fresh snapshot_id and window_id; prefer element_token.",
+      "Perform one bounded native or exact-tab action. First start_session with {session:<non-empty id>,capture_scope:'window'}; reuse session and end_session with {session}. Native element actions may pass target:{pid,window_id,label,role?}; the bridge explicitly re-snapshots and requires one exact match before using its fresh token. Browser actions use target_id/tab_id/session and fresh page refs from get_browser_state.",
     instructions:
       "Never call start_session with {}. Prefer accessibility element tokens over coordinates. Before acting, confirm the intended titled window is on the current Space; after bring_to_front, re-list windows and do not infer exact focus from a partial result. After every action, inspect fresh state before deciding the next action. No clipboard read, force-kill, unrestricted filesystem, or existing browser profile access is available.",
     experimental_statusLabels: {
@@ -375,10 +489,24 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
       completed: "Used desktop",
     },
     parameters: z
-      .object({ tool: z.enum(ACTION_TOOLS), arguments: jsonObjectSchema })
+      .object({
+        tool: z.enum(ACTION_TOOLS),
+        arguments: jsonObjectSchema,
+        target: stableTargetSchema.optional(),
+      })
       .strict(),
-    execute: async ({ tool, arguments: args }, ctx) =>
-      agentToolResult(await callForThread(bb, ctx.threadId, tool, args)),
+    execute: async ({ tool, arguments: args, target }, ctx) =>
+      agentToolResult(
+        target === undefined
+          ? await callForThread(bb, ctx.threadId, tool, args)
+          : await callWithFreshStableTarget(
+              bb,
+              ctx.threadId,
+              tool,
+              args,
+              target,
+            ),
+      ),
   });
 
   bb.agents.registerTool({
@@ -402,6 +530,6 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
     tools: ["computer_use_inspect", "computer_use_act", "computer_use_verify"],
     skills: ["computer-use"],
     instructions:
-      "Computer Use is a bounded, provider-independent CUA Driver bridge. Use its inspect-act-inspect-verify loop only when the user asks to operate desktop UI. Always start with a non-empty stable session id and reuse it through end_session.",
+      "Computer Use is a bounded, provider-independent CUA Driver bridge. Use its inspect-act-inspect-verify loop only when the user asks to operate desktop UI. Always start with a non-empty stable session id and reuse it through end_session. Electron WebContentsView Browser pages are a separate native/compositor and accessibility boundary: bind and inspect them through get_browser_state, then use browser_* actions with exact target/tab ids and fresh page refs. Never claim the host window AX tree is exhaustive for embedded Browser contents.",
   }));
 }

@@ -128,6 +128,41 @@ describe("RuntimeThreadIdentityRegistry", () => {
     await expect(identityPromise).resolves.toBeNull();
   });
 
+  it("rejects one provider session being assigned to two BB threads", () => {
+    const registry = new RuntimeThreadIdentityRegistry();
+    const providerState = registry.createProviderState({ providerId: "fake" });
+    for (const threadId of ["task-a", "task-b"]) {
+      registry.registerThreadProvider({
+        providerId: "fake",
+        providerState,
+        shouldWaitForProviderIdentity: false,
+        threadId,
+      });
+    }
+
+    registry.recordProviderThreadIdentity({
+      providerState,
+      providerThreadId: "provider-session",
+      threadId: "task-a",
+    });
+
+    expect(() =>
+      registry.recordProviderThreadIdentity({
+        providerState,
+        providerThreadId: "provider-session",
+        threadId: "task-b",
+      }),
+    ).toThrow(
+      'Provider thread "provider-session" is already owned by BB thread "task-a" and cannot be assigned to "task-b"',
+    );
+    expect(
+      registry.resolveBbThreadIdForProviderThread({
+        providerState,
+        providerThreadId: "provider-session",
+      }),
+    ).toBe("task-a");
+  });
+
   it("stamps projected events with the resolved bb thread id", () => {
     const event: ThreadEvent = {
       type: "turn/started",

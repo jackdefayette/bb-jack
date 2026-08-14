@@ -495,7 +495,7 @@ function resolveProvisionedEnvironmentBranchMetadata(
 function recordEnvironmentProvisioningFailureInTransaction(
   deps: EnvironmentProvisionTransactionDeps,
   args: FailEnvironmentProvisioningDurablyArgs,
-): boolean {
+): "cleanup" | "recoverable" | false {
   const environment = getEnvironment(deps.db, args.environmentId);
   if (!environment) {
     return false;
@@ -518,7 +518,9 @@ function recordEnvironmentProvisioningFailureInTransaction(
     return restoreProvisioningEnvironmentAfterCancelledProvisioningOutcomeInTransaction(
       deps,
       { environment },
-    );
+    )
+      ? "cleanup"
+      : false;
   }
 
   const failureOutcome = applyLoggedEnvironmentLifecycleEventInTransaction(
@@ -559,7 +561,13 @@ function recordEnvironmentProvisioningFailureInTransaction(
     }
   }
 
-  return true;
+  // A real provisioning failure keeps this managed environment record in its
+  // recoverable error state. The host provisioning primitive has already
+  // removed any partial worktree, so destroying the record here only prevents
+  // the existing thread's follow-up composer from retrying. Keeping the same
+  // environment also preserves the task/thread history and lets the normal
+  // reprovision path enforce its existing single-flight guard.
+  return "recoverable";
 }
 
 export function settleEnvironmentProvisionCommandResult(
@@ -604,13 +612,11 @@ export function settleEnvironmentProvisionCommandResult(
         ...resolveProvisionedEnvironmentBranchMetadata(args.command),
       },
     );
-    const provisionedOutcome = applyLoggedEnvironmentLifecycleEventInTransaction(
-      args.deps,
-      {
+    const provisionedOutcome =
+      applyLoggedEnvironmentLifecycleEventInTransaction(args.deps, {
         environmentId: args.command.environmentId,
         event: { type: "provision.succeeded" },
-      },
-    );
+      });
     if (provisionedOutcome.applied) {
       args.deps.hub.notifyEnvironment(
         args.command.environmentId,
@@ -734,7 +740,7 @@ export function settleEnvironmentProvisionCommandResult(
     return emptyCommandResultSideEffects();
   }
   const environmentProvisioningId = initiator.provisioningId;
-  const failureHandled = recordEnvironmentProvisioningFailureInTransaction(
+  const failureDisposition = recordEnvironmentProvisioningFailureInTransaction(
     args.deps,
     {
       environmentId: args.command.environmentId,
@@ -750,7 +756,7 @@ export function settleEnvironmentProvisionCommandResult(
       },
     },
   );
-  if (failureHandled) {
+  if (failureDisposition === "cleanup") {
     postCommitActions.push({
       name: "Environment cleanup advance after provision failure",
       context: {

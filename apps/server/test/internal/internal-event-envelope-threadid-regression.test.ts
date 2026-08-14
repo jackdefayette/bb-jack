@@ -1,4 +1,4 @@
-import { createThread, getThread } from "@bb/db";
+import { createThread, events, getThread } from "@bb/db";
 import { threadScope } from "@bb/domain";
 import { groupHostDaemonEvents } from "@bb/host-daemon-contract";
 import { describe, expect, it } from "vitest";
@@ -15,7 +15,7 @@ import {
 import { withTestHarness } from "../helpers/test-app.js";
 
 describe("internal event envelope threadId regression", () => {
-  it("uses the validated envelope threadId for side effects instead of the nested event threadId", async () => {
+  it("rejects a nested event from a different thread instead of re-homing it", async () => {
     await withTestHarness(async (harness) => {
       const hostA = seedHostSession(harness.deps, { id: "host-envelope-a" });
       const hostB = seedHostSession(harness.deps, { id: "host-envelope-b" });
@@ -67,6 +67,17 @@ describe("internal event envelope threadId regression", () => {
       });
 
       expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        acceptedEvents: [],
+        rejectedEvents: [
+          {
+            eventIndex: 0,
+            reason: "event_thread_mismatch",
+            threadId: threadA.id,
+          },
+        ],
+      });
+      expect(harness.db.select().from(events).all()).toEqual([]);
       expect(getThread(harness.db, threadA.id)?.title).toBe("Owned thread");
       expect(getThread(harness.db, threadB.id)?.title).toBe("Foreign thread");
     });

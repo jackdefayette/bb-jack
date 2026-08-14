@@ -124,10 +124,14 @@ class FakeDesktopWindow implements DesktopBrowserWindow {
   public maximized = false;
   public minimized = false;
   public shown = false;
+  public readonly titles: string[] = [];
   private destroyed = false;
   private readonly bounds: WindowBounds;
   private readonly closedListeners: Array<() => void> = [];
   private readyToShowListener: (() => void) | null = null;
+  private readonly pageTitleUpdatedListeners: Array<
+    (event: { preventDefault(): void }) => void
+  > = [];
 
   constructor(args: FakeDesktopWindowArgs) {
     this.options = args.options;
@@ -157,6 +161,14 @@ class FakeDesktopWindow implements DesktopBrowserWindow {
 
   emitReadyToShow(): void {
     this.readyToShowListener?.();
+  }
+
+  emitPageTitleUpdated(): boolean {
+    let prevented = false;
+    for (const listener of this.pageTitleUpdatedListeners) {
+      listener({ preventDefault: () => (prevented = true) });
+    }
+    return prevented;
   }
 
   focus(): void {
@@ -198,9 +210,27 @@ class FakeDesktopWindow implements DesktopBrowserWindow {
   on(
     eventName: "close" | "closed" | "enter-full-screen" | "leave-full-screen",
     listener: () => void,
+  ): void;
+  on(
+    eventName: "page-title-updated",
+    listener: (event: { preventDefault(): void }) => void,
+  ): void;
+  on(
+    eventName:
+      | "close"
+      | "closed"
+      | "enter-full-screen"
+      | "leave-full-screen"
+      | "page-title-updated",
+    listener: (() => void) | ((event: { preventDefault(): void }) => void),
   ): void {
     if (eventName === "closed") {
-      this.closedListeners.push(listener);
+      this.closedListeners.push(listener as () => void);
+    }
+    if (eventName === "page-title-updated") {
+      this.pageTitleUpdatedListeners.push(
+        listener as (event: { preventDefault(): void }) => void,
+      );
     }
   }
 
@@ -216,6 +246,10 @@ class FakeDesktopWindow implements DesktopBrowserWindow {
 
   setFullScreen(isFullScreen: boolean): void {
     this.fullScreen = isFullScreen;
+  }
+
+  setTitle(title: string): void {
+    this.titles.push(title);
   }
 
   show(): void {
@@ -256,6 +290,7 @@ describe("desktop window factory", () => {
       openExternalUrl() {},
       preloadPath: "/tmp/preload.cjs",
       userDataPath: tempDir.path,
+      windowIdentity: "documents-bb-jack-dadc42354ab7",
     });
 
     runtimeSupervisorInvocations += 1;
@@ -274,6 +309,17 @@ describe("desktop window factory", () => {
     expect(createdWindows[0]?.options.minHeight).toBe(MIN_WINDOW_HEIGHT);
     expect(createdWindows[0]?.options.minWidth).toBe(MIN_WINDOW_WIDTH);
     expect(createdWindows[0]?.options.titleBarStyle).toBe("hiddenInset");
+    expect(createdWindows[0]?.options.title).toBe(
+      "bb [instance:documents-bb-jack-dadc42354ab7] [window:main]",
+    );
+    expect(createdWindows[1]?.options.title).toBe(
+      "bb [instance:documents-bb-jack-dadc42354ab7] [window:window-second]",
+    );
+    expect(createdWindows[0]?.emitPageTitleUpdated()).toBe(true);
+    expect(createdWindows[0]?.titles).toEqual([
+      "bb [instance:documents-bb-jack-dadc42354ab7] [window:main]",
+      "bb [instance:documents-bb-jack-dadc42354ab7] [window:main]",
+    ]);
     expect(createdWindows[0]?.options.webPreferences?.spellcheck).toBe(true);
     expect(createdWindows[0]?.webContents.spellCheckerEnabledValues).toEqual([
       true,

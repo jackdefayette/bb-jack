@@ -2209,6 +2209,9 @@ async function runDesktopApp(): Promise<void> {
     },
     preloadPath,
     userDataPath,
+    windowIdentity:
+      process.env.BB_DESKTOP_INSTANCE_ID?.trim() ||
+      (app.isPackaged ? DESKTOP_RELEASE_INFO.applicationName : "bb-dev"),
   });
   installLogViewerIpcHandlers();
 

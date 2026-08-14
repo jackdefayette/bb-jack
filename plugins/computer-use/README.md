@@ -20,6 +20,7 @@ The plugin registers three provider-neutral agent tools: `computer_use_inspect`,
 bb computer-use status [--json]
 bb computer-use call list_windows --args '{"on_screen_only":true}' --json
 bb computer-use call get_window_state --args '{"pid":123,"window_id":456}'
+bb computer-use call get_browser_state --args '{"pid":123,"window_id":456,"session":"qa"}'
 ```
 
 Inside a task, the CLI resolves that task's execution host. Outside a task,
@@ -50,5 +51,16 @@ server contract and host daemon enforce the fixed tool allowlist. The daemon
 uses child-process argv rather than a shell, caps combined output, times out
 calls, and rejects non-JSON results.
 
+Electron's embedded `WebContentsView` Browser is a separate compositor and
+accessibility surface from the host window. The canonical development launcher
+starts Electron with a loopback-only ephemeral DevTools endpoint so
+`get_browser_state` can bind the exact window and expose its tabs. Use the
+returned opaque target/tab ids and fresh page refs with `browser_click`,
+`browser_type`, `browser_pointer`, and `browser_navigate`. This endpoint is not
+enabled automatically in packaged builds; those builds truthfully remain
+limited to native AX/pixel operation until launched with an owned debugging
+endpoint.
+
 V1 excludes force-kill, clipboard read, unrestricted filesystem access,
-downloads, and attaching to an existing browser profile.
+downloads, and setting up or attaching to an arbitrary existing browser
+profile.

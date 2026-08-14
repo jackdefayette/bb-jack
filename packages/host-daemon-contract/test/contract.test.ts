@@ -1055,11 +1055,29 @@ describe("host-daemon local schemas", () => {
 });
 
 describe("host-daemon command schemas", () => {
-  // Version 96 rejects Git roots above the configured workspace for
-  // repository discovery and branch commands. An older daemon can still
-  // return ancestor-repository data, so it must update before connecting.
-  it("uses protocol version 97 for bounded computer-use host calls", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(97);
+  // Version 99 exposes exact-tab browser tools and rejects cross-thread event
+  // routing. An older daemon does not share those wire semantics, so it must
+  // update before connecting.
+  it("uses protocol version 99 for browser calls and event isolation", () => {
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(99);
+  });
+
+  it("accepts exact-tab browser calls through bounded computer use", () => {
+    expect(
+      hostDaemonOnlineRpcCommandSchema.parse({
+        type: "host.computer_use.call",
+        tool: "browser_click",
+        arguments: {
+          session: "acceptance",
+          target_id: "target-1",
+          tab_id: "tab-1",
+          ref: "p1:4",
+        },
+      }),
+    ).toMatchObject({
+      type: "host.computer_use.call",
+      tool: "browser_click",
+    });
   });
 
   it("binds Plan cancellation to a required turn id and typed result", () => {
