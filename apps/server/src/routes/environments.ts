@@ -1,5 +1,9 @@
 import path from "node:path";
-import { listEnvironments, updateEnvironmentMetadata } from "@bb/db";
+import {
+  listEnvironments,
+  setEnvironmentCleanupMode,
+  updateEnvironmentMetadata,
+} from "@bb/db";
 import {
   type GitBranchRefClassification,
   resolveEnvironmentWorkspaceDisplayKind,
@@ -846,11 +850,18 @@ export function registerEnvironmentRoutes(app: Hono, deps: AppDeps): void {
             },
           }),
         );
+        setEnvironmentCleanupMode(
+          deps.db,
+          deps.hub,
+          environment.id,
+          "safe_delete",
+        );
+        archiveEnvironmentThreads(deps, { environment });
         return context.json({
           ok: true,
           action: "pull_request_merge",
           method: payload.options.method,
-          message: "Pull request merge started",
+          message: "Pull request merged; working copy cleanup started",
         });
       }
       default: {

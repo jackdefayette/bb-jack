@@ -1,6 +1,6 @@
 import type { BbPluginApi } from "@bb/plugin-sdk";
 import type { TasksApiStore } from "../api";
-import type { TaskThread, TaskThreadLiveStatus } from "../db";
+import type { TaskStatus, TaskThread, TaskThreadLiveStatus } from "../db";
 import {
   createSystemComment,
   publishCommentsChanged,
@@ -11,14 +11,17 @@ const TERMINAL_LIVE_STATUSES = new Set<TaskThreadLiveStatus>([
   "completed",
   "failed",
 ]);
+const TERMINAL_TASK_STATUSES = new Set<TaskStatus>(["done", "canceled"]);
 export const THREAD_STATUS_RECONCILE_INTERVAL_MS = 5 * 60_000;
 export const THREAD_STATUS_IDLE_INTERVAL_MS = 60_000;
 
 type SdkThread = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>;
 
 function liveStatusFromThread(thread: SdkThread): TaskThreadLiveStatus {
+  if (thread.archivedAt !== null || thread.deletedAt !== null) {
+    return "completed";
+  }
   if (thread.status === "error") return "failed";
-  if (thread.deletedAt !== null) return "completed";
 
   switch (thread.status) {
     case "starting":
@@ -55,6 +58,119 @@ function sdkErrorCode(error: unknown): string | undefined {
     return undefined;
   }
   return typeof error.code === "string" ? error.code : undefined;
+}
+
+async function finalizeTaskThread(
+  bb: BbPluginApi,
+  store: TasksApiStore,
+  thread: TaskThread,
+): Promise<void> {
+  try {
+    const liveThread = await bb.sdk.threads.get({
+      threadId: thread.threadId,
+    });
+    if (liveThread.archivedAt === null && liveThread.deletedAt === null) {
+      await archiveTaskThread(bb, store, thread);
+      return;
+    }
+    transitionThread(bb, store, thread, "completed");
+  } catch (error) {
+    if (sdkErrorCode(error) === "thread_not_found") {
+      transitionThread(bb, store, thread, "completed");
+      return;
+    }
+    bb.log.warn(
+      `Could not automatically archive terminal task thread ${thread.threadId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
+async function archiveTaskThread(
+  bb: BbPluginApi,
+  store: TasksApiStore,
+  thread: TaskThread,
+): Promise<void> {
+  await bb.sdk.threads.archiveAll({ threadId: thread.threadId });
+  transitionThread(bb, store, thread, "completed");
+}
+
+export async function finalizeTaskIfTerminal(
+  bb: BbPluginApi,
+  store: TasksApiStore,
+  taskId: string,
+): Promise<void> {
+  const task = store.tasks.getTask(taskId);
+  if (!task || !TERMINAL_TASK_STATUSES.has(task.status)) return;
+
+  for (const thread of store.tasks.listTaskThreads(task.id)) {
+    if (thread.liveStatus === "completed") continue;
+    await finalizeTaskThread(bb, store, thread);
+  }
+}
+
+async function finalizePendingTerminalTasks(
+  bb: BbPluginApi,
+  store: TasksApiStore,
+): Promise<void> {
+  for (const thread of store.tasks.listPendingTerminalTaskThreads()) {
+    await finalizeTaskThread(bb, store, thread);
+  }
+}
+
+async function finalizeTerminalPullRequests(
+  bb: BbPluginApi,
+  store: TasksApiStore,
+): Promise<void> {
+  const threadsByEnvironment = new Map<string, TaskThread[]>();
+  for (const thread of store.tasks.listPendingReviewTaskThreads()) {
+    try {
+      const liveThread = await bb.sdk.threads.get({
+        threadId: thread.threadId,
+      });
+      if (liveThread.archivedAt !== null || liveThread.deletedAt !== null) {
+        transitionThread(bb, store, thread, "completed");
+        continue;
+      }
+      if (!liveThread.environmentId) continue;
+      const threads = threadsByEnvironment.get(liveThread.environmentId) ?? [];
+      threads.push(thread);
+      threadsByEnvironment.set(liveThread.environmentId, threads);
+    } catch (error) {
+      if (sdkErrorCode(error) === "thread_not_found") {
+        transitionThread(bb, store, thread, "completed");
+        continue;
+      }
+      bb.log.warn(
+        `Could not inspect review task thread ${thread.threadId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  for (const [environmentId, threads] of threadsByEnvironment) {
+    try {
+      const result = await bb.sdk.environments.pullRequest({ environmentId });
+      if (
+        result.outcome !== "available" ||
+        (result.pullRequest.state !== "merged" &&
+          result.pullRequest.state !== "closed")
+      ) {
+        continue;
+      }
+      for (const thread of threads) {
+        await archiveTaskThread(bb, store, thread);
+      }
+    } catch (error) {
+      bb.log.warn(
+        `Could not automatically archive terminal pull request environment ${environmentId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
 }
 
 function transitionThread(
@@ -139,6 +255,14 @@ function hasNonTerminalTrackedThreads(store: TasksApiStore): boolean {
   );
 }
 
+function hasPendingTerminalTaskThreads(store: TasksApiStore): boolean {
+  return store.tasks.listPendingTerminalTaskThreads().length > 0;
+}
+
+function hasPendingReviewTaskThreads(store: TasksApiStore): boolean {
+  return store.tasks.listPendingReviewTaskThreads().length > 0;
+}
+
 function waitForNextReconciliation(
   signal: AbortSignal,
   intervalMs: number,
@@ -183,7 +307,11 @@ export async function registerLifecycle(
   bb.background.service("thread-status-reconcile", {
     async start(signal) {
       while (!signal.aborted) {
-        if (!hasNonTerminalTrackedThreads(store)) {
+        if (
+          !hasNonTerminalTrackedThreads(store) &&
+          !hasPendingTerminalTaskThreads(store) &&
+          !hasPendingReviewTaskThreads(store)
+        ) {
           await waitForNextReconciliation(
             signal,
             THREAD_STATUS_IDLE_INTERVAL_MS,
@@ -195,11 +323,15 @@ export async function registerLifecycle(
           THREAD_STATUS_RECONCILE_INTERVAL_MS,
         );
         if (signal.aborted) break;
+        await finalizePendingTerminalTasks(bb, store);
+        await finalizeTerminalPullRequests(bb, store);
         await reconcileTrackedThreads(bb, store);
       }
     },
   });
 
+  await finalizePendingTerminalTasks(bb, store);
+  await finalizeTerminalPullRequests(bb, store);
   await reconcileTrackedThreads(bb, store);
   await reconcileTrackedThreads(bb, store);
 }

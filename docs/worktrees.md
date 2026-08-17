@@ -106,6 +106,16 @@ Contract:
 
 ## Cleanup
 
+Moving a Tasks item to **Done** or **Canceled** automatically archives its
+attached conversations. Successfully merging a pull request in bb archives
+every conversation using that branch; Tasks also reconciles merged or closed
+pull requests attached to items in **In review**. Once no unarchived
+conversation still uses the managed worktree, bb retires its disposable folder
+so it no longer appears as a working copy. A successful in-app pull-request
+merge also removes the merged branch. Shared working copies therefore remain
+available until their last attached task is finished, and archived conversation
+history remains searchable after cleanup.
+
 Use **Manage working copies** in the task chooser, or **Finish or abandon
 task** in a workspace agent's environment menu. The Git preflight reports
 tracked changes, untracked files, committed-unmerged work, and merge status.

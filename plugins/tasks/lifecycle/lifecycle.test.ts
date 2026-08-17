@@ -63,6 +63,111 @@ function trackedThreadFixture(
 }
 
 describe("task thread lifecycle", () => {
+  it.each(["merged", "closed"] as const)(
+    "automatically archives an in-review thread when its pull request is %s",
+    async (pullRequestState) => {
+      const host = createFakePluginHost({
+        pluginId: "tasks",
+        sdk: {
+          threads: {
+            get: async () =>
+              makeThreadResponse({
+                id: "thr_review",
+                environmentId: "env_review",
+                status: "idle",
+              }),
+            archiveAll: async () => ({ archivedThreadIds: [] }),
+          },
+          environments: {
+            pullRequest: async () => ({
+              outcome: "available",
+              pullRequest: { state: pullRequestState },
+            }),
+          },
+        },
+      });
+      const store = createStore(host.bb);
+      const project = store.tasks.createProject({
+        name: "Pull request lifecycle",
+        prefix: "PR",
+        color: "blue",
+      });
+      const task = store.tasks.createTask({
+        projectId: project.id,
+        title: "Review pull request",
+        status: "in_review",
+      });
+      const tracked = store.tasks.upsertTaskThread({
+        taskId: task.id,
+        threadId: "thr_review",
+        presetName: "Default",
+        title: "Review worker",
+        liveStatus: "idle",
+      });
+
+      await registerLifecycle(host.bb, store);
+
+      expect(host.harness.sdk.callsTo("environments.pullRequest")).toEqual([
+        [{ environmentId: "env_review" }],
+      ]);
+      expect(host.harness.sdk.callsTo("threads.archiveAll")).toEqual([
+        [{ threadId: "thr_review" }],
+      ]);
+      expect(store.tasks.getTaskThread(tracked.id)?.liveStatus).toBe(
+        "completed",
+      );
+
+      await host.harness.dispose();
+    },
+  );
+
+  it("keeps an in-review thread while its pull request is still open", async () => {
+    const host = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          get: async () =>
+            makeThreadResponse({
+              id: "thr_open_review",
+              environmentId: "env_open_review",
+              status: "idle",
+            }),
+        },
+        environments: {
+          pullRequest: async () => ({
+            outcome: "available",
+            pullRequest: { state: "open" },
+          }),
+        },
+      },
+    });
+    const store = createStore(host.bb);
+    const project = store.tasks.createProject({
+      name: "Open pull request",
+      prefix: "OPEN",
+      color: "blue",
+    });
+    const task = store.tasks.createTask({
+      projectId: project.id,
+      title: "Still reviewing",
+      status: "in_review",
+    });
+    const tracked = store.tasks.upsertTaskThread({
+      taskId: task.id,
+      threadId: "thr_open_review",
+      presetName: "Default",
+      title: "Open review worker",
+      liveStatus: "idle",
+    });
+
+    await registerLifecycle(host.bb, store);
+
+    expect(host.harness.sdk.callsTo("threads.archiveAll")).toEqual([]);
+    expect(store.tasks.getTaskThread(tracked.id)?.liveStatus).toBe("idle");
+
+    await host.harness.dispose();
+  });
+
   it("moves a working thread to completed, comments, and publishes", async () => {
     const fixture = trackedThreadFixture("working", "active");
     await registerLifecycle(fixture.bb, fixture.store);
@@ -325,6 +430,64 @@ describe("task thread lifecycle", () => {
       ]);
       expect(store.tasks.getTaskThread(tracked.id)?.liveStatus).toBe("working");
 
+      service.controller.abort();
+      await service.done;
+    } finally {
+      vi.useRealTimers();
+      await host.harness.dispose();
+    }
+  });
+
+  it("retries automatic terminal-task archiving after a transient failure", async () => {
+    vi.useFakeTimers();
+    let archiveAttempts = 0;
+    const host = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          get: async () =>
+            makeThreadResponse({ id: "thr_terminal", status: "idle" }),
+          archiveAll: async () => {
+            archiveAttempts += 1;
+            if (archiveAttempts === 1) {
+              throw new Error("server temporarily unavailable");
+            }
+            return { archivedThreadIds: [] };
+          },
+        },
+      },
+    });
+    const store = createStore(host.bb);
+    const project = store.tasks.createProject({
+      name: "Terminal retry",
+      prefix: "RETRY",
+      color: "blue",
+    });
+    const task = store.tasks.createTask({
+      projectId: project.id,
+      title: "Archive automatically",
+      status: "done",
+    });
+    const tracked = store.tasks.upsertTaskThread({
+      taskId: task.id,
+      threadId: "thr_terminal",
+      presetName: "Default",
+      title: "Terminal worker",
+      liveStatus: "idle",
+    });
+
+    try {
+      await registerLifecycle(host.bb, store);
+      expect(archiveAttempts).toBe(1);
+      expect(store.tasks.getTaskThread(tracked.id)?.liveStatus).toBe("idle");
+
+      const service = host.harness.runService("thread-status-reconcile");
+      await vi.advanceTimersByTimeAsync(THREAD_STATUS_RECONCILE_INTERVAL_MS);
+
+      expect(archiveAttempts).toBe(2);
+      expect(store.tasks.getTaskThread(tracked.id)?.liveStatus).toBe(
+        "completed",
+      );
       service.controller.abort();
       await service.done;
     } finally {

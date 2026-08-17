@@ -1666,6 +1666,38 @@ export function createTasksStore(db: PluginDatabase) {
       .map(taskThreadFromRow);
   }
 
+  function listPendingTerminalTaskThreads(): TaskThread[] {
+    return db
+      .prepare<[], TaskThreadRow>(
+        `
+        SELECT tt.*
+        FROM task_threads tt
+        JOIN tasks t ON t.id = tt.task_id
+        WHERE t.status IN ('done', 'canceled')
+          AND tt.live_status <> 'completed'
+        ORDER BY tt.attached_at, tt.id
+      `,
+      )
+      .all()
+      .map(taskThreadFromRow);
+  }
+
+  function listPendingReviewTaskThreads(): TaskThread[] {
+    return db
+      .prepare<[], TaskThreadRow>(
+        `
+        SELECT tt.*
+        FROM task_threads tt
+        JOIN tasks t ON t.id = tt.task_id
+        WHERE t.status = 'in_review'
+          AND tt.live_status <> 'completed'
+        ORDER BY tt.attached_at, tt.id
+      `,
+      )
+      .all()
+      .map(taskThreadFromRow);
+  }
+
   function updateTaskThread(
     id: string,
     input: UpdateTaskThreadInput,
@@ -1971,6 +2003,8 @@ export function createTasksStore(db: PluginDatabase) {
     getTaskThread,
     getTaskThreadByThreadId,
     listTaskThreads,
+    listPendingTerminalTaskThreads,
+    listPendingReviewTaskThreads,
     updateTaskThread,
     updateTaskThreadStatus,
     deleteTaskThread,

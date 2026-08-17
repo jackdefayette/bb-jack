@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getEnvironment } from "@bb/db";
+import { getEnvironment, getThread } from "@bb/db";
 import type { GitHostPullRequest } from "@bb/domain";
 import { readJson } from "../helpers/json.js";
 import {
@@ -10,6 +10,7 @@ import {
   seedEnvironment,
   seedHostSession,
   seedProjectWithSource,
+  seedThread,
 } from "../helpers/seed.js";
 import { withTestHarness } from "../helpers/test-app.js";
 
@@ -422,6 +423,12 @@ describe("public environment action regressions", () => {
         workspaceProvisionType: "managed-worktree",
         path: "/tmp/pr-merge-env",
       });
+      const thread = seedThread(harness.deps, {
+        projectId: project.id,
+        environmentId: environment.id,
+        status: "idle",
+        title: "Merged pull request thread",
+      });
 
       const responsePromise = harness.app.request(
         `/api/v1/environments/${environment.id}/actions`,
@@ -464,8 +471,24 @@ describe("public environment action regressions", () => {
         action: "pull_request_merge",
         method: "rebase",
         ok: true,
+        message: "Pull request merged; working copy cleanup started",
       });
+      expect(getThread(harness.db, thread.id)?.archivedAt).not.toBeNull();
+
+      const destroyCommand = await waitForQueuedCommand(
+        harness,
+        ({ command }) =>
+          command.type === "environment.destroy" &&
+          command.environmentId === environment.id,
+      );
+      expect(destroyCommand.command).toMatchObject({
+        deleteBranch: true,
+        force: false,
+      });
+      await reportQueuedCommandSuccess(harness, destroyCommand, {});
+      expect(getEnvironment(harness.db, environment.id)?.status).toBe(
+        "destroyed",
+      );
     });
   });
-
 });

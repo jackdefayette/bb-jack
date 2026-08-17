@@ -10,6 +10,123 @@ import { tasksRpcContract } from "../shared/contract";
 import { createComment, createStore, registerTasksApi } from ".";
 
 describe("Tasks RPC domain API", () => {
+  it("automatically archives only the finished task's attached threads", async () => {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          get: async ({ threadId }) =>
+            makeThreadResponse({ id: threadId, status: "idle" }),
+          archiveAll: async () => ({ archivedThreadIds: [] }),
+        },
+      },
+    });
+    const store = createStore(bb);
+    registerTasksApi(bb, store);
+    const project = store.tasks.createProject({
+      name: "Automatic cleanup",
+      prefix: "AUTO",
+      color: "blue",
+    });
+    const finishedTask = store.tasks.createTask({
+      projectId: project.id,
+      title: "Finished",
+      status: "in_review",
+    });
+    const sharedTask = store.tasks.createTask({
+      projectId: project.id,
+      title: "Still active",
+      status: "in_progress",
+    });
+    store.tasks.upsertTaskThread({
+      taskId: finishedTask.id,
+      threadId: "thr_finished",
+      presetName: "Default",
+      title: "Finished worker",
+      liveStatus: "idle",
+    });
+    store.tasks.upsertTaskThread({
+      taskId: sharedTask.id,
+      threadId: "thr_shared",
+      presetName: "Default",
+      title: "Shared worker",
+      liveStatus: "idle",
+    });
+
+    const result = tasksRpcContract.updateTask.output.parse(
+      await harness.callRpc("updateTask", {
+        taskId: finishedTask.id,
+        status: "done",
+        authorName: "Jack",
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: true, task: { status: "done" } });
+    expect(harness.sdk.callsTo("threads.archiveAll")).toEqual([
+      [{ threadId: "thr_finished" }],
+    ]);
+    expect(
+      store.tasks.getTaskThreadByThreadId(finishedTask.id, "thr_finished")
+        ?.liveStatus,
+    ).toBe("completed");
+    expect(
+      store.tasks.getTaskThreadByThreadId(sharedTask.id, "thr_shared")
+        ?.liveStatus,
+    ).toBe("idle");
+
+    await harness.dispose();
+  });
+
+  it("automatically archives attached threads when a task is canceled on the board", async () => {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          get: async ({ threadId }) =>
+            makeThreadResponse({ id: threadId, status: "active" }),
+          archiveAll: async () => ({ archivedThreadIds: [] }),
+        },
+      },
+    });
+    const store = createStore(bb);
+    registerTasksApi(bb, store);
+    const project = store.tasks.createProject({
+      name: "Canceled cleanup",
+      prefix: "CANCEL",
+      color: "blue",
+    });
+    const task = store.tasks.createTask({
+      projectId: project.id,
+      title: "Abandon",
+      status: "in_progress",
+    });
+    store.tasks.upsertTaskThread({
+      taskId: task.id,
+      threadId: "thr_canceled",
+      presetName: "Default",
+      title: "Canceled worker",
+      liveStatus: "working",
+    });
+
+    const result = tasksRpcContract.boardMove.output.parse(
+      await harness.callRpc("boardMove", {
+        taskId: task.id,
+        status: "canceled",
+        authorName: "Jack",
+      }),
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      task: { status: "canceled" },
+    });
+    expect(harness.sdk.callsTo("threads.archiveAll")).toEqual([
+      [{ threadId: "thr_canceled" }],
+    ]);
+
+    await harness.dispose();
+  });
+
   it("deletes through the typed RPC policy and rejects saved-description references", async () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "tasks" });
     const store = createStore(bb);

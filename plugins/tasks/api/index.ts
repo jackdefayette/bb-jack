@@ -12,6 +12,7 @@ import {
   removeAttachmentBlobs,
 } from "../attachments";
 import { deliverCommentToLatestAgent } from "../steer";
+import { finalizeTaskIfTerminal } from "../lifecycle";
 import { isSideChatShapedThread } from "../shared/side-chat";
 import {
   tasksRpcContract,
@@ -787,7 +788,7 @@ export function registerHandlers(
     getWorkingCopyThreadStates(input) {
       return { states: store.workingCopyThreadStates(input.threadIds) };
     },
-    updateTask(input) {
+    async updateTask(input) {
       try {
         const current = store.tasks.getTask(input.taskId);
         if (!current) throw new Error(`Task not found: ${input.taskId}`);
@@ -848,6 +849,7 @@ export function registerHandlers(
         if (result.systemCommentsWritten > 0) {
           publishCommentsChanged(bb, result.task.id);
         }
+        await finalizeTaskIfTerminal(bb, store, result.task.id);
         return { ok: true, task: result.task };
       } catch (error) {
         if (error instanceof TasksDomainFailure) return taskFailure(error);
@@ -882,7 +884,7 @@ export function registerHandlers(
         nextCursor: page.nextCursor,
       };
     },
-    boardMove(input) {
+    async boardMove(input) {
       const current = store.tasks.getTask(input.taskId);
       if (!current) throw new Error(`Task not found: ${input.taskId}`);
       const result = store.transaction(() => {
@@ -901,6 +903,7 @@ export function registerHandlers(
       });
       publishTasksChanged(bb, result.task.id, result.task.projectId);
       if (result.statusChanged) publishCommentsChanged(bb, result.task.id);
+      await finalizeTaskIfTerminal(bb, store, result.task.id);
       return { ok: true, task: result.task };
     },
     createLabel(input) {

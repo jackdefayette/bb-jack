@@ -86,6 +86,10 @@ target another enrolled machine.
 
 Statuses are `backlog`, `todo`, `in_progress`, `in_review`, `done`, and
 `canceled`. Priorities are `urgent`, `high`, `medium`, `low`, and `none`.
+Moving a task to `done` or `canceled` automatically archives its attached bb
+threads. A managed working copy is retired when its last attached thread is
+archived; shared copies wait for the remaining task threads. Merged or closed
+pull requests attached to `in_review` tasks are reconciled the same way.
 
 Task lists default to 100 rows and accept `--limit 1-500`. JSON output is
 `{ tasks, nextCursor, limit }`; human output prints the continuation option

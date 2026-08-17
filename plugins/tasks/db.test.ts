@@ -710,6 +710,77 @@ describe("tasks storage", () => {
     }
   });
 
+  it("selects only unfinished threads attached to terminal tasks", async () => {
+    const { harness, store } = setup();
+    try {
+      const project = createProject(store, "FINAL");
+      const done = store.createTask({
+        projectId: project.id,
+        title: "Done task",
+        status: "done",
+      });
+      const canceled = store.createTask({
+        projectId: project.id,
+        title: "Canceled task",
+        status: "canceled",
+      });
+      const active = store.createTask({
+        projectId: project.id,
+        title: "Active task",
+        status: "in_progress",
+      });
+      const review = store.createTask({
+        projectId: project.id,
+        title: "Review task",
+        status: "in_review",
+      });
+      store.upsertTaskThread({
+        taskId: done.id,
+        threadId: "thr_done_pending",
+        presetName: "Default",
+        title: "Done pending",
+        liveStatus: "idle",
+      });
+      store.upsertTaskThread({
+        taskId: done.id,
+        threadId: "thr_done_archived",
+        presetName: "Default",
+        title: "Done archived",
+        liveStatus: "completed",
+      });
+      store.upsertTaskThread({
+        taskId: canceled.id,
+        threadId: "thr_canceled_failed",
+        presetName: "Default",
+        title: "Canceled failed",
+        liveStatus: "failed",
+      });
+      store.upsertTaskThread({
+        taskId: active.id,
+        threadId: "thr_active_pending",
+        presetName: "Default",
+        title: "Active pending",
+        liveStatus: "idle",
+      });
+      store.upsertTaskThread({
+        taskId: review.id,
+        threadId: "thr_review_pending",
+        presetName: "Default",
+        title: "Review pending",
+        liveStatus: "idle",
+      });
+
+      expect(
+        store.listPendingTerminalTaskThreads().map((thread) => thread.threadId),
+      ).toEqual(["thr_done_pending", "thr_canceled_failed"]);
+      expect(
+        store.listPendingReviewTaskThreads().map((thread) => thread.threadId),
+      ).toEqual(["thr_review_pending"]);
+    } finally {
+      await harness.dispose();
+    }
+  });
+
   it("rejects duplicate preset names", async () => {
     const { harness, store } = setup();
     try {
