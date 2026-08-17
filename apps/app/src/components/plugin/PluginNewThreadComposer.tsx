@@ -19,7 +19,10 @@ import { cn } from "@bb/shared-ui/lib/utils";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@bb/shared-ui/select";
@@ -896,100 +899,127 @@ export function PluginNewThreadComposer({
         : isolatedWorkspaceLabel;
   const workspaceEnvironmentPicker = hasWorkspaceEnvironmentPicker ? (
     <>
-      <div className="flex items-center gap-2 border-b border-border/60 bg-sidebar/50 px-3 py-1.5 text-xs">
-        <span className="shrink-0 font-medium text-foreground">
-          Where should this agent edit files?
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5 border-b border-border/60 bg-sidebar/50 px-3 py-2 text-xs">
+        <span className="min-w-0 font-medium text-foreground">
+          Working copy
         </span>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs text-muted-foreground"
+          onClick={() => setWorkingCopyManagerOpen(true)}
+        >
+          Manage working copies
+        </Button>
         <Select
           value={effectiveEnvironmentValue}
           onValueChange={setEnvironmentSelectionValue}
         >
           <SelectTrigger
             aria-label="Where should this agent edit files?"
-            className="h-8 min-w-0 flex-1 border-border bg-canvas px-2 text-xs"
+            className="col-span-2 h-9 min-w-0 w-full border-border bg-canvas px-2.5 text-xs"
           >
             <SelectValue>{workspaceSelectionLabel}</SelectValue>
           </SelectTrigger>
           <SelectContent
-            position="item-aligned"
+            position="popper"
+            align="start"
+            sideOffset={4}
             className="w-[min(30rem,calc(100vw-2rem))]"
           >
-            <SelectItem
-              value={encodeHostValue(primaryHostId, "worktree")}
-              disabled={projectSourceWorktreeUnavailable}
-              className="items-start py-2.5"
-            >
-              <span className="flex flex-col gap-0.5 pr-2">
-                <span className="font-medium text-foreground">
-                  {isolatedWorkspaceLabel}
-                </span>
-                <span className="text-2xs leading-4 text-muted-foreground">
-                  Creates a new folder and branch. It won&apos;t affect this
-                  project folder or include its uncommitted changes.
-                </span>
-              </span>
-            </SelectItem>
-            <SelectItem
-              value={encodeHostValue(primaryHostId, "local")}
-              className="items-start py-2.5"
-            >
-              <span className="flex flex-col gap-0.5 pr-2">
-                <span className="font-medium text-foreground">
-                  This project folder — Shared
-                </span>
-                <span className="text-2xs leading-4 text-muted-foreground">
-                  Edits {currentProjectFolder ?? "the project folder"} directly.
-                  You and other agents using it share uncommitted changes.
-                </span>
-              </span>
-            </SelectItem>
-            {reuseThreadOptions.map((option) => {
-              const isPeer =
-                workspaceEnvironmentPeer?.environmentId ===
-                option.environmentId;
-              const taskLabel =
-                isPeer && workspaceEnvironmentPeer?.taskKey
-                  ? workspaceEnvironmentPeer.taskKey
-                  : (option.threads[0]?.title ??
-                    option.name ??
-                    option.branchName ??
-                    "previous task");
-              const peerLabel = isPeer
-                ? (workspaceEnvironmentPeer?.label ?? null)
-                : null;
-              return (
-                <SelectItem
-                  key={option.environmentId}
-                  value={encodeReuseValue(option.environmentId)}
-                  className="items-start py-2.5"
-                >
-                  <span className="flex flex-col gap-0.5 pr-2">
-                    <span className="font-medium text-foreground">
-                      Share files with {taskLabel}
-                      {peerLabel ? ` — Shared with ${peerLabel}` : " — Shared"}
-                    </span>
-                    <span className="text-2xs leading-4 text-muted-foreground">
-                      {option.branchName
-                        ? `Branch ${option.branchName}. `
-                        : ""}
-                      {peerLabel
-                        ? `Uses the same folder and branch as ${peerLabel}. Both agents see uncommitted changes immediately.`
-                        : `Reuses ${taskLabel}'s folder and branch. Agents there see the same uncommitted changes immediately.`}
-                    </span>
+            <SelectGroup>
+              <SelectLabel className="text-2xs font-medium text-muted-foreground">
+                Start fresh
+              </SelectLabel>
+              <SelectItem
+                value={encodeHostValue(primaryHostId, "worktree")}
+                disabled={projectSourceWorktreeUnavailable}
+                className="items-start py-2.5"
+              >
+                <span className="flex flex-col gap-0.5 pr-2">
+                  <span className="font-medium text-foreground">
+                    {isolatedWorkspaceLabel}
                   </span>
-                </SelectItem>
-              );
-            })}
+                  <span className="text-2xs leading-4 text-muted-foreground">
+                    Creates a new folder and branch. It won&apos;t affect this
+                    project folder or include its uncommitted changes.
+                  </span>
+                </span>
+              </SelectItem>
+            </SelectGroup>
+            <SelectSeparator />
+            <SelectGroup>
+              <SelectLabel className="text-2xs font-medium text-muted-foreground">
+                Use existing files
+              </SelectLabel>
+              <SelectItem
+                value={encodeHostValue(primaryHostId, "local")}
+                className="items-start py-2.5"
+              >
+                <span className="flex flex-col gap-0.5 pr-2">
+                  <span className="font-medium text-foreground">
+                    This project folder — Shared
+                  </span>
+                  <span className="text-2xs leading-4 text-muted-foreground">
+                    Edits {currentProjectFolder ?? "the project folder"}{" "}
+                    directly. You and other agents using it share uncommitted
+                    changes.
+                  </span>
+                </span>
+              </SelectItem>
+            </SelectGroup>
+            {reuseThreadOptions.length > 0 ? (
+              <>
+                <SelectSeparator />
+                <SelectGroup>
+                  <SelectLabel className="text-2xs font-medium text-muted-foreground">
+                    Active working copies
+                  </SelectLabel>
+                  {reuseThreadOptions.map((option) => {
+                    const isPeer =
+                      workspaceEnvironmentPeer?.environmentId ===
+                      option.environmentId;
+                    const taskLabel =
+                      isPeer && workspaceEnvironmentPeer?.taskKey
+                        ? workspaceEnvironmentPeer.taskKey
+                        : (option.threads[0]?.title ??
+                          option.name ??
+                          option.branchName ??
+                          "previous task");
+                    const peerLabel = isPeer
+                      ? (workspaceEnvironmentPeer?.label ?? null)
+                      : null;
+                    return (
+                      <SelectItem
+                        key={option.environmentId}
+                        value={encodeReuseValue(option.environmentId)}
+                        className="items-start py-2.5"
+                      >
+                        <span className="flex flex-col gap-0.5 pr-2">
+                          <span className="font-medium text-foreground">
+                            Share files with {taskLabel}
+                            {peerLabel
+                              ? ` — Shared with ${peerLabel}`
+                              : " — Shared"}
+                          </span>
+                          <span className="text-2xs leading-4 text-muted-foreground">
+                            {option.branchName
+                              ? `Branch ${option.branchName}. `
+                              : ""}
+                            {peerLabel
+                              ? `Uses the same folder and branch as ${peerLabel}. Both agents see uncommitted changes immediately.`
+                              : `Reuses ${taskLabel}'s folder and branch. Agents there see the same uncommitted changes immediately.`}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectGroup>
+              </>
+            ) : null}
           </SelectContent>
         </Select>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          onClick={() => setWorkingCopyManagerOpen(true)}
-        >
-          Manage working copies
-        </Button>
       </div>
       <WorkingCopyManagerDialog
         open={workingCopyManagerOpen}

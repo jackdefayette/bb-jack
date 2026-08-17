@@ -504,10 +504,20 @@ describe("PluginNewThreadComposer seeding", () => {
     const picker = screen.getByRole("combobox", {
       name: "Where should this agent edit files?",
     });
+    const pickerHeader = picker.parentElement;
+    expect(pickerHeader).not.toBeNull();
+    expect(pickerHeader?.textContent).toContain("Working copy");
+    expect(picker.className).toContain("col-span-2");
+    expect(picker.className).toContain("w-full");
+    expect(
+      screen.getByRole("button", { name: "Manage working copies" }),
+    ).toBeTruthy();
     expect(picker.textContent).toContain(
       "New isolated working copy — Recommended",
     );
     fireEvent.click(picker);
+    expect(screen.getByText("Start fresh")).toBeTruthy();
+    expect(screen.getByText("Use existing files")).toBeTruthy();
     expect(
       screen.getByRole("option", {
         name: /New isolated working copy — Recommended/u,
@@ -572,6 +582,7 @@ describe("PluginNewThreadComposer seeding", () => {
         name: "Where should this agent edit files?",
       }),
     );
+    expect(screen.getByText("Active working copies")).toBeTruthy();
     const sharedWorkingCopy = screen.getByRole("option", {
       name: /Share files with BBJ-2 — Shared with Build/u,
     });
