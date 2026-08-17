@@ -1,7 +1,8 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import type { HostDaemonOnlineRpcResult } from "@bb/host-daemon-contract";
 import type { JsonValue } from "@bb/domain";
 import {
@@ -17,6 +18,8 @@ const CUA_DRIVER_TIMEOUT_MS = 30_000;
 const CUA_DRIVER_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const MACOS_CUA_DRIVER_PATH =
   "/Applications/CuaDriver.app/Contents/MacOS/cua-driver";
+const BB_COMPUTER_USE_IDENTITY_FILE = "bb-computer-use-identity.json";
+const execFileAsync = promisify(execFile);
 
 interface RunCuaDriverArgs {
   executable: string;
@@ -33,7 +36,12 @@ interface RunCuaDriverResult {
 interface ComputerUseRuntime {
   accessExecutable(path: string): Promise<void>;
   homeDir: string;
+  inspectProcess(pid: number): Promise<{
+    arguments: string;
+    executable: string;
+  }>;
   platform: NodeJS.Platform;
+  readFile(path: string): Promise<string>;
   run(args: RunCuaDriverArgs): Promise<RunCuaDriverResult>;
 }
 
@@ -127,7 +135,23 @@ const defaultRuntime: ComputerUseRuntime = {
   accessExecutable: async (candidate) =>
     fs.access(candidate, fs.constants.X_OK),
   homeDir: os.homedir(),
+  inspectProcess: async (pid) => {
+    const readField = async (field: "args" | "comm"): Promise<string> => {
+      const { stdout } = await execFileAsync(
+        "/bin/ps",
+        ["-p", String(pid), "-o", `${field}=`],
+        { encoding: "utf8", maxBuffer: 64 * 1024, timeout: 5_000 },
+      );
+      return stdout.trim();
+    };
+    const [executable, args] = await Promise.all([
+      readField("comm"),
+      readField("args"),
+    ]);
+    return { arguments: args, executable };
+  },
   platform: process.platform,
+  readFile: (candidate) => fs.readFile(candidate, "utf8"),
   run: runCuaDriver,
 };
 
@@ -238,6 +262,165 @@ function nativeWindowCandidates(result: JsonValue): Array<{
   });
 }
 
+interface BbDesktopIdentity {
+  instanceId: string;
+  pid: number;
+  startedAtMs: number;
+  userDataDir: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseBbDesktopIdentity(
+  raw: string,
+  dataDir: string,
+): BbDesktopIdentity {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new ExpectedCommandDispatchError(
+      "computer_use_bb_desktop_unavailable",
+      "Jack's IDE managed desktop identity is invalid; restart the canonical desktop session.",
+    );
+  }
+  const expectedUserDataDir = path.join(dataDir, "desktop");
+  if (
+    !isRecord(value) ||
+    typeof value.instanceId !== "string" ||
+    value.instanceId !== path.basename(dataDir) ||
+    typeof value.pid !== "number" ||
+    !Number.isInteger(value.pid) ||
+    value.pid <= 0 ||
+    typeof value.startedAtMs !== "number" ||
+    !Number.isFinite(value.startedAtMs) ||
+    value.startedAtMs <= 0 ||
+    typeof value.userDataDir !== "string" ||
+    path.resolve(value.userDataDir) !== path.resolve(expectedUserDataDir)
+  ) {
+    throw new ExpectedCommandDispatchError(
+      "computer_use_bb_desktop_wrong_instance",
+      "Jack's IDE managed desktop identity does not match this host data directory.",
+    );
+  }
+  return {
+    instanceId: value.instanceId,
+    pid: value.pid,
+    startedAtMs: value.startedAtMs,
+    userDataDir: path.resolve(value.userDataDir),
+  };
+}
+
+function hasExactProcessArgument(
+  processArguments: string,
+  expected: string,
+): boolean {
+  return ` ${processArguments} `.includes(` ${expected} `);
+}
+
+async function resolveBbDesktop(args: {
+  arguments: Readonly<Record<string, JsonValue>>;
+  dataDir: string;
+  executable: string;
+  runtime: ComputerUseRuntime;
+}): Promise<JsonValue> {
+  if (Object.keys(args.arguments).length > 0) {
+    throw new ExpectedCommandDispatchError(
+      "computer_use_invalid_arguments",
+      "resolve_bb_desktop accepts no arguments.",
+    );
+  }
+  let identity: BbDesktopIdentity;
+  try {
+    identity = parseBbDesktopIdentity(
+      await args.runtime.readFile(
+        path.join(args.dataDir, "desktop", BB_COMPUTER_USE_IDENTITY_FILE),
+      ),
+      args.dataDir,
+    );
+  } catch (error) {
+    if (error instanceof ExpectedCommandDispatchError) throw error;
+    throw new ExpectedCommandDispatchError(
+      "computer_use_bb_desktop_unavailable",
+      "Jack's IDE managed desktop is not running for this host data directory.",
+    );
+  }
+
+  let processIdentity: Awaited<
+    ReturnType<ComputerUseRuntime["inspectProcess"]>
+  >;
+  try {
+    processIdentity = await args.runtime.inspectProcess(identity.pid);
+  } catch {
+    throw new ExpectedCommandDispatchError(
+      "computer_use_bb_desktop_unavailable",
+      `Jack's IDE managed process ${identity.pid} is not running.`,
+    );
+  }
+  const appPath = path.dirname(
+    path.dirname(path.dirname(processIdentity.executable)),
+  );
+  const expectedExecutable = path.join(
+    appPath,
+    "Contents",
+    "MacOS",
+    "Electron",
+  );
+  const expectedUserDataArgument = `--user-data-dir=${identity.userDataDir}`;
+  if (
+    !path.isAbsolute(appPath) ||
+    path.basename(appPath) !== "Electron.app" ||
+    path.resolve(processIdentity.executable) !==
+      path.resolve(expectedExecutable) ||
+    !hasExactProcessArgument(
+      processIdentity.arguments,
+      expectedUserDataArgument,
+    )
+  ) {
+    throw new ExpectedCommandDispatchError(
+      "computer_use_bb_desktop_wrong_instance",
+      "The managed PID does not use an exact Electron app path and Jack's IDE desktop profile.",
+    );
+  }
+
+  const windows = nativeWindowCandidates(
+    await invokeCuaDriver({
+      arguments: { pid: identity.pid },
+      executable: args.executable,
+      runtime: args.runtime,
+      tool: "list_windows",
+    }),
+  ).filter(
+    (window) =>
+      window.pid === identity.pid &&
+      window.title.includes(`[instance:${identity.instanceId}]`) &&
+      window.title.includes("[window:main]"),
+  );
+  if (windows.length !== 1 || windows[0] === undefined) {
+    throw new ExpectedCommandDispatchError(
+      "computer_use_bb_desktop_wrong_instance",
+      `Expected exactly one Jack's IDE main window for instance ${identity.instanceId}; found ${windows.length}.`,
+    );
+  }
+  const window = windows[0];
+  return {
+    app_path: appPath,
+    instance_id: identity.instanceId,
+    name: "Jack's IDE",
+    pid: identity.pid,
+    process_executable: processIdentity.executable,
+    started_at_ms: identity.startedAtMs,
+    user_data_dir: identity.userDataDir,
+    window: {
+      pid: window.pid,
+      title: window.title,
+      window_id: window.windowId,
+    },
+  };
+}
+
 export async function callComputerUseTool(
   command: CommandOf<"host.computer_use.call">,
   dataDir: string,
@@ -249,6 +432,17 @@ export async function callComputerUseTool(
       "computer_use_driver_not_found",
       "CUA Driver is not installed in an official location. Install it from https://cua.ai/driver.",
     );
+  }
+  if (command.tool === "resolve_bb_desktop") {
+    return {
+      tool: command.tool,
+      result: await resolveBbDesktop({
+        arguments: command.arguments,
+        dataDir,
+        executable,
+        runtime,
+      }),
+    };
   }
   try {
     const embeddedResult = await embeddedBrowserComputerUseBridge.handle({

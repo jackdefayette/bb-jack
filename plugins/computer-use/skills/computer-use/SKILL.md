@@ -13,9 +13,10 @@ available through a more specific connector, API, or CLI.
 1. Create one short, non-empty session id for the run. Start with
    `computer_use_act({tool:"start_session", arguments:{session:"<id>",
 capture_scope:"window"}})`. `start_session` without `session` is invalid.
-2. Call `computer_use_inspect` to list apps/windows and capture fresh window
-   state. Ground on both the accessibility elements and screenshot when both
-   are returned.
+2. Call `computer_use_inspect` to resolve/list apps and capture fresh window
+   state. For Jack's IDE, call `resolve_bb_desktop` with `{}`; never select or
+   launch the shared `Electron` name or bundle id. Ground on both the
+   accessibility elements and screenshot when both are returned.
 3. Call `computer_use_act` for exactly one bounded action.
 4. Inspect fresh state again. Never reuse an element index, token, or snapshot
    after another state capture.
@@ -51,6 +52,11 @@ browser is in scope. Otherwise stop and report the limit; never guess a target.
   `get_accessibility_tree` accept `{}`. `list_windows` optionally accepts
   `{pid,on_screen_only}`. `get_window_state` requires `{pid,window_id}` and
   accepts `{session,query,include_screenshot}`.
+- Jack's IDE resolver: `resolve_bb_desktop` accepts `{}` and returns the exact
+  managed PID, main window id, app path, instance id, and user-data directory
+  only after the launcher record, live process arguments, and CUA's exact PID
+  plus instance-titled native window agree. Use those PID/window values for
+  native inspection and actions. It never launches an app.
 - App focus: `launch_app` accepts `{bundle_id}` or `{name}`;
   `bring_to_front` requires `{pid}` and optionally `window_id`.
 - Keyboard: `hotkey` requires `{keys:["cmd","p"]}`; `press_key` requires

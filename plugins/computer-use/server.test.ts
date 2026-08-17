@@ -103,6 +103,22 @@ describe("computer-use plugin", () => {
     );
   });
 
+  it("exposes the fail-closed Jack's IDE desktop resolver", async () => {
+    const { bb, harness, computerUseCall } = createHarness();
+    await computerUsePlugin(bb);
+
+    await harness.callAgentTool("computer_use_inspect", {
+      tool: "resolve_bb_desktop",
+      arguments: {},
+    });
+
+    expect(computerUseCall).toHaveBeenCalledWith(
+      "host-1",
+      "resolve_bb_desktop",
+      {},
+    );
+  });
+
   it("selects the skill and bounded inspect/act/verify tool set", async () => {
     const { bb, harness } = createHarness();
     await computerUsePlugin(bb);

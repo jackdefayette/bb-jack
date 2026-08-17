@@ -1059,7 +1059,7 @@ describe("host-daemon command schemas", () => {
   // routing. An older daemon does not share those wire semantics, so it must
   // update before connecting.
   it("uses protocol version 99 for browser calls and event isolation", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(101);
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(102);
   });
 
   it("accepts exact-tab browser calls through bounded computer use", () => {

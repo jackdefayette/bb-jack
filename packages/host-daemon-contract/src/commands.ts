@@ -36,7 +36,7 @@ import {
   providerCliStatusResponseSchema,
 } from "./local.js";
 
-export const HOST_DAEMON_PROTOCOL_VERSION = 101 as const;
+export const HOST_DAEMON_PROTOCOL_VERSION = 102 as const;
 
 export {
   BRANCH_LIST_LIMIT_MAX,
@@ -1523,6 +1523,7 @@ export const computerUseToolNameSchema = z.enum([
   "get_desktop_state",
   "get_screen_size",
   "get_cursor_position",
+  "resolve_bb_desktop",
   "get_browser_state",
   "bring_to_front",
   "launch_app",

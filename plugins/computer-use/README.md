@@ -18,6 +18,7 @@ The plugin registers three provider-neutral agent tools: `computer_use_inspect`,
 
 ```bash
 bb computer-use status [--json]
+bb computer-use call resolve_bb_desktop --args '{}' --json
 bb computer-use call list_windows --args '{"on_screen_only":true}' --json
 bb computer-use call get_window_state --args '{"pid":123,"window_id":456}'
 bb computer-use call get_browser_state --args '{"pid":123,"window_id":456,"session":"qa"}'
@@ -50,6 +51,13 @@ The public host capability is
 server contract and host daemon enforce the fixed tool allowlist. The daemon
 uses child-process argv rather than a shell, caps combined output, times out
 calls, and rejects non-JSON results.
+
+Development Electron processes share the generic `com.github.Electron`
+identity. Use `resolve_bb_desktop` instead of selecting or launching that name
+or bundle id. The resolver reads the managed launcher identity, verifies the
+live executable and `--user-data-dir`, and requires CUA's exact PID plus the
+instance-titled main window before returning an app path, PID, and window id.
+Resolution is read-only and never launches another Electron shell.
 
 Electron's embedded `WebContentsView` Browser is a separate compositor and
 accessibility surface from the host window. The canonical development launcher

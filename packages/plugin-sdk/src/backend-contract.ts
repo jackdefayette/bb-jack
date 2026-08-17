@@ -636,6 +636,7 @@ export type PluginComputerUseToolName =
   | "get_desktop_state"
   | "get_screen_size"
   | "get_cursor_position"
+  | "resolve_bb_desktop"
   | "get_browser_state"
   | "bring_to_front"
   | "launch_app"

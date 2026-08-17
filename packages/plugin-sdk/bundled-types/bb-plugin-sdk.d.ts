@@ -2745,9 +2745,9 @@ declare const promptHistoryResponseSchema: z$1.ZodArray<z$1.ZodObject<{
                     skill: "skill";
                 }>;
                 origin: z$1.ZodEnum<{
+                    user: "user";
                     project: "project";
                     builtin: "builtin";
-                    user: "user";
                 }>;
                 label: z$1.ZodString;
                 argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -2801,9 +2801,9 @@ declare const commandListResponseSchema: z$1.ZodObject<{
             skill: "skill";
         }>;
         origin: z$1.ZodEnum<{
+            user: "user";
             project: "project";
             builtin: "builtin";
-            user: "user";
         }>;
         description: z$1.ZodNullable<z$1.ZodString>;
         argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -5331,6 +5331,7 @@ declare const hostDaemonCommandRegistry: {
             get_desktop_state: "get_desktop_state";
             get_screen_size: "get_screen_size";
             get_cursor_position: "get_cursor_position";
+            resolve_bb_desktop: "resolve_bb_desktop";
             get_browser_state: "get_browser_state";
             bring_to_front: "bring_to_front";
             launch_app: "launch_app";
@@ -5363,6 +5364,7 @@ declare const hostDaemonCommandRegistry: {
             get_desktop_state: "get_desktop_state";
             get_screen_size: "get_screen_size";
             get_cursor_position: "get_cursor_position";
+            resolve_bb_desktop: "resolve_bb_desktop";
             get_browser_state: "get_browser_state";
             bring_to_front: "bring_to_front";
             launch_app: "launch_app";
@@ -7784,9 +7786,9 @@ declare const timelineConversationRowSchema: z$1.ZodDiscriminatedUnion<[z$1.ZodO
                 skill: "skill";
             }>;
             origin: z$1.ZodEnum<{
+                user: "user";
                 project: "project";
                 builtin: "builtin";
-                user: "user";
             }>;
             label: z$1.ZodString;
             argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -8396,9 +8398,9 @@ declare const createThreadRequestSchema: z$1.ZodObject<{
                     skill: "skill";
                 }>;
                 origin: z$1.ZodEnum<{
+                    user: "user";
                     project: "project";
                     builtin: "builtin";
-                    user: "user";
                 }>;
                 label: z$1.ZodString;
                 argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -8571,9 +8573,9 @@ declare const forkThreadRequestSchema: z$1.ZodObject<{
                     skill: "skill";
                 }>;
                 origin: z$1.ZodEnum<{
+                    user: "user";
                     project: "project";
                     builtin: "builtin";
-                    user: "user";
                 }>;
                 label: z$1.ZodString;
                 argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -8652,9 +8654,9 @@ declare const forkThreadRequestSchema: z$1.ZodObject<{
                     skill: "skill";
                 }>;
                 origin: z$1.ZodEnum<{
+                    user: "user";
                     project: "project";
                     builtin: "builtin";
-                    user: "user";
                 }>;
                 label: z$1.ZodString;
                 argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -8759,9 +8761,9 @@ declare const sendMessageRequestSchema: z$1.ZodObject<{
                     skill: "skill";
                 }>;
                 origin: z$1.ZodEnum<{
+                    user: "user";
                     project: "project";
                     builtin: "builtin";
-                    user: "user";
                 }>;
                 label: z$1.ZodString;
                 argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -8834,9 +8836,9 @@ declare const sendMessageRequestSchema: z$1.ZodObject<{
         }>>;
     }, z$1.core.$strict>>;
     mode: z$1.ZodEnum<{
-        auto: "auto";
-        start: "start";
         steer: "steer";
+        start: "start";
+        auto: "auto";
         "queue-if-active": "queue-if-active";
         "steer-if-active": "steer-if-active";
     }>;
@@ -8887,9 +8889,9 @@ declare const providerRateLimitRecoveryStatusSchema: z$1.ZodObject<{
         reachedReason: z$1.ZodNullable<z$1.ZodString>;
         overageStatus: z$1.ZodNullable<z$1.ZodEnum<{
             warning: "warning";
+            unavailable: "unavailable";
             allowed: "allowed";
             rejected: "rejected";
-            unavailable: "unavailable";
         }>>;
         overageReason: z$1.ZodNullable<z$1.ZodString>;
     }, z$1.core.$strip>>;
@@ -8926,9 +8928,9 @@ declare const providerRateLimitRecoveryStatusSchema: z$1.ZodObject<{
             reachedReason: z$1.ZodNullable<z$1.ZodString>;
             overageStatus: z$1.ZodNullable<z$1.ZodEnum<{
                 warning: "warning";
+                unavailable: "unavailable";
                 allowed: "allowed";
                 rejected: "rejected";
-                unavailable: "unavailable";
             }>>;
             overageReason: z$1.ZodNullable<z$1.ZodString>;
         }, z$1.core.$strip>;
@@ -8986,9 +8988,9 @@ declare const createQueuedMessageRequestSchema: z$1.ZodObject<{
                     skill: "skill";
                 }>;
                 origin: z$1.ZodEnum<{
+                    user: "user";
                     project: "project";
                     builtin: "builtin";
-                    user: "user";
                 }>;
                 label: z$1.ZodString;
                 argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -9110,9 +9112,9 @@ declare const updateQueuedMessageRequestSchema: z$1.ZodObject<{
                     skill: "skill";
                 }>;
                 origin: z$1.ZodEnum<{
+                    user: "user";
                     project: "project";
                     builtin: "builtin";
-                    user: "user";
                 }>;
                 label: z$1.ZodString;
                 argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -9150,8 +9152,8 @@ declare const updateQueuedMessageRequestSchema: z$1.ZodObject<{
 type UpdateQueuedMessageRequest = z$1.infer<typeof updateQueuedMessageRequestSchema>;
 declare const sendQueuedMessageRequestSchema: z$1.ZodObject<{
     mode: z$1.ZodEnum<{
-        auto: "auto";
         steer: "steer";
+        auto: "auto";
     }>;
 }, z$1.core.$strip>;
 type SendQueuedMessageRequest = z$1.infer<typeof sendQueuedMessageRequestSchema>;
@@ -9215,9 +9217,9 @@ declare const sendQueuedMessageResponseSchema: z$1.ZodObject<{
                         skill: "skill";
                     }>;
                     origin: z$1.ZodEnum<{
+                        user: "user";
                         project: "project";
                         builtin: "builtin";
-                        user: "user";
                     }>;
                     label: z$1.ZodString;
                     argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -9891,9 +9893,9 @@ declare const threadQueuedMessageListResponseSchema: z$1.ZodArray<z$1.ZodObject<
                     skill: "skill";
                 }>;
                 origin: z$1.ZodEnum<{
+                    user: "user";
                     project: "project";
                     builtin: "builtin";
-                    user: "user";
                 }>;
                 label: z$1.ZodString;
                 argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -10308,8 +10310,8 @@ declare const threadTimelineResponseSchema: z$1.ZodObject<{
         originalModel: z$1.ZodString;
         fallbackModel: z$1.ZodString;
         reason: z$1.ZodEnum<{
-            refusal: "refusal";
             provider: "provider";
+            refusal: "refusal";
         }>;
         message: z$1.ZodString;
     }, z$1.core.$strip>>;
@@ -10664,9 +10666,9 @@ declare const workspaceAgentStartInputSchema: z$1.ZodObject<{
                         skill: "skill";
                     }>;
                     origin: z$1.ZodEnum<{
+                        user: "user";
                         project: "project";
                         builtin: "builtin";
-                        user: "user";
                     }>;
                     label: z$1.ZodString;
                     argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -13761,7 +13763,7 @@ interface PluginSharedPortTunnelIdentity {
     /** Gate apex without a scheme, e.g. "getbb.app". */
     baseDomain: string;
 }
-type PluginComputerUseToolName = "check_permissions" | "list_apps" | "list_windows" | "get_accessibility_tree" | "get_window_state" | "get_desktop_state" | "get_screen_size" | "get_cursor_position" | "get_browser_state" | "bring_to_front" | "launch_app" | "click" | "double_click" | "right_click" | "scroll" | "drag" | "type_text" | "press_key" | "hotkey" | "set_value" | "invoke_menu" | "verify_state" | "start_session" | "end_session" | "browser_click" | "browser_type" | "browser_pointer" | "browser_navigate";
+type PluginComputerUseToolName = "check_permissions" | "list_apps" | "list_windows" | "get_accessibility_tree" | "get_window_state" | "get_desktop_state" | "get_screen_size" | "get_cursor_position" | "resolve_bb_desktop" | "get_browser_state" | "bring_to_front" | "launch_app" | "click" | "double_click" | "right_click" | "scroll" | "drag" | "type_text" | "press_key" | "hotkey" | "set_value" | "invoke_menu" | "verify_state" | "start_session" | "end_session" | "browser_click" | "browser_type" | "browser_pointer" | "browser_navigate";
 interface PluginComputerUseResult {
     tool: PluginComputerUseToolName;
     result: JsonValue;

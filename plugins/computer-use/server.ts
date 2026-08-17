@@ -19,6 +19,7 @@ const TOOL_NAMES = [
   "get_desktop_state",
   "get_screen_size",
   "get_cursor_position",
+  "resolve_bb_desktop",
   "get_browser_state",
   "bring_to_front",
   "launch_app",
@@ -50,6 +51,7 @@ const INSPECT_TOOLS = [
   "get_desktop_state",
   "get_screen_size",
   "get_cursor_position",
+  "resolve_bb_desktop",
   "get_browser_state",
 ] as const;
 
@@ -464,9 +466,9 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
   bb.agents.registerTool({
     name: "computer_use_inspect",
     description:
-      "Inspect desktop UI or an exact embedded Browser tab. Native list/check tools use {}; get_window_state requires {pid,window_id}. For Jack's IDE, get_browser_state binds the in-pane page with {pid,window_id,session,embedded:true,expected_url,expected_project_route?}; snapshot its returned target_id/tab_id with expected_url/project route and optional not_before_ms. Resolve native identity from fresh list results.",
+      "Inspect desktop UI or an exact embedded Browser tab. Native list/check tools use {}; get_window_state requires {pid,window_id}. For Jack's IDE, call resolve_bb_desktop with {} instead of selecting the shared Electron name or bundle id; it returns the exact managed PID/window/app path after live identity checks. Then get_browser_state binds the in-pane page with {pid,window_id,session,embedded:true,expected_url,expected_project_route?}.",
     instructions:
-      "Inspect fresh state before acting. Use fresh list_windows results to confirm the intended titled window is on_current_space and is_on_screen. If it is not, bring it to front and list windows again before inspecting it; treat a partial or unverified fronting result as a limitation. Call get_window_state again before every element-indexed action; never reuse stale element indices, snapshot ids, or tokens.",
+      "Inspect fresh state before acting. For Jack's IDE, resolve_bb_desktop is mandatory: never select or launch the generic Electron app identity. Use fresh list_windows results to confirm other intended titled windows are on_current_space and is_on_screen. Call get_window_state again before every element-indexed action; never reuse stale element indices, snapshot ids, or tokens.",
     experimental_statusLabels: {
       pending: "Inspecting desktop",
       completed: "Inspected desktop",
@@ -530,6 +532,6 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
     tools: ["computer_use_inspect", "computer_use_act", "computer_use_verify"],
     skills: ["computer-use"],
     instructions:
-      "Computer Use is a bounded, provider-independent bridge. Use its inspect-act-inspect-verify loop only when the user asks to operate desktop UI. Always start with a non-empty stable session id and reuse it through end_session. Electron WebContentsView Browser pages are a separate native/compositor boundary: in Jack's IDE, bind explicitly with embedded:true plus the exact current URL and optional project route, then use only returned target/tab ids and fresh refs. Carry each action's acted_at_ms into the next snapshot as not_before_ms and verify the returned page_url, project_route, and captured_at_ms. If the managed embedded bridge is unavailable, use Open page in external browser only when that launch is in scope; otherwise report the limit.",
+      "Computer Use is a bounded, provider-independent bridge. Use its inspect-act-inspect-verify loop only when the user asks to operate desktop UI. Always start with a non-empty stable session id and reuse it through end_session. Resolve Jack's IDE through resolve_bb_desktop; never select or launch generic Electron. Electron WebContentsView Browser pages are a separate native/compositor boundary: bind explicitly with embedded:true plus the exact current URL and optional project route, then use only returned target/tab ids and fresh refs. Carry each action's acted_at_ms into the next snapshot as not_before_ms and verify the returned page_url, project_route, and captured_at_ms.",
   }));
 }
