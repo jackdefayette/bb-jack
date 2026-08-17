@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer, webFrame } from "electron";
 import { appCommandIdSchema } from "@bb/domain";
 import {
+  bbDesktopBrowserCaptureSchema,
+  bbDesktopBrowserComputerUseIdentitySchema,
   bbDesktopBrowserOpenTabRequestSchema,
   bbDesktopBrowserScopedOpenTabRequestSchema,
   bbDesktopBrowserSnapshotSchema,
@@ -35,6 +37,8 @@ import {
 } from "./desktop-update-ipc.js";
 import {
   BB_DESKTOP_BROWSER_ATTACH_CHANNEL,
+  BB_DESKTOP_BROWSER_CAPTURE_CHANNEL,
+  BB_DESKTOP_BROWSER_COMPUTER_USE_IDENTITY_CHANNEL,
   BB_DESKTOP_BROWSER_DETACH_CHANNEL,
   BB_DESKTOP_BROWSER_GO_BACK_CHANNEL,
   BB_DESKTOP_BROWSER_GO_FORWARD_CHANNEL,
@@ -215,6 +219,19 @@ const bbBrowserApi: BbDesktopBrowserApi = {
       ...request,
       bounds: browserViewBoundsAtWindowScale(request.bounds),
     });
+  },
+  async capture(tabId) {
+    return bbDesktopBrowserCaptureSchema.parse(
+      await ipcRenderer.invoke(BB_DESKTOP_BROWSER_CAPTURE_CHANNEL, { tabId }),
+    );
+  },
+  async identifyForComputerUse(tabId) {
+    return bbDesktopBrowserComputerUseIdentitySchema.parse(
+      await ipcRenderer.invoke(
+        BB_DESKTOP_BROWSER_COMPUTER_USE_IDENTITY_CHANNEL,
+        { tabId },
+      ),
+    );
   },
   detach(tabId): void {
     ipcRenderer.send(BB_DESKTOP_BROWSER_DETACH_CHANNEL, { tabId });

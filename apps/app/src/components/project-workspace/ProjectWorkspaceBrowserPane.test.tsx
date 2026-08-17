@@ -131,6 +131,9 @@ describe("ProjectWorkspaceBrowserPane", () => {
     expect(
       document.querySelector("[data-project-workspace-inspector]")?.className,
     ).toContain("bg-workspace-canvas");
+    expect(
+      document.querySelector("[data-project-workspace-browser]")?.className,
+    ).toContain("flex");
     expect(screen.getByTestId("file")).toBeTruthy();
     expect(screen.getByTestId("diff")).toBeTruthy();
     expect(

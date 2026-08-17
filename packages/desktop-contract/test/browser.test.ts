@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   BB_DESKTOP_BROWSER_MAX_URL_LENGTH,
   bbDesktopBrowserAttachRequestSchema,
+  bbDesktopBrowserCaptureSchema,
+  bbDesktopBrowserComputerUseIdentitySchema,
   bbDesktopBrowserSetBoundsRequestSchema,
   bbDesktopBrowserStateSchema,
   clampBbDesktopBrowserViewBounds,
@@ -107,6 +109,41 @@ describe("desktop browser IPC schemas", () => {
       bbDesktopBrowserSetBoundsRequestSchema.safeParse({
         tabId: "browser:abc",
         bounds: { x: 0.5, y: 0, width: 800, height: 600 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts an exact-tab capture and rejects oversized or incomplete data", () => {
+    expect(
+      bbDesktopBrowserCaptureSchema.safeParse({
+        capturedAtMs: 1_234,
+        dataUrl: "data:image/jpeg;base64,YWJj",
+        tabId: "browser:abc",
+        url: "https://example.com/",
+      }).success,
+    ).toBe(true);
+    expect(
+      bbDesktopBrowserCaptureSchema.safeParse({
+        capturedAtMs: 1_234,
+        dataUrl: "data:image/jpeg;base64,YWJj",
+        tabId: "browser:abc",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts a complete exact-tab Computer Use identity", () => {
+    expect(
+      bbDesktopBrowserComputerUseIdentitySchema.safeParse({
+        cdpTargetId: "target-123",
+        tabId: "browser:abc",
+        url: "https://example.com/",
+      }).success,
+    ).toBe(true);
+    expect(
+      bbDesktopBrowserComputerUseIdentitySchema.safeParse({
+        cdpTargetId: "",
+        tabId: "browser:abc",
+        url: "https://example.com/",
       }).success,
     ).toBe(false);
   });

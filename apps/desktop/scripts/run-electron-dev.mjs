@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,6 +57,10 @@ const childEnv = createElectronAppEnv(process.env, devConfig);
 childEnv.BB_DESKTOP_INSTANCE_ID = devConfig.instanceId;
 const dataDir = devConfig.dataDir;
 const desktopUserDataDir = resolveDesktopUserDataDir(childEnv, dataDir);
+const computerUseIdentityPath = join(
+  desktopUserDataDir,
+  "bb-computer-use-identity.json",
+);
 
 const appUrl = `http://localhost:${devConfig.ports.appPort}`;
 const viteReachable = await isViteDevServerReachable(appUrl);
@@ -105,6 +110,35 @@ const child = spawn(
   },
 );
 
+await mkdir(desktopUserDataDir, { recursive: true });
+await writeFile(
+  computerUseIdentityPath,
+  `${JSON.stringify(
+    {
+      appUrl,
+      instanceId: devConfig.instanceId,
+      pid: child.pid,
+      startedAtMs: Date.now(),
+      userDataDir: desktopUserDataDir,
+    },
+    null,
+    2,
+  )}\n`,
+  { mode: 0o600 },
+);
+await chmod(computerUseIdentityPath, 0o600);
+
+async function removeOwnedComputerUseIdentity() {
+  try {
+    const current = JSON.parse(await readFile(computerUseIdentityPath, "utf8"));
+    if (current?.pid === child.pid) {
+      await rm(computerUseIdentityPath, { force: true });
+    }
+  } catch {
+    // A missing/replaced identity belongs to the next launcher process.
+  }
+}
+
 process.once("SIGINT", () => {
   child.kill("SIGINT");
 });
@@ -113,6 +147,7 @@ process.once("SIGTERM", () => {
 });
 
 const [code, signal] = await once(child, "exit");
+await removeOwnedComputerUseIdentity();
 if (typeof code === "number") {
   process.exitCode = code;
 } else {

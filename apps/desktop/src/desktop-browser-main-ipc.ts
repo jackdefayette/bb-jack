@@ -1,5 +1,12 @@
-import { BrowserWindow, ipcMain, type IpcMainEvent } from "electron";
 import {
+  BrowserWindow,
+  ipcMain,
+  type IpcMainEvent,
+  type IpcMainInvokeEvent,
+} from "electron";
+import {
+  bbDesktopBrowserCaptureSchema,
+  bbDesktopBrowserComputerUseIdentitySchema,
   bbDesktopBrowserAttachRequestSchema,
   bbDesktopBrowserNavigateRequestSchema,
   bbDesktopBrowserSetBoundsRequestSchema,
@@ -8,6 +15,8 @@ import {
 } from "@bb/desktop-contract";
 import {
   BB_DESKTOP_BROWSER_ATTACH_CHANNEL,
+  BB_DESKTOP_BROWSER_CAPTURE_CHANNEL,
+  BB_DESKTOP_BROWSER_COMPUTER_USE_IDENTITY_CHANNEL,
   BB_DESKTOP_BROWSER_DETACH_CHANNEL,
   BB_DESKTOP_BROWSER_GO_BACK_CHANNEL,
   BB_DESKTOP_BROWSER_GO_FORWARD_CHANNEL,
@@ -32,7 +41,7 @@ interface RegisterDesktopBrowserTabCommandArgs {
 }
 
 function hostWindowFromBrowserIpcEvent(
-  event: IpcMainEvent,
+  event: IpcMainEvent | IpcMainInvokeEvent,
 ): BrowserWindow | null {
   return BrowserWindow.fromWebContents(event.sender);
 }
@@ -69,6 +78,40 @@ export function registerDesktopBrowserIpc(
     }
     manager.attach({ hostWindow, request: parsed.data });
   });
+
+  ipcMain.handle(BB_DESKTOP_BROWSER_CAPTURE_CHANNEL, async (event, payload) => {
+    const hostWindow = hostWindowFromBrowserIpcEvent(event);
+    if (hostWindow === null) {
+      throw new Error("Browser capture requires a trusted host window.");
+    }
+    const parsed = bbDesktopBrowserTabRefSchema.safeParse(payload);
+    if (!parsed.success) {
+      throw new Error("Invalid browser capture request.");
+    }
+    return bbDesktopBrowserCaptureSchema.parse(
+      await manager.capture({ hostWindow, tabId: parsed.data.tabId }),
+    );
+  });
+
+  ipcMain.handle(
+    BB_DESKTOP_BROWSER_COMPUTER_USE_IDENTITY_CHANNEL,
+    async (event, payload) => {
+      const hostWindow = hostWindowFromBrowserIpcEvent(event);
+      if (hostWindow === null) {
+        throw new Error("Browser identity requires a trusted host window.");
+      }
+      const parsed = bbDesktopBrowserTabRefSchema.safeParse(payload);
+      if (!parsed.success) {
+        throw new Error("Invalid browser identity request.");
+      }
+      return bbDesktopBrowserComputerUseIdentitySchema.parse(
+        await manager.identifyForComputerUse({
+          hostWindow,
+          tabId: parsed.data.tabId,
+        }),
+      );
+    },
+  );
 
   ipcMain.on(BB_DESKTOP_BROWSER_NAVIGATE_CHANNEL, (event, payload: unknown) => {
     const hostWindow = hostWindowFromBrowserIpcEvent(event);

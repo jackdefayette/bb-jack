@@ -112,8 +112,21 @@ describe("BrowserTabContent persistent navigation", () => {
 
   it("keeps the top navigation visible through pointer and focus changes", () => {
     const harness = createBrowserChromeHarness();
-    renderBrowserChrome(harness, "https://example.com/docs");
+    const { container } = renderBrowserChrome(
+      harness,
+      "https://example.com/docs",
+    );
     const chrome = expectChromeVisible();
+    const browserRoot = container.querySelector("[data-app-browser]");
+    expect(browserRoot?.getAttribute("data-bb-browser-tab-id")).toBe(
+      "browser:test",
+    );
+    expect(browserRoot?.getAttribute("data-bb-browser-url")).toBe(
+      "https://example.com/docs",
+    );
+    expect(browserRoot?.getAttribute("data-bb-browser-native-visible")).toBe(
+      "false",
+    );
 
     fireEvent.pointerLeave(chrome);
     act(() => screen.getByRole("button", { name: "Outside browser" }).focus());
@@ -148,7 +161,7 @@ describe("BrowserTabContent persistent navigation", () => {
 
     act(() => harness.emitState(browserState()));
     expect(screen.getByRole("status").textContent).toBe(
-      "Browser page loaded: Example docs, https://example.com/docs. Embedded page controls are outside desktop accessibility; use Open page in external browser for Computer Use when an exact browser binding is unavailable.",
+      "Browser page loaded: Example docs, https://example.com/docs. Embedded page controls use the managed Computer Use browser binding; use Open page in external browser for Computer Use when that binding is unavailable.",
     );
     expect(
       screen.getByRole("button", {

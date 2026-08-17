@@ -53,15 +53,22 @@ calls, and rejects non-JSON results.
 
 Electron's embedded `WebContentsView` Browser is a separate compositor and
 accessibility surface from the host window. The canonical development launcher
-starts Electron with a loopback-only ephemeral DevTools endpoint so an exact
-`get_browser_state` binding can expose page controls when CUA Driver can
-correlate one native window and target without guessing. A multi-target
-`WebContentsView` can still return `browser_wrong_target_refused`; do not treat
-the endpoint itself as proof of an exact bind. The Browser chrome exposes a
-first-class **Open page in external browser for Computer Use** action for that
-case. Use it only when opening an external browser is within the user's scope,
-then bind that browser exactly. Otherwise report the embedded-boundary limit.
-The endpoint is not enabled automatically in packaged builds.
+starts Electron with a loopback-only ephemeral DevTools endpoint and writes a
+mode-0600 identity record inside that exact desktop profile. Bind an in-pane
+page with `get_browser_state` arguments `{pid,window_id,session,embedded:true,
+expected_url,expected_project_route?}`. The host daemon refuses unless the
+profile PID, titled native window, renderer project route, visible browser tab,
+and that tab's exact DevTools target all agree. Duplicate retained tabs at the
+same URL therefore remain fail-closed but do not make the active tab ambiguous.
+Returned snapshots include the page URL, project route,
+capture timestamp, semantic accessibility elements, fresh action refs, and an
+exact-tab screenshot. Embedded actions invalidate their input refs and return
+`acted_at_ms`; pass that as `not_before_ms` on the next inspect or verify call.
+
+The Browser chrome's **Open page in external browser for Computer Use** action
+remains the fallback when the managed bridge is unavailable. Use it only when
+opening an external browser is within the user's scope. The managed endpoint is
+not enabled automatically in packaged builds.
 
 V1 excludes force-kill, clipboard read, unrestricted filesystem access,
 downloads, and setting up or attaching to an arbitrary existing browser

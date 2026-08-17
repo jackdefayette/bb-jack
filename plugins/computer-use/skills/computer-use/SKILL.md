@@ -32,15 +32,18 @@ diagnostic, correct the call instead of repeating it unchanged.
 
 Electron's embedded Browser is not part of the host renderer's AX tree or
 window-only screenshot. Do not infer that a page is empty or black from that
-host snapshot. Bind it explicitly with `get_browser_state` using the exact
-native `pid`, `window_id`, and session. Then snapshot the returned exact
-`target_id`/`tab_id` with `snapshot_format:"semantic_v2"`; use only fresh page
-refs with the `browser_*` action tools and snapshot again after every action.
-If binding refuses with `browser_wrong_target_refused`, the multi-target
-`WebContentsView` boundary is not exact-bindable. Use the Browser chrome's
-**Open page in external browser for Computer Use** action only when launching
-an external browser is in scope, then bind that browser. Otherwise stop and
-report the limit; never guess a CDP target.
+host snapshot. In Jack's IDE, bind the in-pane page explicitly with
+`get_browser_state` and `{pid,window_id,session,embedded:true,expected_url,
+expected_project_route?}`. The bridge checks the managed profile identity,
+exact native window, project route, visible browser tab, and exact page target.
+Snapshot the returned
+`target_id`/`tab_id` with `snapshot_format:"semantic_v2"`, `expected_url`, and
+`expected_project_route`; use only fresh page refs. Each embedded action returns
+`acted_at_ms`: pass it as the next snapshot or verification's `not_before_ms`,
+then confirm the returned `captured_at_ms`, `page_url`, and `project_route`.
+If the managed bridge is unavailable, use the Browser chrome's **Open page in
+external browser for Computer Use** action only when launching an external
+browser is in scope. Otherwise stop and report the limit; never guess a target.
 
 ## Core argument shapes
 
@@ -61,11 +64,11 @@ report the limit; never guess a CDP target.
   `target:{pid,window_id,label,role?}` alongside an element action and omit all
   element indices/tokens; the bridge takes a fresh snapshot and refuses unless
   the stable selector matches exactly one element.
-- Embedded Browser inspection: bind with
-  `{pid,window_id,session}`. Snapshot with
-  `{target_id,tab_id,session,snapshot_format:"semantic_v2"}`. Browser actions
-  accept those exact opaque ids plus a fresh page ref (or documented exact-tab
-  coordinates for pointer operations).
+- Embedded Browser inspection: bind Jack's IDE with
+  `{pid,window_id,session,embedded:true,expected_url,expected_project_route?}`.
+  Snapshot with `{target_id,tab_id,session,snapshot_format:"semantic_v2",
+expected_url,expected_project_route,not_before_ms?}`. Browser actions accept
+  those exact opaque ids plus a fresh page ref; the action invalidates it.
 - Verification: pass `{pid,window_id,session,expect:[...]}`. Predicates may use
   `window:{exists:true}` or `element:{selector:{role,label_contains},
 exists:true|enabled|selected|value_equals}`.

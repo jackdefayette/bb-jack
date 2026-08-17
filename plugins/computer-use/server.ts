@@ -464,7 +464,7 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
   bb.agents.registerTool({
     name: "computer_use_inspect",
     description:
-      "Inspect desktop UI or an exact embedded Browser tab. Native list/check tools use {}; get_window_state requires {pid,window_id}. get_browser_state binds with {pid,window_id,session} or snapshots with {target_id,tab_id,session,snapshot_format:'semantic_v2'}. Resolve native identity from fresh list results.",
+      "Inspect desktop UI or an exact embedded Browser tab. Native list/check tools use {}; get_window_state requires {pid,window_id}. For Jack's IDE, get_browser_state binds the in-pane page with {pid,window_id,session,embedded:true,expected_url,expected_project_route?}; snapshot its returned target_id/tab_id with expected_url/project route and optional not_before_ms. Resolve native identity from fresh list results.",
     instructions:
       "Inspect fresh state before acting. Use fresh list_windows results to confirm the intended titled window is on_current_space and is_on_screen. If it is not, bring it to front and list windows again before inspecting it; treat a partial or unverified fronting result as a limitation. Call get_window_state again before every element-indexed action; never reuse stale element indices, snapshot ids, or tokens.",
     experimental_statusLabels: {
@@ -481,7 +481,7 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
   bb.agents.registerTool({
     name: "computer_use_act",
     description:
-      "Perform one bounded native or exact-tab action. First start_session with {session:<non-empty id>,capture_scope:'window'}; reuse session and end_session with {session}. Native element actions may pass target:{pid,window_id,label,role?}; the bridge explicitly re-snapshots and requires one exact match before using its fresh token. Browser actions use target_id/tab_id/session and fresh page refs from get_browser_state.",
+      "Perform one bounded native or exact-tab action. First start_session with {session:<non-empty id>,capture_scope:'window'}; reuse session and end_session with {session}. Native element actions may pass target:{pid,window_id,label,role?}. Browser actions use target_id/tab_id/session and a fresh page ref; Jack's IDE embedded actions return acted_at_ms for the next snapshot's not_before_ms stale-frame guard.",
     instructions:
       "Never call start_session with {}. Prefer accessibility element tokens over coordinates. Before acting, confirm the intended titled window is on the current Space; after bring_to_front, re-list windows and do not infer exact focus from a partial result. After every action, inspect fresh state before deciding the next action. No clipboard read, force-kill, unrestricted filesystem, or existing browser profile access is available.",
     experimental_statusLabels: {
@@ -512,7 +512,7 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
   bb.agents.registerTool({
     name: "computer_use_verify",
     description:
-      "Verify one to eight predicates. arguments requires {pid,window_id,expect:[...]}; each expectation may assert window.exists/bounds or element.selector with exists:true, enabled, selected, or value_equals. Include session when one is active.",
+      "Verify one to eight native or embedded-page predicates. Native arguments require {pid,window_id,expect:[...]}. Embedded-page arguments require the exact target_id/tab_id/session plus expect and may include expected_url, expected_project_route, and not_before_ms.",
     instructions:
       "Treat unknown as unverified, never as success. Report the exact satisfied, unsatisfied, and unknown predicates.",
     experimental_statusLabels: {
@@ -530,6 +530,6 @@ export default async function computerUsePlugin(bb: BbPluginApi) {
     tools: ["computer_use_inspect", "computer_use_act", "computer_use_verify"],
     skills: ["computer-use"],
     instructions:
-      "Computer Use is a bounded, provider-independent CUA Driver bridge. Use its inspect-act-inspect-verify loop only when the user asks to operate desktop UI. Always start with a non-empty stable session id and reuse it through end_session. Electron WebContentsView Browser pages are a separate native/compositor and accessibility boundary: attempt an exact get_browser_state bind, then use browser_* actions only with returned target/tab ids and fresh page refs. If CUA Driver refuses a multi-target bind, use the Browser chrome's Open page in external browser for Computer Use affordance only when that launch is in scope; otherwise report the limit. Never claim the host window AX tree is exhaustive for embedded Browser contents.",
+      "Computer Use is a bounded, provider-independent bridge. Use its inspect-act-inspect-verify loop only when the user asks to operate desktop UI. Always start with a non-empty stable session id and reuse it through end_session. Electron WebContentsView Browser pages are a separate native/compositor boundary: in Jack's IDE, bind explicitly with embedded:true plus the exact current URL and optional project route, then use only returned target/tab ids and fresh refs. Carry each action's acted_at_ms into the next snapshot as not_before_ms and verify the returned page_url, project_route, and captured_at_ms. If the managed embedded bridge is unavailable, use Open page in external browser only when that launch is in scope; otherwise report the limit.",
   }));
 }

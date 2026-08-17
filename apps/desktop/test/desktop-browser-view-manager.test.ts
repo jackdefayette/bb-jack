@@ -261,6 +261,19 @@ const electronMock = vi.hoisted(() => {
     public readonly pendingCaptureResolvers: Array<
       (image: FakeNativeImage) => void
     > = [];
+    public debuggerAttached = false;
+    public readonly debugger = {
+      attach: (): void => {
+        this.debuggerAttached = true;
+      },
+      detach: (): void => {
+        this.debuggerAttached = false;
+      },
+      isAttached: (): boolean => this.debuggerAttached,
+      sendCommand: async (): Promise<unknown> => ({
+        targetInfo: { targetId: `target-${this.id}` },
+      }),
+    };
     private readonly listeners: FakeWebContentsListeners = {
       "before-input-event": [],
       "will-frame-navigate": [],
@@ -1525,6 +1538,48 @@ describe("DesktopBrowserViewManager", () => {
     expect(reloadingWindow.contentView.removedViews).toEqual([reloadingView]);
     expect(retainedView.webContents.destroyed).toBe(false);
     expect(otherWindow.contentView.removedViews).toEqual([]);
+  });
+
+  it("captures one exact attached tab with its live URL and timestamp", async () => {
+    const manager = createDesktopBrowserViewManager({
+      partition: "persist:test",
+    });
+    const hostWindow = new FakeHostWindow({
+      contentBounds: { width: 700, height: 450 },
+      webContentsId: 40,
+    });
+    attachBrowserTab({
+      manager,
+      hostWindow,
+      tabId: "browser:a",
+      url: "http://localhost:5173/",
+    });
+    const view = requireFakeView(0);
+
+    const capturePromise = manager.capture({
+      hostWindow,
+      tabId: "browser:a",
+    });
+    await settlePendingCaptures(view);
+
+    await expect(capturePromise).resolves.toEqual({
+      capturedAtMs: expect.any(Number),
+      dataUrl: `data:image/jpeg;base64,${Buffer.from("jpeg-bytes").toString("base64")}`,
+      tabId: "browser:a",
+      url: "http://localhost:5173/",
+    });
+    await expect(
+      manager.capture({ hostWindow, tabId: "browser:missing" }),
+    ).rejects.toThrow("not attached");
+
+    await expect(
+      manager.identifyForComputerUse({ hostWindow, tabId: "browser:a" }),
+    ).resolves.toEqual({
+      cdpTargetId: `target-${view.webContents.id}`,
+      tabId: "browser:a",
+      url: "http://localhost:5173/",
+    });
+    expect(view.webContents.debuggerAttached).toBe(false);
   });
 
   it("snapshots then hides visible views on resize, revealing them clamped to the shrunken window", async () => {

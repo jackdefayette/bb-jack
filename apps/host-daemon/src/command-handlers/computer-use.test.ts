@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { callComputerUseTool, computerUseTestSupport } from "./computer-use.js";
 
 function createRuntime(
-  overrides: Partial<Parameters<typeof callComputerUseTool>[1]> = {},
-): NonNullable<Parameters<typeof callComputerUseTool>[1]> {
+  overrides: Partial<Parameters<typeof callComputerUseTool>[2]> = {},
+): NonNullable<Parameters<typeof callComputerUseTool>[2]> {
   return {
     accessExecutable: vi.fn(async () => undefined),
     homeDir: "/Users/test",
@@ -28,6 +28,7 @@ describe("callComputerUseTool", () => {
           tool: "get_screen_size",
           arguments: { ignored: "$(touch /tmp/not-shell)" },
         },
+        "/tmp/bb",
         runtime,
       ),
     ).resolves.toEqual({ tool: "get_screen_size", result: { width: 1470 } });
@@ -56,6 +57,7 @@ describe("callComputerUseTool", () => {
           tool: "check_permissions",
           arguments: {},
         },
+        "/tmp/bb",
         runtime,
       ),
     ).rejects.toMatchObject({ code: "computer_use_driver_not_found" });
@@ -82,6 +84,7 @@ describe("callComputerUseTool", () => {
           tool: "click",
           arguments: { x: 1, y: 2 },
         },
+        "/tmp/bb",
         runtime,
       ),
     ).rejects.toMatchObject({ code, message: "nope" });
@@ -99,6 +102,7 @@ describe("callComputerUseTool", () => {
           tool: "check_permissions",
           arguments: {},
         },
+        "/tmp/bb",
         runtime,
       ),
     ).rejects.toMatchObject({

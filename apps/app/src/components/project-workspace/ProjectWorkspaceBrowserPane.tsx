@@ -262,9 +262,10 @@ function InspectorTabs({
       </div>
       <div
         className={cn(
-          "min-h-0 flex-1",
+          "flex min-h-0 flex-1",
           tab.inspectorView !== "browser" && "hidden",
         )}
+        data-project-workspace-browser
       >
         <BrowserTabDeck
           browserTabs={[browserTab]}

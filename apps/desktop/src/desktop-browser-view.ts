@@ -1,9 +1,12 @@
 import { Menu, WebContentsView, session, type Session } from "electron";
 import {
+  BB_DESKTOP_BROWSER_MAX_SNAPSHOT_DATA_URL_LENGTH,
   BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
   BB_DESKTOP_BROWSER_MAX_URL_LENGTH,
   clampBbDesktopBrowserViewBounds,
   type BbDesktopBrowserAttachRequest,
+  type BbDesktopBrowserCapture,
+  type BbDesktopBrowserComputerUseIdentity,
   type BbDesktopBrowserNavigateRequest,
   type BbDesktopBrowserOpenTabRequest,
   type BbDesktopBrowserScopedOpenTabRequest,
@@ -146,6 +149,10 @@ interface SetEntryDesiredBoundsArgs {
 
 export interface DesktopBrowserViewManager {
   attach(args: HostScopedRequestArgs<BbDesktopBrowserAttachRequest>): void;
+  capture(args: HostScopedTabArgs): Promise<BbDesktopBrowserCapture>;
+  identifyForComputerUse(
+    args: HostScopedTabArgs,
+  ): Promise<BbDesktopBrowserComputerUseIdentity>;
   detach(args: HostScopedTabArgs): void;
   navigate(args: HostScopedRequestArgs<BbDesktopBrowserNavigateRequest>): void;
   goBack(args: HostScopedTabArgs): void;
@@ -676,6 +683,14 @@ export function createDesktopBrowserViewManager(
     fn(entry);
   }
 
+  function requireEntry(args: HostScopedTabArgs): BrowserViewEntry {
+    const entry = entries.get(browserViewKey(args.hostWindow, args.tabId));
+    if (entry === undefined || entry.view.webContents.isDestroyed()) {
+      throw new Error("The requested browser tab is not attached.");
+    }
+    return entry;
+  }
+
   return {
     attach({ hostWindow, request }) {
       const key = browserViewKey(hostWindow, request.tabId);
@@ -704,6 +719,70 @@ export function createDesktopBrowserViewManager(
       }
       loadIfNeeded(entry, request.url);
       pushState(hostWindow, request.tabId);
+    },
+    async capture({ hostWindow, tabId }) {
+      const entry = requireEntry({ hostWindow, tabId });
+      const urlBeforeCapture = entry.view.webContents.getURL();
+      if (urlBeforeCapture.length === 0) {
+        throw new Error("The requested browser tab has no loaded page.");
+      }
+      const image = await entry.view.webContents.capturePage();
+      const urlAfterCapture = entry.view.webContents.getURL();
+      if (urlAfterCapture !== urlBeforeCapture) {
+        throw new Error("The browser tab navigated while it was captured.");
+      }
+      if (image.isEmpty()) {
+        throw new Error("The browser tab capture was empty.");
+      }
+      const dataUrl = `data:image/jpeg;base64,${image
+        .toJPEG(90)
+        .toString("base64")}`;
+      if (dataUrl.length > BB_DESKTOP_BROWSER_MAX_SNAPSHOT_DATA_URL_LENGTH) {
+        throw new Error("The browser tab capture exceeded the output limit.");
+      }
+      return {
+        capturedAtMs: Date.now(),
+        dataUrl,
+        tabId,
+        url: urlAfterCapture,
+      };
+    },
+    async identifyForComputerUse({ hostWindow, tabId }) {
+      const entry = requireEntry({ hostWindow, tabId });
+      const webContents = entry.view.webContents;
+      const url = webContents.getURL();
+      if (url.length === 0) {
+        throw new Error("The requested browser tab has no loaded page.");
+      }
+      if (webContents.debugger.isAttached()) {
+        throw new Error(
+          "The requested browser tab is already being inspected.",
+        );
+      }
+      webContents.debugger.attach("1.3");
+      try {
+        const result: unknown = await webContents.debugger.sendCommand(
+          "Target.getTargetInfo",
+        );
+        if (
+          typeof result !== "object" ||
+          result === null ||
+          !("targetInfo" in result) ||
+          typeof result.targetInfo !== "object" ||
+          result.targetInfo === null ||
+          !("targetId" in result.targetInfo) ||
+          typeof result.targetInfo.targetId !== "string" ||
+          result.targetInfo.targetId.length === 0
+        ) {
+          throw new Error("Electron returned no DevTools target identity.");
+        }
+        if (webContents.getURL() !== url) {
+          throw new Error("The browser tab navigated while it was identified.");
+        }
+        return { cdpTargetId: result.targetInfo.targetId, tabId, url };
+      } finally {
+        webContents.debugger.detach();
+      }
     },
     detach({ hostWindow, tabId }) {
       destroyEntry(hostWindow, browserViewKey(hostWindow, tabId));

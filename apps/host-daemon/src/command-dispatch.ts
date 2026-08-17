@@ -471,7 +471,8 @@ const onlineRpcHandlers: OnlineRpcHandlerMap = {
     return options.ensureConnectTunnelIdentity();
   },
   "host.list_files": listHostFiles,
-  "host.computer_use.call": async (command) => callComputerUseTool(command),
+  "host.computer_use.call": async (command, options) =>
+    callComputerUseTool(command, options.dataDir),
   "host.list_paths": listHostPaths,
   "host.mkdir": mkdirHostPath,
   "host.move_path": moveHostPath,

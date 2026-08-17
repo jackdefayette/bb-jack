@@ -23,3 +23,6 @@ export const BB_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL =
   "bb-desktop:browser:scoped-open-tab";
 export const BB_DESKTOP_BROWSER_SNAPSHOT_CHANNEL =
   "bb-desktop:browser:snapshot";
+export const BB_DESKTOP_BROWSER_CAPTURE_CHANNEL = "bb-desktop:browser:capture";
+export const BB_DESKTOP_BROWSER_COMPUTER_USE_IDENTITY_CHANNEL =
+  "bb-desktop:browser:computer-use-identity";

@@ -499,7 +499,7 @@ export function BrowserTabContent({
         ? `Loading browser page: ${currentUrl}`
         : state === null
           ? `Opening browser page: ${currentUrl}`
-          : `Browser page loaded: ${state.title || getBrowserUrlHost(currentUrl) || currentUrl}, ${currentUrl}. Embedded page controls are outside desktop accessibility; use Open page in external browser for Computer Use when an exact browser binding is unavailable.`;
+          : `Browser page loaded: ${state.title || getBrowserUrlHost(currentUrl) || currentUrl}, ${currentUrl}. Embedded page controls use the managed Computer Use browser binding; use Open page in external browser for Computer Use when that binding is unavailable.`;
   // A blocking modal (e.g. the git-action dialog) dims the panel with a DOM
   // backdrop the native browser overlay cannot sit behind. While one is open,
   // hide the view and fall back to the DOM new-tab screen so the backdrop dims
@@ -805,7 +805,13 @@ export function BrowserTabContent({
   }
 
   return (
-    <div data-app-browser className="flex h-full min-h-0 flex-col">
+    <div
+      data-app-browser
+      data-bb-browser-native-visible={canShowNativeBrowserView}
+      data-bb-browser-tab-id={tabId}
+      data-bb-browser-url={currentUrl}
+      className="flex h-full min-h-0 flex-col"
+    >
       <BrowserChrome
         addressDraft={addressDraft}
         isEditing={isEditing}

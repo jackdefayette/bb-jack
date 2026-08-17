@@ -17,6 +17,8 @@ import {
 } from "../src/desktop-update-ipc.js";
 import {
   BB_DESKTOP_BROWSER_ATTACH_CHANNEL,
+  BB_DESKTOP_BROWSER_CAPTURE_CHANNEL,
+  BB_DESKTOP_BROWSER_COMPUTER_USE_IDENTITY_CHANNEL,
   BB_DESKTOP_BROWSER_DETACH_CHANNEL,
   BB_DESKTOP_BROWSER_GO_BACK_CHANNEL,
   BB_DESKTOP_BROWSER_GO_FORWARD_CHANNEL,
@@ -119,8 +121,25 @@ const electronMock = vi.hoisted(() => {
       },
     },
     ipcRenderer: {
-      invoke(channel: string): Promise<BbDesktopInfo | BbDesktopWindowState> {
+      invoke(
+        channel: string,
+      ): Promise<BbDesktopInfo | BbDesktopWindowState | unknown> {
         invokeCalls.push(channel);
+        if (channel === BB_DESKTOP_BROWSER_CAPTURE_CHANNEL) {
+          return Promise.resolve({
+            capturedAtMs: 1_234,
+            dataUrl: "data:image/jpeg;base64,YWJj",
+            tabId: "browser:a",
+            url: "http://localhost:5173/",
+          });
+        }
+        if (channel === BB_DESKTOP_BROWSER_COMPUTER_USE_IDENTITY_CHANNEL) {
+          return Promise.resolve({
+            cdpTargetId: "target-a",
+            tabId: "browser:a",
+            url: "http://localhost:5173/",
+          });
+        }
         if (channel === "bb-desktop:get-window-state") {
           return Promise.resolve(desktopWindowState);
         }
@@ -226,9 +245,11 @@ describe("desktop preload browser API", () => {
 
     expect(Object.keys(api.browser).sort()).toEqual([
       "attach",
+      "capture",
       "detach",
       "goBack",
       "goForward",
+      "identifyForComputerUse",
       "navigate",
       "onOpenTab",
       "onScopedOpenTab",
@@ -243,6 +264,19 @@ describe("desktop preload browser API", () => {
     expect(api.browser).not.toHaveProperty("invoke");
 
     api.browser.attach(attachRequest);
+    await expect(api.browser.capture?.("browser:a")).resolves.toEqual({
+      capturedAtMs: 1_234,
+      dataUrl: "data:image/jpeg;base64,YWJj",
+      tabId: "browser:a",
+      url: "http://localhost:5173/",
+    });
+    await expect(
+      api.browser.identifyForComputerUse?.("browser:a"),
+    ).resolves.toEqual({
+      cdpTargetId: "target-a",
+      tabId: "browser:a",
+      url: "http://localhost:5173/",
+    });
     api.browser.detach("browser:a");
     api.browser.navigate(navigateRequest);
     api.browser.goBack("browser:a");
@@ -295,6 +329,12 @@ describe("desktop preload browser API", () => {
       { channel: BB_DESKTOP_SET_THEME_CHANNEL, payload: "dark" },
     ]);
     expect(electronMock.invokeCalls).toContain(BB_DESKTOP_GET_INFO_CHANNEL);
+    expect(electronMock.invokeCalls).toContain(
+      BB_DESKTOP_BROWSER_CAPTURE_CHANNEL,
+    );
+    expect(electronMock.invokeCalls).toContain(
+      BB_DESKTOP_BROWSER_COMPUTER_USE_IDENTITY_CHANNEL,
+    );
     expect(electronMock.invokeCalls).toContain(
       BB_DESKTOP_CHECK_FOR_UPDATES_CHANNEL,
     );

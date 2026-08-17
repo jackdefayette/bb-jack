@@ -222,6 +222,39 @@ export type BbDesktopBrowserSnapshot = z.infer<
   typeof bbDesktopBrowserSnapshotSchema
 >;
 
+/**
+ * A point-in-time capture of one exact native browser tab. This is an invoke
+ * response rather than the resize-only snapshot push above: provider-neutral
+ * Computer Use requests it through the trusted host renderer after binding an
+ * exact project route and tab id.
+ */
+export const bbDesktopBrowserCaptureSchema = z
+  .object({
+    capturedAtMs: z.number().int().nonnegative(),
+    dataUrl: z
+      .string()
+      .min(1)
+      .max(BB_DESKTOP_BROWSER_MAX_SNAPSHOT_DATA_URL_LENGTH),
+    tabId: z.string().min(1),
+    url: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+  })
+  .strict();
+export type BbDesktopBrowserCapture = z.infer<
+  typeof bbDesktopBrowserCaptureSchema
+>;
+
+/** Exact native-webContents identity used only to bind Computer Use safely. */
+export const bbDesktopBrowserComputerUseIdentitySchema = z
+  .object({
+    cdpTargetId: z.string().min(1),
+    tabId: z.string().min(1),
+    url: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+  })
+  .strict();
+export type BbDesktopBrowserComputerUseIdentity = z.infer<
+  typeof bbDesktopBrowserComputerUseIdentitySchema
+>;
+
 export type BbDesktopBrowserStateHandler = (
   state: BbDesktopBrowserState,
 ) => void;
@@ -271,4 +304,13 @@ export interface BbDesktopBrowserApi {
   onSnapshot?(
     listener: BbDesktopBrowserSnapshotHandler,
   ): BbDesktopBrowserUnsubscribe;
+  /**
+   * Capture one exact native view. Optional for shell/SPA version skew; this is
+   * intentionally tab-scoped and exposes no general Electron bridge.
+   */
+  capture?(tabId: string): Promise<BbDesktopBrowserCapture>;
+  /** Resolve the CDP target owned by one exact native tab. */
+  identifyForComputerUse?(
+    tabId: string,
+  ): Promise<BbDesktopBrowserComputerUseIdentity>;
 }
