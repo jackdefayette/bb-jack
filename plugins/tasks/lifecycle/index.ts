@@ -75,7 +75,11 @@ async function finalizeTaskThread(
     }
     transitionThread(bb, store, thread, "completed");
   } catch (error) {
-    if (sdkErrorCode(error) === "thread_not_found") {
+    const errorCode = sdkErrorCode(error);
+    if (
+      errorCode === "thread_not_found" ||
+      errorCode === "thread_environment_unavailable"
+    ) {
       transitionThread(bb, store, thread, "completed");
       return;
     }
@@ -181,14 +185,18 @@ function transitionThread(
 ): void {
   if (
     thread.liveStatus === liveStatus ||
-    TERMINAL_LIVE_STATUSES.has(thread.liveStatus)
+    (TERMINAL_LIVE_STATUSES.has(thread.liveStatus) &&
+      !(thread.liveStatus === "failed" && liveStatus === "completed"))
   ) {
     return;
   }
 
   store.transaction(() => {
     store.tasks.updateTaskThreadStatus(thread.id, liveStatus);
-    if (liveStatus === "completed" || liveStatus === "failed") {
+    if (
+      !TERMINAL_LIVE_STATUSES.has(thread.liveStatus) &&
+      (liveStatus === "completed" || liveStatus === "failed")
+    ) {
       createSystemComment(store.tasks, {
         taskId: thread.taskId,
         presetName: thread.presetName,

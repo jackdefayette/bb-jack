@@ -496,6 +496,54 @@ describe("task thread lifecycle", () => {
     }
   });
 
+  it("completes a terminal task whose working-copy environment is already gone", async () => {
+    const host = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          get: async () =>
+            makeThreadResponse({ id: "thr_orphaned", status: "error" }),
+          archiveAll: async () => {
+            throw Object.assign(
+              new Error("Thread environment is unavailable"),
+              {
+                code: "thread_environment_unavailable",
+              },
+            );
+          },
+        },
+      },
+    });
+    const store = createStore(host.bb);
+    const project = store.tasks.createProject({
+      name: "Orphaned terminal task",
+      prefix: "ORPHAN",
+      color: "blue",
+    });
+    const task = store.tasks.createTask({
+      projectId: project.id,
+      title: "Already discarded",
+      status: "canceled",
+    });
+    const tracked = store.tasks.upsertTaskThread({
+      taskId: task.id,
+      threadId: "thr_orphaned",
+      presetName: "Default",
+      title: "Orphaned worker",
+      liveStatus: "failed",
+    });
+
+    await registerLifecycle(host.bb, store);
+
+    expect(host.harness.sdk.callsTo("threads.archiveAll")).toEqual([
+      [{ threadId: "thr_orphaned" }],
+    ]);
+    expect(store.tasks.getTaskThread(tracked.id)?.liveStatus).toBe("completed");
+    expect(store.tasks.listComments(task.id)).toEqual([]);
+
+    await host.harness.dispose();
+  });
+
   it("ignores lifecycle events for non-tracked threads", async () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "tasks" });
     const store = createStore(bb);
