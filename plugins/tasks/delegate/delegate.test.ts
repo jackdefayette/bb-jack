@@ -155,6 +155,66 @@ describe("task delegation", () => {
     await harness.dispose();
   });
 
+  it("starts a fresh workspace agent after the prior binding is archived", async () => {
+    let spawnCount = 0;
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          spawn: async () => {
+            spawnCount += 1;
+            return {
+              id: `thr_workspace_${spawnCount}`,
+              environmentId: `env_workspace_${spawnCount}`,
+            };
+          },
+          get: async ({ threadId }) =>
+            makeThreadResponse({
+              id: threadId,
+              status: "idle",
+              environmentId: "env_workspace_1",
+              archivedAt: Date.now(),
+            }),
+        },
+      },
+    });
+    const store = createStore(bb);
+    registerDelegation(bb, store);
+    const input = {
+      workspaceKey: "tab-archived:builder",
+      bbProjectId: "proj_workspace",
+      projectName: "Workspace Project",
+      role: "builder" as const,
+      request: workspaceRequest(),
+    };
+
+    const first = await harness.callRpc("workspaceAgentStart", input);
+    const second = await harness.callRpc("workspaceAgentStart", input);
+
+    expect(first).toMatchObject({
+      taskKey: "WORKSPACEP-1",
+      threadId: "thr_workspace_1",
+    });
+    expect(second).toMatchObject({
+      taskKey: "WORKSPACEP-2",
+      threadId: "thr_workspace_2",
+      environmentId: "env_workspace_2",
+    });
+    expect(harness.sdk.callsTo("threads.spawn")).toHaveLength(2);
+    expect(store.tasks.listTasks()).toHaveLength(2);
+    expect(
+      store.tasks.getWorkspaceAgentStart(
+        "proj_workspace",
+        "tab-archived:builder",
+      ),
+    ).toMatchObject({
+      taskId: second.taskId,
+      threadId: "thr_workspace_2",
+    });
+
+    await harness.dispose();
+  });
+
   it("forwards project-default, managed-worktree, and reuse selections exactly", async () => {
     let call = 0;
     const { bb, harness } = createFakePluginHost({

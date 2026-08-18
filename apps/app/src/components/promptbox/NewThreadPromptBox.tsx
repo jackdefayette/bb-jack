@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { Host, ProjectSource, PromptTextMention } from "@bb/domain";
 import type { ComposerView } from "@bb/plugin-sdk";
+import { cn } from "@bb/shared-ui/lib/utils";
 import type { ComposerTextEffectSource } from "@/lib/composer-text-effects";
 import { PluginComposerBanners } from "@/components/plugin/PluginComposerBanners";
 import {
@@ -182,6 +183,8 @@ export interface NewThreadPromptBoxUIProps {
   textEffects?: readonly ComposerTextEffectSource[];
   /** zenMode storage key used for the root-compose zen-mode atom. */
   zenModeStorageKey: string;
+  /** Constrain expanded mode to a containing workspace pane. */
+  zenModeContainerBounded?: boolean;
   /** Overrides the default new-thread placeholder copy. */
   placeholder?: string;
 
@@ -233,6 +236,7 @@ export const NewThreadPromptBoxUI = memo(function NewThreadPromptBoxUI({
   pluginComposerHost,
   textEffects,
   zenModeStorageKey,
+  zenModeContainerBounded = false,
   placeholder: placeholderOverride,
   history,
   typeahead,
@@ -307,7 +311,10 @@ export const NewThreadPromptBoxUI = memo(function NewThreadPromptBoxUI({
       data-app-composer=""
       data-app-composer-role="primary"
       data-promptbox-shell=""
-      className="w-full"
+      className={cn(
+        "w-full",
+        zenModeContainerBounded && "flex min-h-0 flex-1 flex-col justify-end",
+      )}
     >
       <PluginComposerViewProvider value={composerView}>
         <PluginComposerHostProvider value={pluginComposerHost ?? null}>
@@ -340,6 +347,7 @@ export const NewThreadPromptBoxUI = memo(function NewThreadPromptBoxUI({
             zenMode={{
               layout: "root-compose",
               storageKey: zenModeStorageKey,
+              containerBounded: zenModeContainerBounded,
             }}
             minHeight={NEW_THREAD_PROMPT_BOX_MIN_HEIGHT}
             placeholder={placeholder}

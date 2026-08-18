@@ -509,6 +509,7 @@ describe("PluginNewThreadComposer seeding", () => {
     });
     expect(latestPromptBoxProps().modeConfig.header).toBeUndefined();
     expect(latestPromptBoxProps().modeConfig.footerControl).toBeTruthy();
+    expect(latestPromptBoxProps().zenModeContainerBounded).toBe(true);
     expect(picker.textContent).toContain("New copy");
     fireEvent.pointerDown(picker, { button: 0, ctrlKey: false });
     expect(screen.getByText("Start fresh")).toBeTruthy();

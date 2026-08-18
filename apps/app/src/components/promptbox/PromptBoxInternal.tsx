@@ -293,6 +293,8 @@ export interface PromptBoxZenModeConfig {
   storageKey?: string | null;
   resetKey?: string | number;
   resetOnSubmit?: boolean;
+  /** Fill the nearest flex container instead of sizing from the viewport. */
+  containerBounded?: boolean;
 }
 
 export interface PromptBoxCompactConfig {
@@ -1148,6 +1150,7 @@ export function PromptBoxInternal({
     storageKey: zenModeStorageKey,
     resetKey: zenModeResetKey,
     resetOnSubmit: resetZenModeOnSubmit = false,
+    containerBounded: zenModeContainerBounded = false,
   } = zenMode;
   const isPointerCoarse = usePointerCoarse();
   // Legacy iPads report an iPad platform; current iPadOS WebKit uses a
@@ -2706,7 +2709,12 @@ export function PromptBoxInternal({
       // capture listener that stops the event before the editor sees it. A
       // locked editor never reaches here — see the editor container below.
       if (event.key === "Escape") {
-        blurPromptEditor(currentEditor);
+        if (isZenMode) {
+          event.preventDefault();
+          exitZenMode();
+        } else {
+          blurPromptEditor(currentEditor);
+        }
         return true;
       }
 
@@ -2831,6 +2839,7 @@ export function PromptBoxInternal({
       commandHasMore,
       commandIsLoadingMore,
       dispatchAppCommandKey,
+      exitZenMode,
       history,
       isPointerCoarse,
       isZenMode,
@@ -2896,9 +2905,12 @@ export function PromptBoxInternal({
         showCompactLayout && "overflow-hidden",
         // Zen toggles only the *height* of the box; the inset padding stays
         // identical so the placeholder/text doesn't jump when toggling.
-        // `flex flex-col` lets the editor's `flex-1` fill the dvh height.
+        // `flex flex-col` lets the editor's `flex-1` fill the selected height.
         showZenLayout && "flex flex-col",
-        showZenLayout && ZEN_MODE_HEIGHT_CLASS[zenModeLayout],
+        showZenLayout &&
+          (zenModeContainerBounded
+            ? "min-h-0 flex-1"
+            : ZEN_MODE_HEIGHT_CLASS[zenModeLayout]),
         className,
       )}
     >

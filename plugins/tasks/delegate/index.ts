@@ -370,7 +370,7 @@ export function publishCommentsChanged(bb: BbPluginApi, taskId: string): void {
 type SdkThread = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>;
 
 function taskThreadLiveStatus(thread: SdkThread): TaskThreadLiveStatus {
-  if (thread.deletedAt != null) return "completed";
+  if (thread.archivedAt != null || thread.deletedAt != null) return "completed";
   switch (thread.status) {
     case "starting":
       return "starting";
@@ -381,6 +381,32 @@ function taskThreadLiveStatus(thread: SdkThread): TaskThreadLiveStatus {
       return "idle";
     case "error":
       return "failed";
+  }
+}
+
+function sdkErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return undefined;
+  }
+  return typeof error.code === "string" ? error.code : undefined;
+}
+
+async function workspaceAgentStartIsReusable(
+  bb: BbPluginApi,
+  threadId: string,
+): Promise<boolean> {
+  try {
+    const thread = await bb.sdk.threads.get({ threadId });
+    return thread.archivedAt === null && thread.deletedAt === null;
+  } catch (error) {
+    const code = sdkErrorCode(error);
+    if (
+      code === "thread_not_found" ||
+      code === "thread_environment_unavailable"
+    ) {
+      return false;
+    }
+    throw error;
   }
 }
 
@@ -476,7 +502,7 @@ export function handlers(
     },
 
     async workspaceAgentStart(input) {
-      const existingForKey = store.tasks.getWorkspaceAgentStartByWorkspaceKey(
+      let existingForKey = store.tasks.getWorkspaceAgentStartByWorkspaceKey(
         input.workspaceKey,
       );
       if (existingForKey && existingForKey.bbProjectId !== input.bbProjectId) {
@@ -486,13 +512,20 @@ export function handlers(
         );
       }
       if (existingForKey?.threadId) {
-        const task = requireTask(store.tasks, existingForKey.taskId);
-        return {
-          taskId: task.id,
-          taskKey: task.key,
-          threadId: existingForKey.threadId,
-          environmentId: existingForKey.environmentId,
-        };
+        if (await workspaceAgentStartIsReusable(bb, existingForKey.threadId)) {
+          const task = requireTask(store.tasks, existingForKey.taskId);
+          return {
+            taskId: task.id,
+            taskKey: task.key,
+            threadId: existingForKey.threadId,
+            environmentId: existingForKey.environmentId,
+          };
+        }
+        store.tasks.deleteWorkspaceAgentStart(
+          existingForKey.bbProjectId,
+          existingForKey.workspaceKey,
+        );
+        existingForKey = undefined;
       }
       if (existingForKey) {
         throw new DelegationError(

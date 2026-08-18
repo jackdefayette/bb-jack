@@ -1486,6 +1486,59 @@ describe("PromptBoxInternal submit shortcuts", () => {
 });
 
 describe("PromptBoxInternal zen mode layout", () => {
+  it("keeps contained zen mode inside its pane and lets Escape restore it", async () => {
+    const storageKey = "bb.test.promptbox.zen-contained";
+    window.localStorage.removeItem(storageKey);
+
+    render(
+      <div className="flex h-80 min-h-0 flex-col">
+        <PromptBoxInternal
+          {...createPromptBoxProps({
+            zenMode: { storageKey, containerBounded: true },
+          })}
+        />
+      </div>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Make prompt box larger" }),
+    );
+
+    const form = document.querySelector("[data-promptbox]");
+    if (!(form instanceof HTMLFormElement)) {
+      throw new Error("Prompt box form was not rendered");
+    }
+    await waitFor(() => {
+      expect(form.classList.contains("flex-1")).toBe(true);
+      expect(form.classList.contains("h-[70dvh]")).toBe(false);
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Make prompt box smaller" }),
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Make prompt box larger" }),
+      ).toBeTruthy();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Make prompt box larger" }),
+    );
+
+    fireEvent.keyDown(getPromptEditorElement(), { key: "Escape" });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Make prompt box smaller" }),
+      ).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Make prompt box larger" }),
+      ).toBeTruthy();
+    });
+    window.localStorage.removeItem(storageKey);
+  });
+
   it("animates the prompt box height when toggling zen mode", async () => {
     const storageKey = "bb.test.promptbox.zen-height-animation";
     window.localStorage.removeItem(storageKey);

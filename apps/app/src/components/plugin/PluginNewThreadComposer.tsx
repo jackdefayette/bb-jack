@@ -1046,6 +1046,7 @@ export function PluginNewThreadComposer({
         zenModeStorageKey={`bb.promptbox.zen-mode.plugin-new-thread.${
           draftKey ?? pluginId ?? "default"
         }`}
+        zenModeContainerBounded={layout === "contained"}
         history={{
           currentDraft,
           entries: promptHistoryDrafts,
