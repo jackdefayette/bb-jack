@@ -291,6 +291,9 @@ interface ThreadDetailViewPageProps {
 
 interface ThreadDetailViewPaneProps extends ThreadRoutePathArgs {
   surface: "pane";
+  /** Human-facing checkout label for a host surface that owns stronger
+   * context than the Git branch, such as a project-workspace task key. */
+  environmentCheckoutCompactLabel?: string;
 }
 
 type ThreadDetailViewProps =
@@ -2251,6 +2254,15 @@ function ThreadDetailViewInternal(props: ThreadDetailViewInternalProps) {
   const threadCheckoutDisplay = workspaceStatus
     ? formatWorkspaceCheckoutDisplay({ checkout: workspaceStatus.checkout })
     : undefined;
+  const promptCheckoutDisplay =
+    threadCheckoutDisplay &&
+    props.surface === "pane" &&
+    props.environmentCheckoutCompactLabel
+      ? {
+          ...threadCheckoutDisplay,
+          label: props.environmentCheckoutCompactLabel,
+        }
+      : threadCheckoutDisplay;
   const isWorkspaceDeleted = environment?.status === "destroyed";
   // Decision B*: a thread whose environment is gone (being torn down or already
   // destroyed) is read-only — un-archive never resurrects it, so the composer is
@@ -2361,7 +2373,7 @@ function ThreadDetailViewInternal(props: ThreadDetailViewInternalProps) {
     <ThreadDetailPromptArea
       canUseGitUi={canUseGitUi}
       contextWindowUsage={contextWindowUsage}
-      environmentCheckout={threadCheckoutDisplay}
+      environmentCheckout={promptCheckoutDisplay}
       environmentCompactLabel={
         threadEnvironmentDisplay
           ? `${environmentMachinePrefix}${threadEnvironmentDisplay.compactModeLabel}`

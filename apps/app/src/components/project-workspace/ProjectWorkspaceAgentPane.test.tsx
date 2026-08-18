@@ -19,7 +19,16 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ refetchQueries: mocks.refetchQueries }),
 }));
 vi.mock("@/views/thread-detail/ThreadDetailView", () => ({
-  ThreadDetailView: () => <div data-testid="thread-detail" />,
+  ThreadDetailView: ({
+    environmentCheckoutCompactLabel,
+  }: {
+    environmentCheckoutCompactLabel?: string;
+  }) => (
+    <div
+      data-testid="thread-detail"
+      data-environment-checkout-label={environmentCheckoutCompactLabel}
+    />
+  ),
 }));
 vi.mock("./ProjectWorkspaceEnvironmentRibbon", () => ({
   ProjectWorkspaceEnvironmentRibbon: () => (
@@ -205,7 +214,11 @@ describe("ProjectWorkspaceAgentPane", () => {
     expect(environmentControl.closest("header")).toBeTruthy();
     expect(chatBody).toBeTruthy();
     expect(chatBody?.contains(environmentControl)).toBe(false);
-    expect(screen.getByTestId("thread-detail")).toBeTruthy();
+    expect(
+      screen
+        .getByTestId("thread-detail")
+        .getAttribute("data-environment-checkout-label"),
+    ).toBe("ONE-1");
   });
 
   it("accepts a valid project-default result without an environment", async () => {

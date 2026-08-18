@@ -203,6 +203,7 @@ export function ProjectWorkspaceAgentPane({
               surface="pane"
               projectId={projectId}
               threadId={threadId}
+              environmentCheckoutCompactLabel={taskKey ?? undefined}
             />
           </div>
         </PaneContext.Provider>
