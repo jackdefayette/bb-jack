@@ -110,22 +110,32 @@ interface PluginNewThreadComposerInternalProps extends NewThreadComposerProps {
   } | null;
 }
 
-function terminalTaskThreadIds(value: unknown): Set<string> {
+interface WorkingCopyTaskState {
+  threadId: string;
+  taskKey: string;
+  status: string;
+}
+
+function workingCopyTaskStates(value: unknown): WorkingCopyTaskState[] {
   if (typeof value !== "object" || value === null || !("states" in value)) {
-    return new Set();
+    return [];
   }
   const states = (value as { states?: unknown }).states;
-  if (!Array.isArray(states)) return new Set();
-  return new Set(
-    states.flatMap((state) => {
-      if (typeof state !== "object" || state === null) return [];
-      const row = state as { status?: unknown; threadId?: unknown };
-      return (row.status === "done" || row.status === "canceled") &&
-        typeof row.threadId === "string"
-        ? [row.threadId]
-        : [];
-    }),
-  );
+  if (!Array.isArray(states)) return [];
+  return states.flatMap((state) => {
+    if (typeof state !== "object" || state === null) return [];
+    const row = state as {
+      status?: unknown;
+      taskKey?: unknown;
+      threadId?: unknown;
+    };
+    return typeof row.threadId === "string" &&
+      typeof row.taskKey === "string" &&
+      row.taskKey.length > 0 &&
+      typeof row.status === "string"
+      ? [{ threadId: row.threadId, taskKey: row.taskKey, status: row.status }]
+      : [];
+  });
 }
 
 export function PluginNewThreadComposer({
@@ -286,7 +296,13 @@ export function PluginNewThreadComposer({
     ) {
       return [];
     }
-    const terminalIds = terminalTaskThreadIds(taskWorkingCopyStates.data);
+    const terminalIds = new Set(
+      workingCopyTaskStates(taskWorkingCopyStates.data).flatMap((state) =>
+        state.status === "done" || state.status === "canceled"
+          ? [state.threadId]
+          : [],
+      ),
+    );
     return rawReuseThreadOptions.filter(
       (option) =>
         option.threads.length === 0 ||
@@ -297,6 +313,16 @@ export function PluginNewThreadComposer({
     reusableThreadIds.length,
     taskWorkingCopyStates.data,
   ]);
+  const taskKeyByThreadId = useMemo(
+    () =>
+      new Map(
+        workingCopyTaskStates(taskWorkingCopyStates.data).map((state) => [
+          state.threadId,
+          state.taskKey,
+        ]),
+      ),
+    [taskWorkingCopyStates.data],
+  );
 
   // --- Execution options --------------------------------------------------
   const resolveProviderRouting = useCallback(
@@ -880,9 +906,11 @@ export function PluginNewThreadComposer({
     reusedWorkspaceIsPeer && workspaceEnvironmentPeer?.taskKey
       ? workspaceEnvironmentPeer.taskKey
       : reusedWorkspace
-        ? (reusedWorkspace.threads[0]?.title ??
+        ? (reusedWorkspace.threads
+            .map((thread) => taskKeyByThreadId.get(thread.id))
+            .find((taskKey) => taskKey !== undefined) ??
+          reusedWorkspace.threads[0]?.title ??
           reusedWorkspace.name ??
-          reusedWorkspace.branchName ??
           "previous task")
         : "previous task";
   const reusedWorkspaceShareLabel =
@@ -897,7 +925,7 @@ export function PluginNewThreadComposer({
         : isolatedWorkspaceLabel;
   const workspaceControlLabel =
     parsedEnvironment?.type === "reuse"
-      ? reusedWorkspaceTaskLabel
+      ? `Share ${reusedWorkspaceTaskLabel}`
       : parsedEnvironment?.type === "host" && parsedEnvironment.mode === "local"
         ? "Project folder"
         : projectSourceWorktreeUnavailable
@@ -989,9 +1017,11 @@ export function PluginNewThreadComposer({
               const taskLabel =
                 isPeer && workspaceEnvironmentPeer?.taskKey
                   ? workspaceEnvironmentPeer.taskKey
-                  : (option.threads[0]?.title ??
+                  : (option.threads
+                      .map((thread) => taskKeyByThreadId.get(thread.id))
+                      .find((taskKey) => taskKey !== undefined) ??
+                    option.threads[0]?.title ??
                     option.name ??
-                    option.branchName ??
                     "previous task");
               const peerLabel = isPeer
                 ? (workspaceEnvironmentPeer?.label ?? null)

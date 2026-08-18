@@ -66,7 +66,8 @@ describe("ProjectWorkspaceEnvironmentRibbon", () => {
     const trigger = screen.getByRole("button", {
       name: "Build workspace details",
     });
-    expect(trigger.textContent).toContain("build-safe-change");
+    expect(trigger.textContent).toContain("SAFE-12");
+    expect(trigger.textContent).not.toContain("codex/build-safe-change");
     fireEvent.click(trigger);
 
     expect(screen.getByText("Safe repository")).toBeTruthy();
@@ -76,7 +77,7 @@ describe("ProjectWorkspaceEnvironmentRibbon", () => {
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("main").length).toBeGreaterThan(0);
     expect(screen.getByText("Build")).toBeTruthy();
-    expect(screen.getByText("SAFE-12")).toBeTruthy();
+    expect(screen.getAllByText("SAFE-12").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("thread_build")).toBeTruthy();
     expect(screen.getByText("Dirty")).toBeTruthy();
     expect(screen.getByText("2 ahead / 1 behind")).toBeTruthy();

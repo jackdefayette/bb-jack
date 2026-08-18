@@ -593,6 +593,58 @@ describe("PluginNewThreadComposer seeding", () => {
     expect(sharedWorkingCopy.textContent).toContain(
       "Both agents see uncommitted changes immediately",
     );
+    fireEvent.click(sharedWorkingCopy);
+    const picker = screen.getByRole("button", {
+      name: "Working copy: Share files with BBJ-2 — Shared with Build",
+    });
+    expect(picker.textContent).toContain("Share BBJ-2");
+    expect(picker.textContent).not.toContain("bb/bbj-2-hi");
+  });
+
+  it("uses task keys instead of generated branches for reusable working copies", () => {
+    mocks.threads = [
+      {
+        id: "thr_bbj_7",
+        title: "Implement a focused bb-jack UI improvement",
+        titleFallback: null,
+        environmentId: "env_bbj_7",
+        environmentWorkspaceDisplayKind: "managed-worktree",
+        environmentBranchName: "bb/bbj-7-hi-thr_eni72xgbvu",
+        environmentName: null,
+        environmentHostId: "host_1",
+        latestAttentionAt: 1,
+      },
+    ];
+    mocks.taskStates = [
+      { threadId: "thr_bbj_7", taskKey: "BBJ-7", status: "in_progress" },
+    ];
+
+    render(
+      <MemoryRouter>
+        <PluginNewThreadComposer
+          draftKey="workspace-agent-task-key"
+          defaultProjectId="proj_1"
+          workspaceEnvironmentChoices
+          onSubmit={() => undefined}
+        />
+      </MemoryRouter>,
+    );
+
+    const picker = screen.getByRole("button", { name: /Working copy:/u });
+    fireEvent.pointerDown(picker, { button: 0, ctrlKey: false });
+    const reusableCopy = screen.getByRole("menuitemcheckbox", {
+      name: /Share files with BBJ-7 — Shared/u,
+    });
+    expect(reusableCopy.textContent).toContain(
+      "Branch bb/bbj-7-hi-thr_eni72xgbvu.",
+    );
+    fireEvent.click(reusableCopy);
+
+    expect(picker.textContent).toContain("Share BBJ-7");
+    expect(picker.textContent).not.toContain("bb/bbj-7-hi-thr_eni72xgbvu");
+    expect(picker.getAttribute("aria-label")).toBe(
+      "Working copy: Share files with BBJ-7 — Shared",
+    );
   });
 
   it.each(["done", "canceled"])(

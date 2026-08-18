@@ -69,10 +69,9 @@ export function ProjectWorkspaceEnvironmentRibbon({
   const environmentLabel =
     environmentId === null
       ? "No environment"
-      : (record?.name ??
-        workspace?.branch.currentBranch ??
-        record?.branchName ??
-        "Environment");
+      : (taskKey ??
+        record?.name ??
+        (record?.isWorktree === false ? "Project folder" : "Working copy"));
   const branch = valueOrUnavailable(
     workspace?.branch.currentBranch ?? record?.branchName,
   );
