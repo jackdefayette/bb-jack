@@ -112,11 +112,13 @@ Do not infer that closing a tab removes the worktree.
    bb tasks update ABC-12 --status in_review
    ```
 
-   `in_review` keeps the attached thread and working copy available while the
-   pull request is open. Setting the task to `done` or `canceled` automatically
-   archives its attached threads; once no other task shares that managed
-   working copy, bb retires it. A merged or closed pull request attached to an
-   `in_review` task is reconciled automatically too.
+   `in_review` keeps the attached thread and working copy available while a
+   pull request is open. If there is no pull request, or it has been merged or
+   closed, bb automatically retires the working copy only when server-side Git
+   preflight confirms that it is clean, inactive, and not shared with
+   unfinished work. Merged branches are deleted; clean unmerged branches are
+   preserved. Setting the task to `done` or `canceled` automatically archives
+   its attached threads. Archived conversation history remains searchable.
 
    Change task hierarchy with `bb tasks update ABC-12 --parent ABC-10`, using
    either a task key or ID for the parent. Promote a subtask to the top level

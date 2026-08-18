@@ -86,10 +86,12 @@ target another enrolled machine.
 
 Statuses are `backlog`, `todo`, `in_progress`, `in_review`, `done`, and
 `canceled`. Priorities are `urgent`, `high`, `medium`, `low`, and `none`.
-Moving a task to `done` or `canceled` automatically archives its attached bb
-threads. A managed working copy is retired when its last attached thread is
-archived; shared copies wait for the remaining task threads. Merged or closed
-pull requests attached to `in_review` tasks are reconciled the same way.
+Moving a task to `in_review`, `done`, or `canceled` starts automatic cleanup.
+For `in_review`, open pull requests, active agents, dirty files, and work shared
+with an unfinished task block removal. When server-side preflight reports a
+clean, inactive copy as safe, Tasks archives its attached threads and retires
+the managed working copy. Merged branches are deleted; clean unmerged branches
+are preserved. Archived conversation history remains searchable.
 
 Task lists default to 100 rows and accept `--limit 1-500`. JSON output is
 `{ tasks, nextCursor, limit }`; human output prints the continuation option

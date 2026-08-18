@@ -19,7 +19,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -38,7 +37,6 @@ import {
 } from "@/components/pickers/environment-picker-value";
 import type { ProjectSelectorOption } from "@/components/pickers/ProjectSelector";
 import { PluginContext } from "@/components/plugin/plugin-context";
-import { WorkingCopyManagerDialog } from "@/components/dialogs/WorkingCopyManagerDialog";
 import { newThreadEnvironmentArgsToSeed } from "@/components/plugin/new-thread-environment-seed";
 import { useUploadPromptAttachment } from "@/hooks/mutations/project-mutations";
 import {
@@ -152,7 +150,6 @@ export function PluginNewThreadComposer({
   const pluginId = useContext(PluginContext);
   const navigate = useNavigate();
   const promptBoxRef = useRef<PromptBoxHandle>(null);
-  const [workingCopyManagerOpen, setWorkingCopyManagerOpen] = useState(false);
 
   // --- Project selection -------------------------------------------------
   const sidebarNavigationQuery = useSidebarNavigation();
@@ -1024,11 +1021,6 @@ export function PluginNewThreadComposer({
             })}
           </>
         ) : null}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => setWorkingCopyManagerOpen(true)}>
-          <Icon name="Settings" className="size-3.5" />
-          Manage working copies…
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   ) : null;
@@ -1136,7 +1128,6 @@ export function PluginNewThreadComposer({
             onSearchQueryChange: setBranchSearchQuery,
           },
           worktree: {
-            projectId,
             options: reuseThreadOptions,
             value: reuseEnvironmentId,
             onChange: handleWorktreeChange,
@@ -1189,14 +1180,6 @@ export function PluginNewThreadComposer({
           },
         }}
       />
-      {hasWorkspaceEnvironmentPicker ? (
-        <WorkingCopyManagerDialog
-          open={workingCopyManagerOpen}
-          onOpenChange={setWorkingCopyManagerOpen}
-          projectId={projectId}
-          initialEnvironmentId={reuseEnvironmentId}
-        />
-      ) : null}
     </div>
   );
 }

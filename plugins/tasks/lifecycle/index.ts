@@ -12,6 +12,10 @@ const TERMINAL_LIVE_STATUSES = new Set<TaskThreadLiveStatus>([
   "failed",
 ]);
 const TERMINAL_TASK_STATUSES = new Set<TaskStatus>(["done", "canceled"]);
+const REVIEW_COMPLETE_TASK_STATUSES = new Set<TaskStatus>([
+  "in_review",
+  ...TERMINAL_TASK_STATUSES,
+]);
 export const THREAD_STATUS_RECONCILE_INTERVAL_MS = 5 * 60_000;
 export const THREAD_STATUS_IDLE_INTERVAL_MS = 60_000;
 
@@ -100,13 +104,26 @@ async function archiveTaskThread(
   transitionThread(bb, store, thread, "completed");
 }
 
-export async function finalizeTaskIfTerminal(
+export async function finalizeTaskWorkingCopies(
   bb: BbPluginApi,
   store: TasksApiStore,
   taskId: string,
 ): Promise<void> {
   const task = store.tasks.getTask(taskId);
-  if (!task || !TERMINAL_TASK_STATUSES.has(task.status)) return;
+  if (!task) return;
+
+  if (task.status === "in_review") {
+    await finalizeReviewWorkingCopies(
+      bb,
+      store,
+      store.tasks
+        .listTaskThreads(task.id)
+        .filter((thread) => thread.liveStatus !== "completed"),
+    );
+    return;
+  }
+
+  if (!TERMINAL_TASK_STATUSES.has(task.status)) return;
 
   for (const thread of store.tasks.listTaskThreads(task.id)) {
     if (thread.liveStatus === "completed") continue;
@@ -123,12 +140,59 @@ async function finalizePendingTerminalTasks(
   }
 }
 
-async function finalizeTerminalPullRequests(
+function canAutomaticallyCleanReviewEnvironment(
+  store: TasksApiStore,
+  liveThreadIds: readonly string[],
+): boolean {
+  return liveThreadIds.every((threadId) => {
+    const attachments = trackedThreads(store, threadId);
+    if (attachments.length === 0) return false;
+    return attachments.every((attachment) => {
+      const task = store.tasks.getTask(attachment.taskId);
+      return (
+        task !== undefined && REVIEW_COMPLETE_TASK_STATUSES.has(task.status)
+      );
+    });
+  });
+}
+
+async function retireReviewEnvironmentWhenSafe(
   bb: BbPluginApi,
   store: TasksApiStore,
+  environmentId: string,
+): Promise<boolean> {
+  const preflight = await bb.sdk.environments.cleanupPreflight({
+    environmentId,
+  });
+  const action = preflight.recommendedAction;
+  if (
+    (action !== "safe_delete" && action !== "keep_branch") ||
+    !preflight.allowedActions.includes(action) ||
+    !canAutomaticallyCleanReviewEnvironment(
+      store,
+      preflight.liveThreads.map((thread) => thread.id),
+    )
+  ) {
+    return false;
+  }
+
+  const result = await bb.sdk.environments.cleanup({
+    environmentId,
+    action,
+  });
+  for (const threadId of result.archivedThreadIds) {
+    transitionTrackedThread(bb, store, threadId, "completed");
+  }
+  return true;
+}
+
+async function finalizeReviewWorkingCopies(
+  bb: BbPluginApi,
+  store: TasksApiStore,
+  pendingThreads = store.tasks.listPendingReviewTaskThreads(),
 ): Promise<void> {
   const threadsByEnvironment = new Map<string, TaskThread[]>();
-  for (const thread of store.tasks.listPendingReviewTaskThreads()) {
+  for (const thread of pendingThreads) {
     try {
       const liveThread = await bb.sdk.threads.get({
         threadId: thread.threadId,
@@ -154,22 +218,22 @@ async function finalizeTerminalPullRequests(
     }
   }
 
-  for (const [environmentId, threads] of threadsByEnvironment) {
+  for (const environmentId of threadsByEnvironment.keys()) {
     try {
       const result = await bb.sdk.environments.pullRequest({ environmentId });
-      if (
-        result.outcome !== "available" ||
-        (result.pullRequest.state !== "merged" &&
-          result.pullRequest.state !== "closed")
-      ) {
+      const pullRequestIsTerminal =
+        result.outcome === "available" &&
+        (result.pullRequest.state === "merged" ||
+          result.pullRequest.state === "closed");
+      if (result.outcome === "available" && !pullRequestIsTerminal) {
         continue;
       }
-      for (const thread of threads) {
-        await archiveTaskThread(bb, store, thread);
-      }
+      if (result.outcome === "unavailable") continue;
+
+      await retireReviewEnvironmentWhenSafe(bb, store, environmentId);
     } catch (error) {
       bb.log.warn(
-        `Could not automatically archive terminal pull request environment ${environmentId}: ${
+        `Could not automatically finalize review working copy ${environmentId}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
@@ -332,14 +396,14 @@ export async function registerLifecycle(
         );
         if (signal.aborted) break;
         await finalizePendingTerminalTasks(bb, store);
-        await finalizeTerminalPullRequests(bb, store);
+        await finalizeReviewWorkingCopies(bb, store);
         await reconcileTrackedThreads(bb, store);
       }
     },
   });
 
   await finalizePendingTerminalTasks(bb, store);
-  await finalizeTerminalPullRequests(bb, store);
+  await finalizeReviewWorkingCopies(bb, store);
   await reconcileTrackedThreads(bb, store);
   await reconcileTrackedThreads(bb, store);
 }

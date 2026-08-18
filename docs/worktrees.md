@@ -106,18 +106,22 @@ Contract:
 
 ## Cleanup
 
-Moving a Tasks item to **Done** or **Canceled** automatically archives its
-attached conversations. Successfully merging a pull request in bb archives
-every conversation using that branch; Tasks also reconciles merged or closed
-pull requests attached to items in **In review**. Once no unarchived
-conversation still uses the managed worktree, bb retires its disposable folder
-so it no longer appears as a working copy. A successful in-app pull-request
-merge also removes the merged branch. Shared working copies therefore remain
-available until their last attached task is finished, and archived conversation
-history remains searchable after cleanup.
+Moving a Tasks item to **In review**, **Done**, or **Canceled** starts automatic
+cleanup. For **In review**, Tasks first waits for the attached conversations to
+be idle and for any pull request to be merged or closed. When there is no pull
+request, a clean working copy whose commits are already merged is also safe to
+retire. Before removing anything, bb verifies that every remaining conversation
+belongs to a review-complete task and that server-side Git preflight recommends
+`safe_delete`, or recommends `keep_branch` for clean unmerged commits. In the
+latter case bb removes the disposable folder but preserves its branch. Shared
+working copies therefore remain available until every attached task is
+review-complete.
 
-Use **Manage working copies** in the task chooser, or **Finish or abandon
-task** in a workspace agent's environment menu. The Git preflight reports
+Once no unarchived conversation still uses the managed worktree, bb retires its
+disposable folder so it no longer appears as a working copy. Archived
+conversation history remains searchable after cleanup. If automatic cleanup is
+blocked by valuable work, use **Finish or abandon task** in that workspace
+agent's environment menu to inspect the exception. The Git preflight reports
 tracked changes, untracked files, committed-unmerged work, and merge status.
 
 - Clean, merged, inactive work can be removed in one click.

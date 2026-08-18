@@ -10,6 +10,85 @@ import { tasksRpcContract } from "../shared/contract";
 import { createComment, createStore, registerTasksApi } from ".";
 
 describe("Tasks RPC domain API", () => {
+  it("automatically cleans a safe working copy when its task enters review", async () => {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          get: async () =>
+            makeThreadResponse({
+              id: "thr_ready",
+              environmentId: "env_ready",
+              status: "idle",
+            }),
+        },
+        environments: {
+          pullRequest: async () => ({ outcome: "absent" }),
+          cleanupPreflight: async () => ({
+            environment: {
+              id: "env_ready",
+              name: null,
+              branchName: "bb/ready",
+              path: "/tmp/env_ready",
+              status: "ready",
+              updatedAt: 1,
+            },
+            protectedCanonicalFolder: false,
+            liveThreads: [{ id: "thr_ready", title: null, status: "idle" }],
+            workspace: null,
+            workspaceUnavailableReason: null,
+            allowedActions: ["detach_thread", "safe_delete"],
+            recommendedAction: "safe_delete",
+            summary: "Clean, merged, and inactive.",
+          }),
+          cleanup: async () => ({
+            ok: true,
+            action: "safe_delete",
+            archivedThreadIds: ["thr_ready"],
+          }),
+        },
+      },
+    });
+    const store = createStore(bb);
+    registerTasksApi(bb, store);
+    const project = store.tasks.createProject({
+      name: "Review cleanup",
+      prefix: "REVIEW",
+      color: "blue",
+    });
+    const task = store.tasks.createTask({
+      projectId: project.id,
+      title: "Ready for review",
+      status: "in_progress",
+    });
+    const tracked = store.tasks.upsertTaskThread({
+      taskId: task.id,
+      threadId: "thr_ready",
+      presetName: "Default",
+      title: "Ready worker",
+      liveStatus: "idle",
+    });
+
+    const result = tasksRpcContract.updateTask.output.parse(
+      await harness.callRpc("updateTask", {
+        taskId: task.id,
+        status: "in_review",
+        authorName: "Jack",
+      }),
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      task: { status: "in_review" },
+    });
+    expect(harness.sdk.callsTo("environments.cleanup")).toEqual([
+      [{ environmentId: "env_ready", action: "safe_delete" }],
+    ]);
+    expect(store.tasks.getTaskThread(tracked.id)?.liveStatus).toBe("completed");
+
+    await harness.dispose();
+  });
+
   it("automatically archives only the finished task's attached threads", async () => {
     const { bb, harness } = createFakePluginHost({
       pluginId: "tasks",

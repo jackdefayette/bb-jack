@@ -19,6 +19,36 @@ interface TrackedThreadFixture {
   taskThreadId: string;
 }
 
+function safeCleanupPreflight(
+  environmentId: string,
+  liveThreads: ReadonlyArray<{
+    id: string;
+    status?: "idle" | "starting" | "active" | "stopping" | "error";
+  }>,
+) {
+  return {
+    environment: {
+      id: environmentId,
+      name: null,
+      branchName: "bb/review",
+      path: `/tmp/${environmentId}`,
+      status: "ready" as const,
+      updatedAt: 1,
+    },
+    protectedCanonicalFolder: false,
+    liveThreads: liveThreads.map((thread) => ({
+      id: thread.id,
+      title: null,
+      status: thread.status ?? ("idle" as const),
+    })),
+    workspace: null,
+    workspaceUnavailableReason: null,
+    allowedActions: ["detach_thread", "safe_delete"] as const,
+    recommendedAction: "safe_delete" as const,
+    summary: "Clean, merged, and inactive.",
+  };
+}
+
 function trackedThreadFixture(
   liveStatus: TaskThreadLiveStatus,
   sdkStatus: "idle" | "starting" | "active" | "stopping" | "error",
@@ -64,7 +94,7 @@ function trackedThreadFixture(
 
 describe("task thread lifecycle", () => {
   it.each(["merged", "closed"] as const)(
-    "automatically archives an in-review thread when its pull request is %s",
+    "automatically cleans an in-review working copy when its pull request is %s",
     async (pullRequestState) => {
       const host = createFakePluginHost({
         pluginId: "tasks",
@@ -76,12 +106,18 @@ describe("task thread lifecycle", () => {
                 environmentId: "env_review",
                 status: "idle",
               }),
-            archiveAll: async () => ({ archivedThreadIds: [] }),
           },
           environments: {
             pullRequest: async () => ({
               outcome: "available",
               pullRequest: { state: pullRequestState },
+            }),
+            cleanupPreflight: async () =>
+              safeCleanupPreflight("env_review", [{ id: "thr_review" }]),
+            cleanup: async () => ({
+              ok: true,
+              action: "safe_delete",
+              archivedThreadIds: ["thr_review"],
             }),
           },
         },
@@ -110,8 +146,8 @@ describe("task thread lifecycle", () => {
       expect(host.harness.sdk.callsTo("environments.pullRequest")).toEqual([
         [{ environmentId: "env_review" }],
       ]);
-      expect(host.harness.sdk.callsTo("threads.archiveAll")).toEqual([
-        [{ threadId: "thr_review" }],
+      expect(host.harness.sdk.callsTo("environments.cleanup")).toEqual([
+        [{ environmentId: "env_review", action: "safe_delete" }],
       ]);
       expect(store.tasks.getTaskThread(tracked.id)?.liveStatus).toBe(
         "completed",
@@ -120,6 +156,232 @@ describe("task thread lifecycle", () => {
       await host.harness.dispose();
     },
   );
+
+  it("automatically cleans a safe in-review working copy without a pull request", async () => {
+    const host = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          get: async () =>
+            makeThreadResponse({
+              id: "thr_review",
+              environmentId: "env_review",
+              status: "idle",
+            }),
+        },
+        environments: {
+          pullRequest: async () => ({ outcome: "absent" }),
+          cleanupPreflight: async () =>
+            safeCleanupPreflight("env_review", [{ id: "thr_review" }]),
+          cleanup: async () => ({
+            ok: true,
+            action: "safe_delete",
+            archivedThreadIds: ["thr_review"],
+          }),
+        },
+      },
+    });
+    const store = createStore(host.bb);
+    const project = store.tasks.createProject({
+      name: "Review cleanup",
+      prefix: "REVIEW",
+      color: "blue",
+    });
+    const task = store.tasks.createTask({
+      projectId: project.id,
+      title: "Ready without a pull request",
+      status: "in_review",
+    });
+    const tracked = store.tasks.upsertTaskThread({
+      taskId: task.id,
+      threadId: "thr_review",
+      presetName: "Default",
+      title: "Review worker",
+      liveStatus: "idle",
+    });
+
+    await registerLifecycle(host.bb, store);
+
+    expect(host.harness.sdk.callsTo("environments.cleanup")).toEqual([
+      [{ environmentId: "env_review", action: "safe_delete" }],
+    ]);
+    expect(store.tasks.getTaskThread(tracked.id)?.liveStatus).toBe("completed");
+
+    await host.harness.dispose();
+  });
+
+  it("keeps a shared working copy while another attached task is still in progress", async () => {
+    const host = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          get: async ({ threadId }) =>
+            makeThreadResponse({
+              id: threadId,
+              environmentId: "env_shared",
+              status: "idle",
+            }),
+        },
+        environments: {
+          pullRequest: async () => ({ outcome: "absent" }),
+          cleanupPreflight: async () =>
+            safeCleanupPreflight("env_shared", [
+              { id: "thr_review" },
+              { id: "thr_active_task" },
+            ]),
+        },
+      },
+    });
+    const store = createStore(host.bb);
+    const project = store.tasks.createProject({
+      name: "Shared review cleanup",
+      prefix: "SHARED",
+      color: "blue",
+    });
+    const reviewTask = store.tasks.createTask({
+      projectId: project.id,
+      title: "Ready task",
+      status: "in_review",
+    });
+    const activeTask = store.tasks.createTask({
+      projectId: project.id,
+      title: "Active task",
+      status: "in_progress",
+    });
+    store.tasks.upsertTaskThread({
+      taskId: reviewTask.id,
+      threadId: "thr_review",
+      presetName: "Default",
+      title: "Review worker",
+      liveStatus: "idle",
+    });
+    store.tasks.upsertTaskThread({
+      taskId: activeTask.id,
+      threadId: "thr_active_task",
+      presetName: "Default",
+      title: "Active task worker",
+      liveStatus: "idle",
+    });
+
+    await registerLifecycle(host.bb, store);
+
+    expect(host.harness.sdk.callsTo("environments.cleanup")).toEqual([]);
+    expect(store.tasks.listTaskThreads(reviewTask.id)[0]?.liveStatus).toBe(
+      "idle",
+    );
+
+    await host.harness.dispose();
+  });
+
+  it("removes a clean unmerged working copy while preserving its branch", async () => {
+    const host = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          get: async () =>
+            makeThreadResponse({
+              id: "thr_unmerged",
+              environmentId: "env_unmerged",
+              status: "idle",
+            }),
+        },
+        environments: {
+          pullRequest: async () => ({
+            outcome: "available",
+            pullRequest: { state: "closed" },
+          }),
+          cleanupPreflight: async () => ({
+            ...safeCleanupPreflight("env_unmerged", [{ id: "thr_unmerged" }]),
+            allowedActions: ["detach_thread", "keep_branch"] as const,
+            recommendedAction: "keep_branch" as const,
+            summary: "Committed work is not merged.",
+          }),
+          cleanup: async () => ({
+            ok: true,
+            action: "keep_branch",
+            archivedThreadIds: ["thr_unmerged"],
+          }),
+        },
+      },
+    });
+    const store = createStore(host.bb);
+    const project = store.tasks.createProject({
+      name: "Unmerged review cleanup",
+      prefix: "UNMERGED",
+      color: "blue",
+    });
+    const task = store.tasks.createTask({
+      projectId: project.id,
+      title: "Closed pull request",
+      status: "in_review",
+    });
+    const tracked = store.tasks.upsertTaskThread({
+      taskId: task.id,
+      threadId: "thr_unmerged",
+      presetName: "Default",
+      title: "Unmerged worker",
+      liveStatus: "idle",
+    });
+
+    await registerLifecycle(host.bb, store);
+
+    expect(host.harness.sdk.callsTo("environments.cleanup")).toEqual([
+      [{ environmentId: "env_unmerged", action: "keep_branch" }],
+    ]);
+    expect(store.tasks.getTaskThread(tracked.id)?.liveStatus).toBe("completed");
+
+    await host.harness.dispose();
+  });
+
+  it("preserves an in-review working copy when cleanup would discard changes", async () => {
+    const host = createFakePluginHost({
+      pluginId: "tasks",
+      sdk: {
+        threads: {
+          get: async () =>
+            makeThreadResponse({
+              id: "thr_dirty",
+              environmentId: "env_dirty",
+              status: "idle",
+            }),
+        },
+        environments: {
+          pullRequest: async () => ({ outcome: "absent" }),
+          cleanupPreflight: async () => ({
+            ...safeCleanupPreflight("env_dirty", [{ id: "thr_dirty" }]),
+            allowedActions: ["detach_thread", "discard"] as const,
+            recommendedAction: "discard" as const,
+            summary: "Tracked or untracked changes would be lost.",
+          }),
+        },
+      },
+    });
+    const store = createStore(host.bb);
+    const project = store.tasks.createProject({
+      name: "Dirty review cleanup",
+      prefix: "DIRTY",
+      color: "blue",
+    });
+    const task = store.tasks.createTask({
+      projectId: project.id,
+      title: "Preserve valuable work",
+      status: "in_review",
+    });
+    const tracked = store.tasks.upsertTaskThread({
+      taskId: task.id,
+      threadId: "thr_dirty",
+      presetName: "Default",
+      title: "Dirty worker",
+      liveStatus: "idle",
+    });
+
+    await registerLifecycle(host.bb, store);
+
+    expect(host.harness.sdk.callsTo("environments.cleanup")).toEqual([]);
+    expect(store.tasks.getTaskThread(tracked.id)?.liveStatus).toBe("idle");
+
+    await host.harness.dispose();
+  });
 
   it("keeps an in-review thread while its pull request is still open", async () => {
     const host = createFakePluginHost({

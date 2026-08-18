@@ -12,7 +12,7 @@ import {
   removeAttachmentBlobs,
 } from "../attachments";
 import { deliverCommentToLatestAgent } from "../steer";
-import { finalizeTaskIfTerminal } from "../lifecycle";
+import { finalizeTaskWorkingCopies } from "../lifecycle";
 import { isSideChatShapedThread } from "../shared/side-chat";
 import {
   tasksRpcContract,
@@ -849,7 +849,7 @@ export function registerHandlers(
         if (result.systemCommentsWritten > 0) {
           publishCommentsChanged(bb, result.task.id);
         }
-        await finalizeTaskIfTerminal(bb, store, result.task.id);
+        await finalizeTaskWorkingCopies(bb, store, result.task.id);
         return { ok: true, task: result.task };
       } catch (error) {
         if (error instanceof TasksDomainFailure) return taskFailure(error);
@@ -903,7 +903,7 @@ export function registerHandlers(
       });
       publishTasksChanged(bb, result.task.id, result.task.projectId);
       if (result.statusChanged) publishCommentsChanged(bb, result.task.id);
-      await finalizeTaskIfTerminal(bb, store, result.task.id);
+      await finalizeTaskWorkingCopies(bb, store, result.task.id);
       return { ok: true, task: result.task };
     },
     createLabel(input) {

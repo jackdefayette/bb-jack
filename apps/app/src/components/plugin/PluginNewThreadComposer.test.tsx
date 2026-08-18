@@ -34,11 +34,6 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: { states: mocks.taskStates } }),
 }));
 
-vi.mock("@/components/dialogs/WorkingCopyManagerDialog", () => ({
-  WorkingCopyManagerDialog: ({ open }: { open: boolean }) =>
-    open ? <div role="dialog">Working copy manager</div> : null,
-}));
-
 vi.mock("@/components/promptbox/NewThreadPromptBox", () => ({
   NewThreadPromptBox: (props: Record<string, unknown>) => {
     mocks.promptBoxProps.push(props);
@@ -527,9 +522,7 @@ describe("PluginNewThreadComposer seeding", () => {
       name: /This project folder — Shared/u,
     });
     expect(currentProjectFolder.textContent).toContain("Edits /repo directly");
-    expect(
-      screen.getByRole("menuitem", { name: "Manage working copies…" }),
-    ).toBeTruthy();
+    expect(screen.queryByText("Manage working copies…")).toBeNull();
     expect(latestPromptBoxProps().project).toBeUndefined();
     expect(latestPromptBoxProps().modeConfig.environment.pickerHidden).toBe(
       true,
@@ -551,12 +544,6 @@ describe("PluginNewThreadComposer seeding", () => {
     expect(picker.getAttribute("aria-label")).toBe(
       "Working copy: This project folder — Shared",
     );
-
-    fireEvent.pointerDown(picker, { button: 0, ctrlKey: false });
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Manage working copies…" }),
-    );
-    expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
   it("identifies an existing working copy by task and sharing peer", () => {
