@@ -35,14 +35,22 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 vi.mock("@/components/dialogs/WorkingCopyManagerDialog", () => ({
-  WorkingCopyManagerDialog: () => null,
+  WorkingCopyManagerDialog: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog">Working copy manager</div> : null,
 }));
 
 vi.mock("@/components/promptbox/NewThreadPromptBox", () => ({
   NewThreadPromptBox: (props: Record<string, unknown>) => {
     mocks.promptBoxProps.push(props);
-    const modeConfig = props.modeConfig as { header?: ReactNode } | undefined;
-    return <div data-testid="new-thread-prompt-box">{modeConfig?.header}</div>;
+    const modeConfig = props.modeConfig as
+      | { footerControl?: ReactNode; header?: ReactNode }
+      | undefined;
+    return (
+      <div data-testid="new-thread-prompt-box">
+        {modeConfig?.header}
+        {modeConfig?.footerControl}
+      </div>
+    );
   },
 }));
 
@@ -501,32 +509,27 @@ describe("PluginNewThreadComposer seeding", () => {
       </MemoryRouter>,
     );
 
-    const picker = screen.getByRole("combobox", {
-      name: "Where should this agent edit files?",
+    const picker = screen.getByRole("button", {
+      name: "Working copy: New isolated working copy — Recommended",
     });
-    const pickerHeader = picker.parentElement;
-    expect(pickerHeader).not.toBeNull();
-    expect(pickerHeader?.textContent).toContain("Working copy");
-    expect(picker.className).toContain("col-span-2");
-    expect(picker.className).toContain("w-full");
-    expect(
-      screen.getByRole("button", { name: "Manage working copies" }),
-    ).toBeTruthy();
-    expect(picker.textContent).toContain(
-      "New isolated working copy — Recommended",
-    );
-    fireEvent.click(picker);
+    expect(latestPromptBoxProps().modeConfig.header).toBeUndefined();
+    expect(latestPromptBoxProps().modeConfig.footerControl).toBeTruthy();
+    expect(picker.textContent).toContain("New copy");
+    fireEvent.pointerDown(picker, { button: 0, ctrlKey: false });
     expect(screen.getByText("Start fresh")).toBeTruthy();
     expect(screen.getByText("Use existing files")).toBeTruthy();
     expect(
-      screen.getByRole("option", {
+      screen.getByRole("menuitemcheckbox", {
         name: /New isolated working copy — Recommended/u,
       }),
     ).toBeTruthy();
-    const currentProjectFolder = screen.getByRole("option", {
+    const currentProjectFolder = screen.getByRole("menuitemcheckbox", {
       name: /This project folder — Shared/u,
     });
     expect(currentProjectFolder.textContent).toContain("Edits /repo directly");
+    expect(
+      screen.getByRole("menuitem", { name: "Manage working copies…" }),
+    ).toBeTruthy();
     expect(latestPromptBoxProps().project).toBeUndefined();
     expect(latestPromptBoxProps().modeConfig.environment.pickerHidden).toBe(
       true,
@@ -544,7 +547,16 @@ describe("PluginNewThreadComposer seeding", () => {
     });
 
     fireEvent.click(currentProjectFolder);
-    expect(picker.textContent).toContain("This project folder — Shared");
+    expect(picker.textContent).toContain("Project folder");
+    expect(picker.getAttribute("aria-label")).toBe(
+      "Working copy: This project folder — Shared",
+    );
+
+    fireEvent.pointerDown(picker, { button: 0, ctrlKey: false });
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Manage working copies…" }),
+    );
+    expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
   it("identifies an existing working copy by task and sharing peer", () => {
@@ -577,13 +589,14 @@ describe("PluginNewThreadComposer seeding", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(
-      screen.getByRole("combobox", {
-        name: "Where should this agent edit files?",
+    fireEvent.pointerDown(
+      screen.getByRole("button", {
+        name: /Working copy:/u,
       }),
+      { button: 0, ctrlKey: false },
     );
     expect(screen.getByText("Active working copies")).toBeTruthy();
-    const sharedWorkingCopy = screen.getByRole("option", {
+    const sharedWorkingCopy = screen.getByRole("menuitemcheckbox", {
       name: /Share files with BBJ-2 — Shared with Build/u,
     });
     expect(sharedWorkingCopy.textContent).toContain(
@@ -623,10 +636,11 @@ describe("PluginNewThreadComposer seeding", () => {
           />
         </MemoryRouter>,
       );
-      fireEvent.click(
-        screen.getByRole("combobox", {
-          name: "Where should this agent edit files?",
+      fireEvent.pointerDown(
+        screen.getByRole("button", {
+          name: /Working copy:/u,
         }),
+        { button: 0, ctrlKey: false },
       );
       expect(screen.queryByText(/Share files with BBJ-3/u)).toBeNull();
     },
@@ -646,8 +660,8 @@ describe("PluginNewThreadComposer seeding", () => {
     );
 
     expect(
-      screen.queryByRole("combobox", {
-        name: "Where should this agent edit files?",
+      screen.queryByRole("button", {
+        name: /Working copy:/u,
       }),
     ).toBeNull();
     expect(latestPromptBoxProps().modeConfig.environment.pickerHidden).toBe(

@@ -15,17 +15,17 @@ import {
 import type { NewThreadComposerProps, NewThreadRequest } from "@bb/plugin-sdk";
 import type { CreateExecutionInputSources } from "@bb/server-contract";
 import { Button } from "@bb/shared-ui/button";
-import { cn } from "@bb/shared-ui/lib/utils";
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from "@bb/shared-ui/select";
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@bb/shared-ui/dropdown-menu";
+import { Icon } from "@bb/shared-ui/icon";
+import { cn } from "@bb/shared-ui/lib/utils";
 import { NewThreadPromptBox } from "@/components/promptbox/NewThreadPromptBox";
 import { withAutomationPromptAction } from "@/components/promptbox/PromptBoxActionsMenu";
 import { buildProviderPromptActionProps } from "@/components/promptbox/mentions/command-trigger";
@@ -57,6 +57,7 @@ import { usePromptDraftStorage } from "@/hooks/usePromptDraftStorage";
 import { usePromptMentions } from "@/hooks/usePromptMentions";
 import { useThreadCreationOptions } from "@/hooks/useThreadCreationOptions";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
+import { getEnvironmentWorkspaceLabelIconName } from "@/lib/environment-workspace-display";
 import { promptHistoryEntriesToDrafts } from "@/lib/prompt-history";
 import {
   getProjectStoredPromptAttachmentPaths,
@@ -897,137 +898,139 @@ export function PluginNewThreadComposer({
       : parsedEnvironment?.type === "host" && parsedEnvironment.mode === "local"
         ? "This project folder — Shared"
         : isolatedWorkspaceLabel;
-  const workspaceEnvironmentPicker = hasWorkspaceEnvironmentPicker ? (
-    <>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5 border-b border-border/60 bg-sidebar/50 px-3 py-2 text-xs">
-        <span className="min-w-0 font-medium text-foreground">
-          Working copy
-        </span>
+  const workspaceControlLabel =
+    parsedEnvironment?.type === "reuse"
+      ? reusedWorkspaceTaskLabel
+      : parsedEnvironment?.type === "host" && parsedEnvironment.mode === "local"
+        ? "Project folder"
+        : projectSourceWorktreeUnavailable
+          ? "New copy unavailable"
+          : "New copy";
+  const workspaceIcon = getEnvironmentWorkspaceLabelIconName(
+    parsedEnvironment?.type === "host" && parsedEnvironment.mode === "local"
+      ? "other"
+      : "managed-worktree",
+  );
+  const workspaceEnvironmentControl = hasWorkspaceEnvironmentPicker ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
         <Button
           type="button"
           size="sm"
           variant="ghost"
-          className="h-7 px-2 text-xs text-muted-foreground"
-          onClick={() => setWorkingCopyManagerOpen(true)}
+          aria-label={`Working copy: ${workspaceSelectionLabel}`}
+          className="h-7 min-w-0 max-w-40 gap-1 px-2 text-xs text-muted-foreground"
         >
-          Manage working copies
+          <Icon name={workspaceIcon} className="size-3.5 shrink-0" />
+          <span title={workspaceSelectionLabel} className="truncate">
+            {workspaceControlLabel}
+          </span>
+          <Icon name="ChevronDown" className="size-3 shrink-0 opacity-60" />
         </Button>
-        <Select
-          value={effectiveEnvironmentValue}
-          onValueChange={setEnvironmentSelectionValue}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="w-[min(30rem,calc(100vw-2rem))]"
+        mobileTitle="Working copy"
+      >
+        <DropdownMenuLabel>Start fresh</DropdownMenuLabel>
+        <DropdownMenuCheckboxItem
+          checked={
+            effectiveEnvironmentValue ===
+            encodeHostValue(primaryHostId, "worktree")
+          }
+          disabled={projectSourceWorktreeUnavailable}
+          onSelect={() =>
+            setEnvironmentSelectionValue(
+              encodeHostValue(primaryHostId, "worktree"),
+            )
+          }
+          className="items-start py-2.5"
         >
-          <SelectTrigger
-            aria-label="Where should this agent edit files?"
-            className="col-span-2 h-9 min-w-0 w-full border-border bg-canvas px-2.5 text-xs"
-          >
-            <SelectValue>{workspaceSelectionLabel}</SelectValue>
-          </SelectTrigger>
-          <SelectContent
-            position="popper"
-            align="start"
-            sideOffset={4}
-            className="w-[min(30rem,calc(100vw-2rem))]"
-          >
-            <SelectGroup>
-              <SelectLabel className="text-2xs font-medium text-muted-foreground">
-                Start fresh
-              </SelectLabel>
-              <SelectItem
-                value={encodeHostValue(primaryHostId, "worktree")}
-                disabled={projectSourceWorktreeUnavailable}
-                className="items-start py-2.5"
-              >
-                <span className="flex flex-col gap-0.5 pr-2">
-                  <span className="font-medium text-foreground">
-                    {isolatedWorkspaceLabel}
+          <span className="flex flex-col gap-0.5 pr-2">
+            <span className="font-medium text-foreground">
+              {isolatedWorkspaceLabel}
+            </span>
+            <span className="text-2xs leading-4 text-muted-foreground">
+              Creates a new folder and branch. It won&apos;t affect this project
+              folder or include its uncommitted changes.
+            </span>
+          </span>
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Use existing files</DropdownMenuLabel>
+        <DropdownMenuCheckboxItem
+          checked={
+            effectiveEnvironmentValue ===
+            encodeHostValue(primaryHostId, "local")
+          }
+          onSelect={() =>
+            setEnvironmentSelectionValue(
+              encodeHostValue(primaryHostId, "local"),
+            )
+          }
+          className="items-start py-2.5"
+        >
+          <span className="flex flex-col gap-0.5 pr-2">
+            <span className="font-medium text-foreground">
+              This project folder — Shared
+            </span>
+            <span className="text-2xs leading-4 text-muted-foreground">
+              Edits {currentProjectFolder ?? "the project folder"} directly. You
+              and other agents using it share uncommitted changes.
+            </span>
+          </span>
+        </DropdownMenuCheckboxItem>
+        {reuseThreadOptions.length > 0 ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Active working copies</DropdownMenuLabel>
+            {reuseThreadOptions.map((option) => {
+              const isPeer =
+                workspaceEnvironmentPeer?.environmentId ===
+                option.environmentId;
+              const taskLabel =
+                isPeer && workspaceEnvironmentPeer?.taskKey
+                  ? workspaceEnvironmentPeer.taskKey
+                  : (option.threads[0]?.title ??
+                    option.name ??
+                    option.branchName ??
+                    "previous task");
+              const peerLabel = isPeer
+                ? (workspaceEnvironmentPeer?.label ?? null)
+                : null;
+              const optionValue = encodeReuseValue(option.environmentId);
+              return (
+                <DropdownMenuCheckboxItem
+                  key={option.environmentId}
+                  checked={effectiveEnvironmentValue === optionValue}
+                  onSelect={() => setEnvironmentSelectionValue(optionValue)}
+                  className="items-start py-2.5"
+                >
+                  <span className="flex flex-col gap-0.5 pr-2">
+                    <span className="font-medium text-foreground">
+                      Share files with {taskLabel}
+                      {peerLabel ? ` — Shared with ${peerLabel}` : " — Shared"}
+                    </span>
+                    <span className="text-2xs leading-4 text-muted-foreground">
+                      {option.branchName ? `Branch ${option.branchName}. ` : ""}
+                      {peerLabel
+                        ? `Uses the same folder and branch as ${peerLabel}. Both agents see uncommitted changes immediately.`
+                        : `Reuses ${taskLabel}'s folder and branch. Agents there see the same uncommitted changes immediately.`}
+                    </span>
                   </span>
-                  <span className="text-2xs leading-4 text-muted-foreground">
-                    Creates a new folder and branch. It won&apos;t affect this
-                    project folder or include its uncommitted changes.
-                  </span>
-                </span>
-              </SelectItem>
-            </SelectGroup>
-            <SelectSeparator />
-            <SelectGroup>
-              <SelectLabel className="text-2xs font-medium text-muted-foreground">
-                Use existing files
-              </SelectLabel>
-              <SelectItem
-                value={encodeHostValue(primaryHostId, "local")}
-                className="items-start py-2.5"
-              >
-                <span className="flex flex-col gap-0.5 pr-2">
-                  <span className="font-medium text-foreground">
-                    This project folder — Shared
-                  </span>
-                  <span className="text-2xs leading-4 text-muted-foreground">
-                    Edits {currentProjectFolder ?? "the project folder"}{" "}
-                    directly. You and other agents using it share uncommitted
-                    changes.
-                  </span>
-                </span>
-              </SelectItem>
-            </SelectGroup>
-            {reuseThreadOptions.length > 0 ? (
-              <>
-                <SelectSeparator />
-                <SelectGroup>
-                  <SelectLabel className="text-2xs font-medium text-muted-foreground">
-                    Active working copies
-                  </SelectLabel>
-                  {reuseThreadOptions.map((option) => {
-                    const isPeer =
-                      workspaceEnvironmentPeer?.environmentId ===
-                      option.environmentId;
-                    const taskLabel =
-                      isPeer && workspaceEnvironmentPeer?.taskKey
-                        ? workspaceEnvironmentPeer.taskKey
-                        : (option.threads[0]?.title ??
-                          option.name ??
-                          option.branchName ??
-                          "previous task");
-                    const peerLabel = isPeer
-                      ? (workspaceEnvironmentPeer?.label ?? null)
-                      : null;
-                    return (
-                      <SelectItem
-                        key={option.environmentId}
-                        value={encodeReuseValue(option.environmentId)}
-                        className="items-start py-2.5"
-                      >
-                        <span className="flex flex-col gap-0.5 pr-2">
-                          <span className="font-medium text-foreground">
-                            Share files with {taskLabel}
-                            {peerLabel
-                              ? ` — Shared with ${peerLabel}`
-                              : " — Shared"}
-                          </span>
-                          <span className="text-2xs leading-4 text-muted-foreground">
-                            {option.branchName
-                              ? `Branch ${option.branchName}. `
-                              : ""}
-                            {peerLabel
-                              ? `Uses the same folder and branch as ${peerLabel}. Both agents see uncommitted changes immediately.`
-                              : `Reuses ${taskLabel}'s folder and branch. Agents there see the same uncommitted changes immediately.`}
-                          </span>
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectGroup>
-              </>
-            ) : null}
-          </SelectContent>
-        </Select>
-      </div>
-      <WorkingCopyManagerDialog
-        open={workingCopyManagerOpen}
-        onOpenChange={setWorkingCopyManagerOpen}
-        projectId={projectId}
-        initialEnvironmentId={reuseEnvironmentId}
-      />
-    </>
+                </DropdownMenuCheckboxItem>
+              );
+            })}
+          </>
+        ) : null}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => setWorkingCopyManagerOpen(true)}>
+          <Icon name="Settings" className="size-3.5" />
+          Manage working copies…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   ) : null;
 
   return (
@@ -1087,7 +1090,7 @@ export function PluginNewThreadComposer({
         }}
         promptActions={promptActions}
         modeConfig={{
-          header: workspaceEnvironmentPicker,
+          footerControl: workspaceEnvironmentControl,
           environment: {
             value: effectiveEnvironmentValue,
             onChange: setEnvironmentSelectionValue,
@@ -1186,6 +1189,14 @@ export function PluginNewThreadComposer({
           },
         }}
       />
+      {hasWorkspaceEnvironmentPicker ? (
+        <WorkingCopyManagerDialog
+          open={workingCopyManagerOpen}
+          onOpenChange={setWorkingCopyManagerOpen}
+          projectId={projectId}
+          initialEnvironmentId={reuseEnvironmentId}
+        />
+      ) : null}
     </div>
   );
 }

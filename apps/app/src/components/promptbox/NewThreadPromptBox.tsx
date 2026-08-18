@@ -162,6 +162,8 @@ export interface NewThreadModeConfig {
   /** Slot rendered inside the prompt box card, above the text area.
    * Used by RootComposeView to surface contextual creation state. */
   header?: ReactNode;
+  /** Compact control rendered immediately after the model picker. */
+  footerControl?: ReactNode;
 }
 
 export interface NewThreadPromptBoxUIProps {
@@ -343,7 +345,12 @@ export const NewThreadPromptBoxUI = memo(function NewThreadPromptBoxUI({
             minHeight={NEW_THREAD_PROMPT_BOX_MIN_HEIGHT}
             placeholder={placeholder}
             header={modeConfig.header}
-            footerStart={<ExecutionControls {...execution} />}
+            footerStart={
+              <div className="flex min-w-0 items-center gap-1">
+                <ExecutionControls {...execution} />
+                {modeConfig.footerControl}
+              </div>
+            }
           />
         </PluginComposerHostProvider>
       </PluginComposerViewProvider>
@@ -566,6 +573,7 @@ export interface NewThreadConnectedModeConfig {
   permission: ExecutionPermissionConfig;
   banner?: ReactNode;
   header?: ReactNode;
+  footerControl?: ReactNode;
 }
 
 export interface NewThreadPromptBoxProps extends Omit<
@@ -676,6 +684,7 @@ function ConnectedThreadModeBranch({
         permission: threadConfig.permission,
         banner: threadConfig.banner,
         header: threadConfig.header,
+        footerControl: threadConfig.footerControl,
       }}
     />
   );
