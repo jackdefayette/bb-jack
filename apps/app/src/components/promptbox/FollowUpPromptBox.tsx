@@ -48,7 +48,6 @@ import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { ThreadTimelineScrollToBottomButton } from "@/views/thread-detail/ThreadTimelineScrollToBottomButton";
 import { useOptionalPaneContext } from "@/views/thread-detail/PaneContext";
 import { ThreadContextWindowIndicator } from "@/components/thread/timeline";
-import { THREAD_PROMPT_CONTEXT_BANNER_ROW_HEIGHT } from "@/components/promptbox/banner/ThreadPromptContextBanner";
 import {
   permissionDisplayForActivePromptMode,
   permissionDisplayForPromptMode,
@@ -106,14 +105,12 @@ function PromptBoxWithScrollAnchor({
 
 // Elastic compensation: when nothing is stacked above the textarea, the
 // textarea defaults to FOLLOW_UP_PROMPT_BOX_ELASTIC_TARGET_HEIGHT so the
-// prompt area is already at "with-banner" height on first paint. As the stack
-// (context banner + queued messages) grows, the textarea min-height shrinks
-// by the same amount — total prompt-area height stays constant and the
-// thread timeline does not shift when the context banner mounts.
-const FOLLOW_UP_PROMPT_BOX_DEFAULT_MIN_HEIGHT = 68;
-const FOLLOW_UP_PROMPT_BOX_ELASTIC_TARGET_HEIGHT =
-  FOLLOW_UP_PROMPT_BOX_DEFAULT_MIN_HEIGHT +
-  THREAD_PROMPT_CONTEXT_BANNER_ROW_HEIGHT;
+// prompt area is already at its compact target height on first paint. As the
+// stack (context banner + queued messages) grows, the textarea min-height
+// shrinks by the same amount so the timeline does not shift when a banner
+// mounts.
+const FOLLOW_UP_PROMPT_BOX_DEFAULT_MIN_HEIGHT = 54;
+const FOLLOW_UP_PROMPT_BOX_ELASTIC_TARGET_HEIGHT = 80;
 const OPEN_COMPOSER_OVERLAY_TRIGGER_SELECTOR =
   '[aria-haspopup][aria-expanded="true"]';
 const MOBILE_KEYBOARD_VIEWPORT_MIN_DELTA_PX = 80;

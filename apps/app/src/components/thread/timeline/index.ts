@@ -16,6 +16,7 @@ export {
   type UseThreadTimelineControllerArgs,
   type UseThreadTimelineControllerResult,
 } from "./useThreadTimelineController.js";
+export { hideProvisioningTimelineRow } from "./thread-timeline-row-filters.js";
 export type { TimelineTitleActionResolver } from "./TimelineTitleView.js";
 export {
   TimelineStatusIndicator,

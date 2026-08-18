@@ -42,6 +42,7 @@ import { OverflowFade } from "@/components/ui/overflow-fade";
 import {
   ThreadTimelinePanelContent,
   ThreadTimelineSurface,
+  hideProvisioningTimelineRow,
   type ThreadTimelineAddToChatHandler,
   type ThreadTimelineConsumerMessageAction,
   type ThreadTimelineLinkHandler,
@@ -89,16 +90,7 @@ function createPluginComposerHostIdentity(scopeIdentity: string): string {
   return `${scopeIdentity}:ownership:${pluginComposerHostOwnershipSequence}`;
 }
 
-/**
- * Hides thread-provisioning operation rows — an embedded chat panel renders its
- * own provisioning label, so the timeline row would duplicate it.
- */
-export const hideProvisioningTimelineRow: ThreadTimelineRowFilter = (row) =>
-  !(
-    row.kind === "system" &&
-    row.systemKind === "operation" &&
-    row.operationKind === "thread-provisioning"
-  );
+export { hideProvisioningTimelineRow };
 
 export interface EmbeddedThreadChatLabels {
   /** Composer placeholder while the thread is idle/active. */

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import {
+  hideProvisioningTimelineRow,
   isRunningThreadRuntimeDisplayStatus,
   type ThreadTimelineForkMessageHandler,
   type ThreadTimelineSendToMainMessageHandler,
@@ -797,6 +798,7 @@ function ThreadDetailViewInternal(props: ThreadDetailViewInternalProps) {
     timelineLoading,
     timelineRows,
   } = useThreadTimelineController({
+    rowFilter: hideProvisioningTimelineRow,
     threadId: threadId ?? "",
   });
   const sendMessage = useSendThreadMessage();
